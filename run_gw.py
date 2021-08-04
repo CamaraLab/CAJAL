@@ -24,6 +24,7 @@ pj = lambda *paths: os.path.abspath(os.path.join(*paths))
 '''
 TODO:
 
+- Deal with read csv header vs not cutting out points
 - Option to return GW matching between points in cells as well
 - Overall function that loads distances and calculates GW in one
 - Choose using QuantizedGromovWasserstein's function or my own? Probably doesn't matter
@@ -131,7 +132,7 @@ def calculate_gw_preload_global(arguments):
     int: GW distance
     '''
     i1, i2, return_mat = arguments
-    D1 = np.frombuffer(dist_mat_list[0])
+    D1 = np.frombuffer(dist_mat_list[i1])
     numpts = int(np.sqrt(D1.shape))
     D1 = D1.reshape((numpts,numpts))
     D2 = np.frombuffer(dist_mat_list[i2]).reshape((numpts,numpts))
