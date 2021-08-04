@@ -163,7 +163,7 @@ def calculate_gw_quantized_preload_global(arguments):
     int: GW distance
     '''
     i1, i2, sample_size, return_mat = arguments
-    D1 = np.frombuffer(dist_mat_list[0])
+    D1 = np.frombuffer(dist_mat_list[i1])
     numpts = int(np.sqrt(D1.shape))
     D1 = D1.reshape((numpts,numpts))
     D2 = np.frombuffer(dist_mat_list[i2]).reshape((numpts,numpts))
