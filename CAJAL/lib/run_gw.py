@@ -40,7 +40,7 @@ def read_mp_array(np_array):
     return mp_array
 
 
-def get_distances_one(data_file, num_pts=None, metric="euclidean", return_mp=True):
+def get_distances_one(data_file, num_pts=None, metric="euclidean", return_mp=True, header=None):
     """
     Compute the pairwise distances in the point cloud stored in the file.
     Return distance matrix as numpy array or mp (multiprocessing) array
@@ -54,11 +54,12 @@ def get_distances_one(data_file, num_pts=None, metric="euclidean", return_mp=Tru
     metric (string): distance metric passed into pdist()
     return_mp (boolean): only used of distances_dir is None.
                         if True, return multiprocessing array, if False return numpy array
+    header (boolean): passed into read_csv, whether data file has a header line
 
     Returns:
     None (creates path to distances_dir and saves files there)
     """
-    coords = pd.read_csv(data_file)
+    coords = pd.read_csv(data_file, header=header)
     # Evenly sample a subset of points (optional)
     if num_pts is not None:
         if coords.shape[0] < num_pts:
@@ -75,7 +76,7 @@ def get_distances_one(data_file, num_pts=None, metric="euclidean", return_mp=Tru
 
 
 def save_distances_one(data_file, num_pts=None, distances_dir=None, file_prefix="",
-                       metric="euclidean"):
+                       metric="euclidean", header=None):
     """
     Not currently used, kept as legacy
     Compute the pairwise distances in the point cloud stored in the file.
@@ -92,11 +93,12 @@ def save_distances_one(data_file, num_pts=None, distances_dir=None, file_prefix=
     num_pts (int): evenly subsample this many points from each cell
                     None (default) uses all points
     metric (string): distance metric passed into pdist()
+    header (boolean): passed into read_csv, whether data file has a header line
 
     Returns:
     None (creates path to distances_dir and saves files there)
     """
-    coords = pd.read_csv(data_file)
+    coords = pd.read_csv(data_file, header=header)
     # Evenly sample a subset of points (optional)
     if num_pts is not None:
         if coords.shape[0] < num_pts:
@@ -114,7 +116,8 @@ def save_distances_one(data_file, num_pts=None, distances_dir=None, file_prefix=
 
 
 def get_distances_all(data_dir, data_prefix=None, distances_dir=None,
-                      num_cells=None, num_pts=None, metric="euclidean", return_mp=True):
+                      num_cells=None, num_pts=None, metric="euclidean",
+                      return_mp=True, header=None):
     """
     Compute the pairwise distances in the point cloud stored in each file.
     Return list of distance matrices, or save each to a file in distances_dir.
@@ -134,6 +137,7 @@ def get_distances_all(data_dir, data_prefix=None, distances_dir=None,
     metric (string): distance metric passed into pdist()
     return_mp (boolean): only used of distances_dir is None. 
                         if True, return multiprocessing array, if False return numpy array
+    header (boolean): passed into read_csv, whether data file has a header line
     
     Returns:
     None (creates path to distances_dir and saves files there)
@@ -155,7 +159,7 @@ def get_distances_all(data_dir, data_prefix=None, distances_dir=None,
     
     # Compute pairwise distance between points in each file
     return_list = [get_distances_one(pj(data_dir, data_file), num_pts=num_pts,
-                                     metric=metric, return_mp=return_mp)
+                                     metric=metric, return_mp=return_mp, header=header)
                    for data_file in files_list]
     check_num_pts = all([len(x) == len(return_list[0]) for x in return_list])
     if not check_num_pts:
