@@ -7,8 +7,7 @@ setup(
     author="Pablo Camara",
     author_email='pcamara@pennmedicine.upenn.edu',
     license='GPLv3',
-    package_dir={"": "src"},
-    packages=setuptools.find_packages(where="src"),
+    packages=["CAJAL","CAJAL.scripts","CAJAL.lib"],
     python_requires=">=3.6",
 
     install_requires=[
