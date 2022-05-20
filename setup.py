@@ -2,12 +2,12 @@ from setuptools import setup
 
 setup(
     name='cajal',    # This is the name of your PyPI-package.
-    version='1.0',                          # python versioneer
+    version='0.1',                          # python versioneer
     url="https://github.com/CamaraLab/CAJAL",
     author="Pablo Camara",
     author_email='pcamara@pennmedicine.upenn.edu',
     license='GPLv3',
-    packages=["CAJAL","CAJAL.scripts","CAJAL.lib"],
+    packages=["CAJAL", "CAJAL.lib"],
     python_requires=">=3.6",
 
     install_requires=[

@@ -1,14 +1,13 @@
 import unittest
-import os
-from CAJAL.scripts import calculate_gw_pairwise as cgp
 from CAJAL.lib import run_gw
+
 
 class TestErrorsClass(unittest.TestCase):
     
     def test_empty_folder(self):
         # if given empty folder for data or distance, should return empty list
         dist_mat_list = run_gw.get_distances_all(data_dir="sampled_pts/error_tests/empty_folder")
-        self.assertEqual(run_gw.distance_matrix_preload_global(dist_mat_list),[])
+        self.assertEqual(run_gw.distance_matrix_preload_global(dist_mat_list), [])
         
     def test_diff_numpts(self):
         # if data or distance files have different number of points, should error nicely

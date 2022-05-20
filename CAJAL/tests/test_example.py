@@ -4,8 +4,7 @@ import numpy as np
 import os
 import time
 
-from CAJAL.scripts import calculate_gw_pairwise as cgp
-from CAJAL.lib import run_gw
+from CAJAL.lib import run_gw, calculate_gw_pairwise as cgp
 
 
 class TestExamplesClass(unittest.TestCase):
