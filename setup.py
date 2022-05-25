@@ -11,10 +11,12 @@ setup(
     python_requires=">=3.6",
 
     install_requires=[
+        'networkx',
         'numpy',
         'pandas',
+        'pot==0.7.0',
         'scipy',
-        'pot==0.7.0'
+        'umap-learn'
      ],
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',

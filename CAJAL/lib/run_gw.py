@@ -46,18 +46,18 @@ def get_distances_one(data_file, num_pts=None, metric="euclidean", return_mp=Tru
     Return distance matrix as numpy array or mp (multiprocessing) array
 
 
-    Parameters:
-    data_file (string): file path to point cloud file
-                      (currently assumes a header line)
-    num_pts (int): evenly subsample this many points from each cell
-                    None (default) uses all points
-    metric (string): distance metric passed into pdist()
-    return_mp (boolean): only used of distances_dir is None.
-                        if True, return multiprocessing array, if False return numpy array
-    header (boolean): passed into read_csv, whether data file has a header line
+    Args:
+        data_file (string): file path to point cloud file
+                          (currently assumes a header line)
+        num_pts (int): evenly subsample this many points from each cell
+                        None (default) uses all points
+        metric (string): distance metric passed into pdist()
+        return_mp (boolean): only used of distances_dir is None.
+                            if True, return multiprocessing array, if False return numpy array
+        header (boolean): passed into read_csv, whether data file has a header line
 
     Returns:
-    None (creates path to distances_dir and saves files there)
+        None (creates path to distances_dir and saves files there)
     """
     coords = pd.read_csv(data_file, header=header)
     # Evenly sample a subset of points (optional)
@@ -83,20 +83,20 @@ def save_distances_one(data_file, num_pts=None, distances_dir=None, file_prefix=
     Save each to a file in distances_dir.
 
 
-    Parameters:
-    data_file (string): file path to point cloud file
-                      (currently assumes a header line)
-    distances_dir (string): if None (default), return list of multiprocessing array.
-                           if filepath string, save distance matrices in this directory
-    file_prefix (string): if distances_dir is a file path, prefix each output distance
-                         file with this string
-    num_pts (int): evenly subsample this many points from each cell
-                    None (default) uses all points
-    metric (string): distance metric passed into pdist()
-    header (boolean): passed into read_csv, whether data file has a header line
+    Args:
+        data_file (string): file path to point cloud file
+                          (currently assumes a header line)
+        distances_dir (string): if None (default), return list of multiprocessing array.
+                               if filepath string, save distance matrices in this directory
+        file_prefix (string): if distances_dir is a file path, prefix each output distance
+                             file with this string
+        num_pts (int): evenly subsample this many points from each cell
+                        None (default) uses all points
+        metric (string): distance metric passed into pdist()
+        header (boolean): passed into read_csv, whether data file has a header line
 
     Returns:
-    None (creates path to distances_dir and saves files there)
+        None (creates path to distances_dir and saves files there)
     """
     coords = pd.read_csv(data_file, header=header)
     # Evenly sample a subset of points (optional)
@@ -123,24 +123,24 @@ def get_distances_all(data_dir, data_prefix=None, distances_dir=None,
     Return list of distance matrices, or save each to a file in distances_dir.
     
     
-    Parameters:
-    data_dir (string): file path to directory containing all point cloud files
-                      (currently assumes a header line)
-    data_prefix (string): only read files from data_dir starting with this string
-                         None (default) uses all files
-    distances_dir (string): if None (default), return list of multiprocessing array.
-                           if filepath string, save distance matrices in this directory
-    num_cells (int): evenly subsample this many cells from the list of files
-                    None (default) uses all files
-    num_pts (int): evenly subsample this many points from each cell
-                    None (default) uses all points
-    metric (string): distance metric passed into pdist()
-    return_mp (boolean): only used of distances_dir is None. 
-                        if True, return multiprocessing array, if False return numpy array
-    header (boolean): passed into read_csv, whether data file has a header line
+    Args:
+        data_dir (string): file path to directory containing all point cloud files
+                          (currently assumes a header line)
+        data_prefix (string): only read files from data_dir starting with this string
+                             None (default) uses all files
+        distances_dir (string): if None (default), return list of multiprocessing array.
+                               if filepath string, save distance matrices in this directory
+        num_cells (int): evenly subsample this many cells from the list of files
+                        None (default) uses all files
+        num_pts (int): evenly subsample this many points from each cell
+                        None (default) uses all points
+        metric (string): distance metric passed into pdist()
+        return_mp (boolean): only used of distances_dir is None.
+                            if True, return multiprocessing array, if False return numpy array
+        header (boolean): passed into read_csv, whether data file has a header line
     
     Returns:
-    None (creates path to distances_dir and saves files there)
+        None (creates path to distances_dir and saves files there)
     """
     if distances_dir is not None and not os.path.exists(distances_dir):
         os.makedirs(distances_dir)
@@ -173,11 +173,12 @@ def load_dist_mat(dist_file, return_mp=True):
     Distances are assumed to be in vector form (upper or lower tri of symmetric matrix)
     as output by https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.squareform.html
 
-    Parameters:
-    distances_dir (string): input directory where distance files are saved
-    return_mp (boolean): if True, return multiprocessing array, if False return numpy array
+    Args:
+        dist_file (string): path to file with distance matrix saved in vector format
+        return_mp (boolean): if True, return multiprocessing array, if False return numpy array
 
-    Returns: distance matrix
+    Returns:
+        distance matrix
     """
     try:
         dist_vec = np.loadtxt(dist_file)
@@ -196,12 +197,13 @@ def load_distances_global(distances_dir, data_prefix=None, return_mp=True):
     Load distance matrices from directory into list of arrays
     that can be shared with the multiprocessing pool.
     
-    Parameters: 
-    distances_dir (string): input directory where distance files are saved
-    data_prefix (string): only read files from distances_dir starting with this string
-    return_mp (boolean): if True, return multiprocessing array, if False return numpy array
+    Args: 
+        distances_dir (string): input directory where distance files are saved
+        data_prefix (string): only read files from distances_dir starting with this string
+        return_mp (boolean): if True, return multiprocessing array, if False return numpy array
     
-    Returns: list of multiprocessing arrays containing distance matrix for each cell
+    Returns:
+        list of multiprocessing arrays containing distance matrix for each cell
     """
     # Get sorted list of files, each containing pairwise distances between points in a cell
     files_list = os.listdir(distances_dir)
@@ -217,14 +219,14 @@ def calculate_gw_preload_global(arguments):
     Compute GW distance between two distance matrices.
     Meant to be called within a multiprocessing pool where dist_mat_list exists globally
     
-    Parameters:
-    arguments (list): 
-        i1 (int): index in the dist_mat_list for the first distance matrix
-        i2 (int): index in the dist_mat_list for the second distance matrix
-        return_mat (boolean): if True, returns coupling matrix between points
-                            if False, only returns GW distance
+    Args:
+        arguments (list):
+            i1 (int): index in the dist_mat_list for the first distance matrix
+            i2 (int): index in the dist_mat_list for the second distance matrix
+            return_mat (boolean): if True, returns coupling matrix between points
+                                if False, only returns GW distance
     Returns:
-    int: GW distance
+        int: GW distance
     """
     # Get distance matrices from global list (this saves memory so it's not copied in each process)
     i1, i2 = arguments
@@ -248,16 +250,16 @@ def calculate_gw_quantized_preload_global(arguments):
     https://github.com/trneedham/QuantizedGromovWasserstein
     Meant to be called within a multiprocessing pool where dist_mat_list exists globally
     
-    Parameters:
-    arguments (list): 
-        i1 (int): index in the dist_mat_list for the first distance matrix
-        i2 (int): index in the dist_mat_list for the second distance matrix
-        sample_size (int): subset of points for QGW to run GW on
-        return_mat (boolean): if True, returns coupling matrix between points
-                            if False, only returns GW distance
+    Args:
+        arguments (list):
+            i1 (int): index in the dist_mat_list for the first distance matrix
+            i2 (int): index in the dist_mat_list for the second distance matrix
+            sample_size (int): subset of points for QGW to run GW on
+            return_mat (boolean): if True, returns coupling matrix between points
+                                if False, only returns GW distance
         
     Returns:
-    int: GW distance
+        int: GW distance
     """
     # Get distance matrices from global list (this saves memory so it's not copied in each process)
     i1, i2 = arguments
@@ -299,18 +301,16 @@ def distance_matrix_preload_global(dist_mat_list_, save_mat=False,
     """
     Calculate the GW distance between every pair of distance matrices
     
-    Parameters:
-    dist_mat_list (list): list of multiprocessing or numpy arrays containing distance matrix for each cell
-    file_prefix (string): name of output file to write GW distance matrix to
-    gw_results_dir (string): path to directory to write output file to
-    save_mat (boolean): if True, returns coupling matrix (matching) between points
-                        if False, only returns GW distance
-    quantized (boolean): if True, run quantized GW (QGW)
-    q_sample_size (int): if quantized is True, subset of points for QGW to run GW on
-    num_cores (int): number of parallel processes to run GW in
+    Args:
+        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing distance matrix for each cell
+        save_mat (boolean): if True, returns coupling matrix (matching) between points
+                            if False, only returns GW distance
+        quantized (boolean): if True, run quantized GW (QGW)
+        q_sample_size (int): if quantized is True, subset of points for QGW to run GW on
+        num_cores (int): number of parallel processes to run GW in
     
-    Results:
-    None (writes distance matrix of GW distances to file)
+    Returns:
+        None (writes distance matrix of GW distances to file)
     """
     if num_cores > 1:
         # Start up multiprocessing w/ list of distance matrices in global environment
@@ -352,18 +352,18 @@ def save_dist_mat_preload_global(dist_mat_list_, file_prefix, gw_results_dir, sa
     """
     Save the GW distance between each pair of distance matrices in vector form
 
-    Parameters:
-    dist_mat_list (list): list of multiprocessing or numpy arrays containing distance matrix for each cell
-    file_prefix (string): name of output file to write GW distance matrix to
-    gw_results_dir (string): path to directory to write output file to
-    save_mat (boolean): if True, returns coupling matrix (matching) between points
-                        if False, only returns GW distance
-    quantized (boolean): if True, run quantized GW (QGW)
-    q_sample_size (int): if quantized is True, subset of points for QGW to run GW on
-    num_cores (int): number of parallel processes to run GW in
+    Args:
+        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing distance matrix for each cell
+        file_prefix (string): name of output file to write GW distance matrix to
+        gw_results_dir (string): path to directory to write output file to
+        save_mat (boolean): if True, returns coupling matrix (matching) between points
+                            if False, only returns GW distance
+        quantized (boolean): if True, run quantized GW (QGW)
+        q_sample_size (int): if quantized is True, subset of points for QGW to run GW on
+        num_cores (int): number of parallel processes to run GW in
 
-    Results:
-    None (writes distance matrix of GW distances to file)
+    Returns:
+        None (writes distance matrix of GW distances to file)
     """
     # Create output directory
     if not os.path.exists(gw_results_dir):

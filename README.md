@@ -1,8 +1,8 @@
 # CAJAL
 ```CAJAL``` uses Gromov-Wasserstein (GW) distance to compare cell shapes
 
-# Installation
-Until we upload this package to PyPI, the pip installation works from the GitHub:
+## Installation
+Until we upload this package to PyPI, the pip installation works from GitHub:
 ```commandline
 pip install git+https://github.com/CamaraLab/CAJAL.git@package_dev
 ```
@@ -19,8 +19,6 @@ docker run -it -p 8888:8888 -e GRANT_SUDO=yes --user root camaralab/python3:ot
 
 ## Examples
 
-----
-
 __TODO: Sampling even points from SWC neuron reconstruction and saving geodesic distance.__
 
 ----
@@ -32,5 +30,3 @@ Compute Euclidean distance of point coordinates from cell boundary or skeleton, 
 ----
 
 __TODO: Reading in GW distance matrix and visualizing morphology summary space.__
-
-----
