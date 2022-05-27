@@ -1,7 +1,7 @@
 # Functions for sampling even points from an SWC reconstruction of a neuron
 import re
 import numpy as np
-from CAJAL.lib import run_gw
+from CAJAL.lib.run_gw import pj
 from scipy.spatial.distance import euclidean, squareform
 import networkx as nx
 import warnings
@@ -262,7 +262,7 @@ def get_sample_pts(file_name, infolder, types_keep=(1, 2, 3, 4),
         return None
 
     # Read SWC file
-    swc_list = read_swc(run_gw.pj(infolder, file_name))
+    swc_list = read_swc(pj(infolder, file_name))
 
     # Get total length of segment type (for max step size)
     coord_list_out = prep_coord_dict(swc_list, types_keep)
@@ -299,8 +299,7 @@ def save_sample_pts(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
         return False
 
     if sample_pts_out[1] == goal_num_pts:
-        np.savetxt("sampled_pts/" + outfolder + "/folder_" + infolder +
-                   "_file_" + file_name[:-4] + ".csv", np.array(sample_pts_out[0]), delimiter=",", fmt="%.16f")
+        np.savetxt(pj(outfolder, file_name[:-4] + ".csv"), np.array(sample_pts_out[0]), delimiter=",", fmt="%.16f")
         return True
     else:
         return False
@@ -342,7 +341,7 @@ def get_geodesic(file_name, infolder, types_keep=(1, 2, 3, 4),
         return None
 
     # Read SWC file
-    swc_list = read_swc(run_gw.pj(infolder, file_name))
+    swc_list = read_swc(pj(infolder, file_name))
 
     # Get total length of segment type (for max step size)
     coord_list_out = prep_coord_dict(swc_list, types_keep)
@@ -387,8 +386,7 @@ def save_geodesic(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
     geo_dist_mat = get_geodesic(file_name, infolder, types_keep, goal_num_pts, min_step_change, max_iters, verbose)
 
     if geo_dist_mat is not None:
-        np.savetxt("sampled_pts/" + outfolder + "/folder_" + infolder +
-                   "_file_" + file_name[:-4] + "_dist.txt", geo_dist_mat, fmt='%.8f')
+        np.savetxt(pj(outfolder, file_name[:-4] + "_dist.txt"), geo_dist_mat, fmt='%.8f')
         return "succeeded"
     else:
         return "failed"
@@ -402,6 +400,7 @@ def save_geodesic_wrapper(args):
     return save_geodesic(file_name, infolder, outfolder, types_keep,
                          goal_num_pts, min_step_change,
                          max_iters, verbose)
+
 
 def save_sample_pts_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
                              goal_num_pts=50, min_step_change=1e-7,
@@ -422,13 +421,14 @@ def save_sample_pts_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
     Returns:
         None
     """
-    # os.mkdir("sampled_pts/"+params["outfolder"]+"_geodesic_"+str(goal_num_pts))
+    if not os.path.exists(outfolder):
+        os.mkdir(outfolder)
     arguments = [(file_name, infolder, outfolder, types_keep, goal_num_pts, min_step_change, max_iters, False)
                  for file_name in os.listdir(infolder)]
-    pool = Pool(processes=num_cores)
     start = time.time()
-    save_results = pool.map(save_sample_pts_wrapper, arguments)
-    print(time.time() - start)
+    with Pool(processes=num_cores) as pool:
+        save_results = pool.map(save_sample_pts_wrapper, arguments)
+    # print(time.time() - start)
 
 
 def save_geodesic_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
@@ -450,9 +450,11 @@ def save_geodesic_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
     Returns:
         None
     """
+    if not os.path.exists(outfolder):
+        os.mkdir(outfolder)
     arguments = [(file_name, infolder, outfolder, types_keep, goal_num_pts, min_step_change, max_iters, False)
                  for file_name in os.listdir(infolder)]
-    pool = Pool(processes=num_cores)
     start = time.time()
-    save_results = pool.map(save_geodesic_wrapper, arguments)
-    print(time.time() - start)
+    with Pool(processes=num_cores) as pool:
+        save_results = pool.map(save_geodesic_wrapper, arguments)
+    # print(time.time() - start)
