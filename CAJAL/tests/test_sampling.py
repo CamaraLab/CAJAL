@@ -18,7 +18,7 @@ class TestExamplesClass(unittest.TestCase):
                                                          types_keep=(1, 2, 3, 4),
                                                          goal_num_pts=50, min_step_change=1e-7,
                                                          max_iters=50, verbose=False)
-        prev_sampled_pts = pd.read_csv(pj("../data/example_sampled_50", file_name.replace(".swc",".csv")), header=None)
+        prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_50", file_name.replace(".swc",".csv")), header=None)
         self.assertEqual(np.allclose(sampled_pts, prev_sampled_pts), True)
 
     def test_sample_bdad(self):
@@ -29,7 +29,7 @@ class TestExamplesClass(unittest.TestCase):
                                                          types_keep=(3, 4),
                                                          goal_num_pts=50, min_step_change=1e-7,
                                                          max_iters=50, verbose=False)
-        prev_sampled_pts = pd.read_csv(pj("../data/example_sampled_bdad_50", file_name.replace(".swc", ".csv")),
+        prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_bdad_50", file_name.replace(".swc", ".csv")),
                                        header=None)
         self.assertEqual(np.allclose(sampled_pts, prev_sampled_pts), True)
 
@@ -41,7 +41,7 @@ class TestExamplesClass(unittest.TestCase):
                                                types_keep=(1, 2, 3, 4),
                                                goal_num_pts=50, min_step_change=1e-7,
                                                max_iters=50, verbose=False)
-        prev_geo_dist_mat = np.loadtxt(pj("../data/example_geodesic_50", file_name.replace(".swc", "_dist.txt")))
+        prev_geo_dist_mat = np.loadtxt(pj("../data/sampled_pts/example_geodesic_50", file_name.replace(".swc", "_dist.txt")))
         self.assertEqual(np.allclose(geo_dist_mat, prev_geo_dist_mat), True)
 
     def test_geodesic_bdad(self):
@@ -52,7 +52,7 @@ class TestExamplesClass(unittest.TestCase):
                                                types_keep=(3, 4),
                                                goal_num_pts=50, min_step_change=1e-7,
                                                max_iters=50, verbose=False)
-        prev_geo_dist_mat = np.loadtxt(pj("../data/example_geodesic_bdad_50", file_name.replace(".swc", "_dist.txt")))
+        prev_geo_dist_mat = np.loadtxt(pj("../data/sampled_pts/example_geodesic_bdad_50", file_name.replace(".swc", "_dist.txt")))
         self.assertEqual(np.allclose(geo_dist_mat, prev_geo_dist_mat), True)
 
     def test_sample_all(self):
@@ -64,7 +64,7 @@ class TestExamplesClass(unittest.TestCase):
                                             max_iters=50, num_cores=8)
         sample_files = random.sample(os.listdir(outfolder), 10)
         for file_name in sample_files:
-            prev_sampled_pts = pd.read_csv(pj("../data/example_sampled_50", file_name), header=None)
+            prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_50", file_name), header=None)
             sampled_pts = pd.read_csv(pj(outfolder, file_name), header=None)
             self.assertEqual(np.allclose(sampled_pts, prev_sampled_pts), True)
 
@@ -77,7 +77,7 @@ class TestExamplesClass(unittest.TestCase):
                                           max_iters=50, num_cores=8)
         sample_files = random.sample(os.listdir(outfolder), 10)
         for file_name in sample_files:
-            prev_sampled_pts = pd.read_csv(pj("../data/example_geodesic_50", file_name), header=None)
+            prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_geodesic_50", file_name), header=None)
             sampled_pts = pd.read_csv(pj(outfolder, file_name), header=None)
             self.assertEqual(np.allclose(sampled_pts, prev_sampled_pts), True)
 
