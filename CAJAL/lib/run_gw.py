@@ -308,6 +308,8 @@ def distance_matrix_preload_global(dist_mat_list_, save_mat=False,
         quantized (boolean): if True, run quantized GW (QGW)
         q_sample_size (int): if quantized is True, subset of points for QGW to run GW on
         num_cores (int): number of parallel processes to run GW in
+        chunk_size (int): chunk size for the iterator of all pairs of cells
+            larger size is faster but takes more memory, see multiprocessing pool.imap() for details
     
     Returns:
         None (writes distance matrix of GW distances to file)
@@ -361,6 +363,8 @@ def save_dist_mat_preload_global(dist_mat_list_, file_prefix, gw_results_dir, sa
         quantized (boolean): if True, run quantized GW (QGW)
         q_sample_size (int): if quantized is True, subset of points for QGW to run GW on
         num_cores (int): number of parallel processes to run GW in
+        chunk_size (int): chunk size for the iterator of all pairs of cells
+            larger size is faster but takes more memory, see multiprocessing pool.imap() for details
 
     Returns:
         None (writes distance matrix of GW distances to file)

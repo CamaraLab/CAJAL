@@ -1,8 +1,7 @@
 # Functions for sampling even points from an SWC reconstruction of a neuron
-
 import re
 import numpy as np
-from run_gw import pj
+from CAJAL.lib import run_gw
 from scipy.spatial.distance import euclidean, squareform
 import networkx as nx
 import warnings
@@ -51,6 +50,8 @@ def prep_coord_dict(vertices, types_keep=(1, 2, 3, 4)):
         vertex_coords: dictionary of xyz coordinates for the ID of each vertex in vertices_keep
         total_length: sum of segment lengths from branches of kept vertices
     """
+    types_keep = [str(x) for x in types_keep]  # in case types_keep are numbers
+
     vertices_keep = []
     vertex_coords = {}
     total_length = 0
@@ -90,6 +91,8 @@ def sample_pts_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3, 4))
     vertex_dist = {}
     sampled_pts_list = []
     num_origins = 0
+
+    types_keep = [str(x) for x in types_keep]  # in case types_keep are numbers
 
     # loop through list of vertices, sampling points from edge of vertex to parent
     for v in vertices:
@@ -134,7 +137,7 @@ def sample_n_pts(vertices, vertex_coords, total_length, types_keep=(1, 2, 3, 4),
     Returns:
         sampled_pts: list of xyz coordinates of sampled points
         num_pts: actual number of points sampled
-        step_size: step size which samples required number of points
+        step_size: step size that samples required number of points
         i: number of iterations to reach viable step size
     """
     num_pts = 0
@@ -193,6 +196,8 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3,
     prev_pts = {}  # Save last point before this one so can connect edge
     # pos = {}
 
+    types_keep = [str(x) for x in types_keep]  # in case types_keep are numbers
+
     # loop through list of vertices, sampling points from edge of vertex to parent
     for v in vertices:
         this_id = int(v[0])
@@ -228,16 +233,15 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3,
     return graph # , pos
 
 
-def save_sample_pts(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
-                    goal_num_pts=50, min_step_change=1e-7,
-                    max_iters=50, verbose=False):
+def get_sample_pts(file_name, infolder, types_keep=(1, 2, 3, 4),
+                   goal_num_pts=50, min_step_change=1e-7,
+                   max_iters=50, verbose=False):
     """
-    Sample points from SWC file and save them in CSV
+    Sample points from SWC file
 
     Args:
         file_name (string): SWC file name (including .swc)
         infolder (string): path to folder containing SWC file
-        outfolder (string): path to output folder to save CSVs
         types_keep (tuple,list): list of SWC neuron part types to sample points from
             by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
         goal_num_pts (integer): number of points to sample
@@ -246,23 +250,51 @@ def save_sample_pts(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
         verbose (boolean): if true, will print step size information for each search iteration
 
     Returns:
-        Boolean success of sampling points from this SWC file
+        list:
+            [0]: list of xyz coordinates of sampled points
+            [1]: actual number of points sampled
+            [2]: step size that samples required number of points
+            [3]: number of iterations to reach viable step size
     """
 
     if file_name[-4:] != ".SWC" and file_name[-4:] != ".swc":
         warnings.warn("Input file must be a .swc or .SWC file, skipping")
-        return False
+        return None
 
     # Read SWC file
-    swc_list = read_swc(pj(infolder, file_name))
+    swc_list = read_swc(run_gw.pj(infolder, file_name))
 
     # Get total length of segment type (for max step size)
     coord_list_out = prep_coord_dict(swc_list, types_keep)
     if coord_list_out is None:
-        return False
+        return None
 
-    sample_pts_out = sample_n_pts(coord_list_out[0], coord_list_out[1], coord_list_out[2], types_keep,
-                                  goal_num_pts, min_step_change, max_iters, verbose)
+    return sample_n_pts(coord_list_out[0], coord_list_out[1], coord_list_out[2], types_keep,
+                        goal_num_pts, min_step_change, max_iters, verbose)
+
+
+def save_sample_pts(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
+                    goal_num_pts=50, min_step_change=1e-7,
+                    max_iters=50, verbose=False):
+    """
+        Sample points from SWC file and save them in CSV
+
+        Args:
+            file_name (string): SWC file name (including .swc)
+            infolder (string): path to folder containing SWC file
+            outfolder (string): path to output folder to save CSVs
+            types_keep (tuple,list): list of SWC neuron part types to sample points from
+                by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
+            goal_num_pts (integer): number of points to sample
+            min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+            max_iters (integer): maximum number of iterations of while loop
+            verbose (boolean): if true, will print step size information for each search iteration
+
+        Returns:
+            Boolean success of sampling points from this SWC file
+    """
+    sample_pts_out = get_sample_pts(file_name, infolder, types_keep, goal_num_pts, min_step_change, max_iters, verbose)
+
     if sample_pts_out is None:
         return False
 
@@ -282,6 +314,53 @@ def save_sample_pts_wrapper(args):
     return save_sample_pts(file_name, infolder, outfolder, types_keep,
                            goal_num_pts, min_step_change,
                            max_iters, verbose)
+
+
+def get_geodesic(file_name, infolder, types_keep=(1, 2, 3, 4),
+                 goal_num_pts=50, min_step_change=1e-7,
+                 max_iters=50, verbose=False):
+    """
+    Sample points from SWC file, compute geodesic distance (networkx graph distance) between
+    points, returns distance in vector form
+
+    Args:
+        file_name (string): SWC file name (including .swc)
+        infolder (string): path to folder containing SWC file
+        types_keep (tuple,list): list of SWC neuron part types to sample points from
+            by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
+        goal_num_pts (integer): number of points to sample
+        min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+        max_iters (integer): maximum number of iterations of while loop
+        verbose (boolean): if true, will print step size information for each search iteration
+
+    Returns:
+        Boolean success of sampling points from this SWC file
+    """
+
+    if file_name[-4:] != ".SWC" and file_name[-4:] != ".swc":
+        warnings.warn("Input file must be a .swc or .SWC file, skipping")
+        return None
+
+    # Read SWC file
+    swc_list = read_swc(run_gw.pj(infolder, file_name))
+
+    # Get total length of segment type (for max step size)
+    coord_list_out = prep_coord_dict(swc_list, types_keep)
+    if coord_list_out is None:
+        return None
+
+    sample_pts_out = sample_n_pts(coord_list_out[0], coord_list_out[1], coord_list_out[2], types_keep,
+                                  goal_num_pts, min_step_change, max_iters, verbose)
+    if sample_pts_out is None:
+        return None
+
+    if sample_pts_out[1] == goal_num_pts:
+        # sample_network, pos = sample_network_step(coord_list_out[0], coord_list_out[1], sample_pts_out[2], types_keep)
+        sample_network = sample_network_step(coord_list_out[0], coord_list_out[1], sample_pts_out[2], types_keep)
+        geo_dist_mat = squareform(nx.algorithms.shortest_paths.dense.floyd_warshall_numpy(sample_network))
+        return geo_dist_mat
+    else:
+        return None
 
 
 def save_geodesic(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
@@ -305,28 +384,9 @@ def save_geodesic(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
     Returns:
         Boolean success of sampling points from this SWC file
     """
+    geo_dist_mat = get_geodesic(file_name, infolder, types_keep, goal_num_pts, min_step_change, max_iters, verbose)
 
-    if file_name[-4:] != ".SWC" and file_name[-4:] != ".swc":
-        warnings.warn("Input file must be a .swc or .SWC file, skipping")
-        return "failed"
-
-    # Read SWC file
-    swc_list = read_swc(pj(infolder, file_name))
-
-    # Get total length of segment type (for max step size)
-    coord_list_out = prep_coord_dict(swc_list, types_keep)
-    if coord_list_out is None:
-        return "failed"
-
-    sample_pts_out = sample_n_pts(coord_list_out[0], coord_list_out[1], coord_list_out[2], types_keep,
-                                  goal_num_pts, min_step_change, max_iters, verbose)
-    if sample_pts_out is None:
-        return "failed"
-
-    if sample_pts_out[1] == goal_num_pts:
-        # sample_network, pos = sample_network_step(coord_list_out[0], coord_list_out[1], sample_pts_out[2], types_keep)
-        sample_network = sample_network_step(coord_list_out[0], coord_list_out[1], sample_pts_out[2], types_keep)
-        geo_dist_mat = squareform(nx.algorithms.shortest_paths.dense.floyd_warshall_numpy(sample_network))
+    if geo_dist_mat is not None:
         np.savetxt("sampled_pts/" + outfolder + "/folder_" + infolder +
                    "_file_" + file_name[:-4] + "_dist.txt", geo_dist_mat, fmt='%.8f')
         return "succeeded"
@@ -342,7 +402,6 @@ def save_geodesic_wrapper(args):
     return save_geodesic(file_name, infolder, outfolder, types_keep,
                          goal_num_pts, min_step_change,
                          max_iters, verbose)
-
 
 def save_sample_pts_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
                              goal_num_pts=50, min_step_change=1e-7,

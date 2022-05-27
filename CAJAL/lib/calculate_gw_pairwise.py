@@ -23,17 +23,17 @@ def run_geodesic(distances_dir, gw_results_dir, data_prefix, num_cores, file_pre
 
 
 def run_euclidean_example(file_prefix):
-    run_euclidean(data_dir=os.path.abspath('./sampled_pts/example_euclidean/'),
-                  gw_results_dir=os.path.abspath('./gw_results'),
-                  data_prefix="a10_full_50",
+    run_euclidean(data_dir=os.path.abspath('../data/example_sampled_50/'),
+                  gw_results_dir=os.path.abspath('../data/gw_results'),
+                  data_prefix="a10_full",
                   num_cores=12,
                   file_prefix=file_prefix)
 
 
 def run_geodesic_example(file_prefix):
-    run_geodesic(distances_dir=os.path.abspath('./sampled_pts/example_geodesic'),
-                 gw_results_dir=os.path.abspath('./gw_results'),
-                 data_prefix="a10_full_50",
+    run_geodesic(distances_dir=os.path.abspath('../data/example_geodesic_50'),
+                 gw_results_dir=os.path.abspath('../data/gw_results'),
+                 data_prefix="a10_full",
                  num_cores=12,
                  file_prefix=file_prefix)
 
