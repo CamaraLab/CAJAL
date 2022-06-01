@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import os
 import random
-
 from CAJAL.lib import sample_swc
 from CAJAL.lib.run_gw import pj
 
@@ -18,7 +17,8 @@ class TestExamplesClass(unittest.TestCase):
                                                          types_keep=(1, 2, 3, 4),
                                                          goal_num_pts=50, min_step_change=1e-7,
                                                          max_iters=50, verbose=False)
-        prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_50", file_name.replace(".swc",".csv")), header=None)
+        prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_50",
+                                          file_name.replace(".swc", ".csv")), header=None)
         self.assertEqual(np.allclose(sampled_pts, prev_sampled_pts), True)
 
     def test_sample_bdad(self):
@@ -29,8 +29,8 @@ class TestExamplesClass(unittest.TestCase):
                                                          types_keep=(3, 4),
                                                          goal_num_pts=50, min_step_change=1e-7,
                                                          max_iters=50, verbose=False)
-        prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_bdad_50", file_name.replace(".swc", ".csv")),
-                                       header=None)
+        prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_bdad_50",
+                                          file_name.replace(".swc", ".csv")), header=None)
         self.assertEqual(np.allclose(sampled_pts, prev_sampled_pts), True)
 
     def test_geodesic(self):

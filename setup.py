@@ -15,7 +15,11 @@ setup(
         'numpy',
         'pandas',
         'pot==0.7.0',
+        'potpourri3d',
         'scipy',
+        'scikit-image',
+        'tifffile',
+        'trimesh',
         'umap-learn'
      ],
     classifiers=[

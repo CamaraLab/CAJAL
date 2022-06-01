@@ -305,16 +305,6 @@ def save_sample_pts(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
         return False
 
 
-def save_sample_pts_wrapper(args):
-    """
-    Wraps save_sample_pts() so there is a function that only takes in a single list of args to call for parallelization
-    """
-    file_name, infolder, outfolder, types_keep, goal_num_pts, min_step_change, max_iters, verbose = args
-    return save_sample_pts(file_name, infolder, outfolder, types_keep,
-                           goal_num_pts, min_step_change,
-                           max_iters, verbose)
-
-
 def get_geodesic(file_name, infolder, types_keep=(1, 2, 3, 4),
                  goal_num_pts=50, min_step_change=1e-7,
                  max_iters=50, verbose=False):
@@ -392,16 +382,6 @@ def save_geodesic(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
         return "failed"
 
 
-def save_geodesic_wrapper(args):
-    """
-    Wraps save_geodesic() so there is a function that only takes in a single list of params to call for parallelization
-    """
-    file_name, infolder, outfolder, types_keep, goal_num_pts, min_step_change, max_iters, verbose = args
-    return save_geodesic(file_name, infolder, outfolder, types_keep,
-                         goal_num_pts, min_step_change,
-                         max_iters, verbose)
-
-
 def save_sample_pts_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
                              goal_num_pts=50, min_step_change=1e-7,
                              max_iters=50, num_cores=8):
@@ -427,7 +407,7 @@ def save_sample_pts_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
                  for file_name in os.listdir(infolder)]
     start = time.time()
     with Pool(processes=num_cores) as pool:
-        save_results = pool.map(save_sample_pts_wrapper, arguments)
+        save_results = pool.starmap(save_sample_pts, arguments)
     # print(time.time() - start)
 
 
@@ -456,5 +436,5 @@ def save_geodesic_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
                  for file_name in os.listdir(infolder)]
     start = time.time()
     with Pool(processes=num_cores) as pool:
-        save_results = pool.map(save_geodesic_wrapper, arguments)
+        save_results = pool.starmap(save_geodesic, arguments)
     # print(time.time() - start)
