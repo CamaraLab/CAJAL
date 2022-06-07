@@ -20,13 +20,15 @@ docker run -it -p 8888:8888 -e GRANT_SUDO=yes --user root camaralab/python3:ot
 
 ## Examples
 
-__TODO: Sampling even points from SWC neuron reconstruction and saving geodesic distance.__
+[Saving pairwise GW distances between triangular meshes](https://github.com/CamaraLab/CAJAL/blob/main/notebooks/save_gw_obj_mesh.ipynb)
+
+Sample points from a triangular mesh from OBJ format and compute geodesic distance using heat or graph methods. Compute Euclidean distance of point coordinates, or load geodesic distances in vector form (output by scipy.spatial.distance.squareform on symmetric matrices). Save pairwise GW between cells on those distances.
 
 ----
 
-[Saving pairwise GW distances between cells](https://github.com/CamaraLab/CAJAL/blob/main/notebooks/save_gw_pairwise.ipynb)
+[Saving pairwise GW distances between neurons](https://github.com/CamaraLab/CAJAL/blob/main/notebooks/save_gw_neurons.ipynb)
 
-Compute Euclidean distance of point coordinates from cell boundary or skeleton, or load geodesic distances in vector form (output by scipy.spatial.distance.squareform on symmetric matrices). Save pairwise GW between cells on those distances.
+Sample points radially from neuron tracing SWC format. Compute Euclidean distance of point coordinates, or load graph geodesic distances in vector form (output by scipy.spatial.distance.squareform on symmetric matrices). Save pairwise GW between neurons on those distances.
 
 ----
 
