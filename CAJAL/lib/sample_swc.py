@@ -36,7 +36,7 @@ def read_swc(file_path):
     return vertices
 
 
-def prep_coord_dict(vertices, types_keep=(1, 2, 3, 4)):
+def prep_coord_dict(vertices, types_keep=(1, 2, 3, 4), keep_disconnect=False):
     """
     Read through swc file list, get dictionary of vertex coordinates and total length of all segments
 
@@ -44,6 +44,8 @@ def prep_coord_dict(vertices, types_keep=(1, 2, 3, 4)):
         vertices (list): list of vertex rows from SWC file
         types_keep (tuple,list): list of SWC neuron part types to sample points from
             by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
+        keep_disconnect (boolean): If False, will only keep branches connected to the soma.
+            If True, will keep all branches, including free-floating ones
 
     Returns:
         vertices_keep: list of rows from SWC file that are connected to the soma
@@ -59,10 +61,10 @@ def prep_coord_dict(vertices, types_keep=(1, 2, 3, 4)):
         this_id = int(v[0])
         this_coord = np.array((float(v[2]), float(v[3]), float(v[4])))
         pid = int(v[-1])
-        if pid < 0 and v[1] == "1":
-            # only keep soma origin vertices
-            vertex_coords[this_id] = this_coord
-            vertices_keep.append(v)
+        if pid < 0:
+            if keep_disconnect or v[1] == "1":  # only keep soma origin vertices if not keep_disconnect
+                vertex_coords[this_id] = this_coord
+                vertices_keep.append(v)
         elif pid >= 0 and pid in vertex_coords.keys():
             # keep branch vertex if connected to soma origin
             vertex_coords[this_id] = this_coord
@@ -235,7 +237,7 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3,
 
 def get_sample_pts(file_name, infolder, types_keep=(1, 2, 3, 4),
                    goal_num_pts=50, min_step_change=1e-7,
-                   max_iters=50, verbose=False):
+                   max_iters=50, keep_disconnect=True, verbose=False):
     """
     Sample points from SWC file
 
@@ -247,7 +249,8 @@ def get_sample_pts(file_name, infolder, types_keep=(1, 2, 3, 4),
         goal_num_pts (integer): number of points to sample
         min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
         max_iters (integer): maximum number of iterations of while loop
-        verbose (boolean): if true, will print step size information for each search iteration
+        keep_disconnect (boolean): if True, will keep all branches from SWC. if False, will keep only connected to soma
+        verbose (boolean): if True, will print step size information for each search iteration
 
     Returns:
         list:
@@ -265,7 +268,7 @@ def get_sample_pts(file_name, infolder, types_keep=(1, 2, 3, 4),
     swc_list = read_swc(pj(infolder, file_name))
 
     # Get total length of segment type (for max step size)
-    coord_list_out = prep_coord_dict(swc_list, types_keep)
+    coord_list_out = prep_coord_dict(swc_list, types_keep, keep_disconnect=keep_disconnect)
     if coord_list_out is None:
         return None
 
@@ -275,7 +278,7 @@ def get_sample_pts(file_name, infolder, types_keep=(1, 2, 3, 4),
 
 def save_sample_pts(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
                     goal_num_pts=50, min_step_change=1e-7,
-                    max_iters=50, verbose=False):
+                    max_iters=50, keep_disconnect=True, verbose=False):
     """
         Sample points from SWC file and save them in CSV
 
@@ -288,12 +291,15 @@ def save_sample_pts(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
             goal_num_pts (integer): number of points to sample
             min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
             max_iters (integer): maximum number of iterations of while loop
+            keep_disconnect (boolean): if True, will keep all branches from SWC.
+                if False, will keep only connected to soma
             verbose (boolean): if true, will print step size information for each search iteration
 
         Returns:
             Boolean success of sampling points from this SWC file
     """
-    sample_pts_out = get_sample_pts(file_name, infolder, types_keep, goal_num_pts, min_step_change, max_iters, verbose)
+    sample_pts_out = get_sample_pts(file_name, infolder, types_keep, goal_num_pts,
+                                    min_step_change, max_iters, keep_disconnect, verbose)
 
     if sample_pts_out is None:
         return False
@@ -334,7 +340,7 @@ def get_geodesic(file_name, infolder, types_keep=(1, 2, 3, 4),
     swc_list = read_swc(pj(infolder, file_name))
 
     # Get total length of segment type (for max step size)
-    coord_list_out = prep_coord_dict(swc_list, types_keep)
+    coord_list_out = prep_coord_dict(swc_list, types_keep, keep_disconnect=False)
     if coord_list_out is None:
         return None
 
@@ -384,7 +390,7 @@ def save_geodesic(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
 
 def save_sample_pts_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
                              goal_num_pts=50, min_step_change=1e-7,
-                             max_iters=50, num_cores=8):
+                             max_iters=50, num_cores=8, keep_disconnect=True):
     """
     Parallelize sampling the same number of points from all SWC files in a folder
 
@@ -397,13 +403,15 @@ def save_sample_pts_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
         min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
         max_iters (integer): maximum number of iterations of while loop
         num_cores (integer): number of processes to use for parallelization
+        keep_disconnect (boolean): if True, will keep all branches from SWC. if False, will keep only connected to soma
 
     Returns:
         None
     """
     if not os.path.exists(outfolder):
         os.mkdir(outfolder)
-    arguments = [(file_name, infolder, outfolder, types_keep, goal_num_pts, min_step_change, max_iters, False)
+    arguments = [(file_name, infolder, outfolder, types_keep, goal_num_pts,
+                  min_step_change, max_iters, keep_disconnect, False)
                  for file_name in os.listdir(infolder)]
     start = time.time()
     with Pool(processes=num_cores) as pool:

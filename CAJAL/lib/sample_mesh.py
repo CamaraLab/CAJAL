@@ -86,7 +86,7 @@ def save_sample_from_obj(file_name, infolder, outfolder, n_sample):
         None (writes to file)
     """
     vertices, faces = read_obj(pj(infolder, file_name))
-    save_sample_vertices(vertices, n_sample, pj(outfolder, file_name.replace(".obj",".csv")))
+    save_sample_vertices(vertices, n_sample, pj(outfolder, file_name.replace(".obj", ".csv")))
 
 
 def save_sample_from_obj_parallel(infolder, outfolder, n_sample, num_cores=8):
@@ -154,7 +154,38 @@ def connect_mesh(vertices, faces):
     return np.vstack([faces, new_faces])
 
 
-def get_geodesic_heat(vertices, faces, n_sample, connect=False):
+def disconnect_mesh(vertices, faces):
+    """
+    Checks for disconnected components of mesh, separates and returns each one individually
+
+    Args:
+        vertices (numpy array): 3D coordinates for vertices
+        faces (numpy array): row of vertices contained in each face
+
+    Returns:
+        list of vertices/faces pairings for disconnected meshes
+    """
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+    graph = trimesh.graph.vertex_adjacency_graph(mesh)
+    connected_components = [i[1] for i in enumerate(nx.connected_components(graph))]
+    if len(connected_components) == 1:
+        return [[vertices, faces]]
+
+    disconn_meshes = []
+    for component in connected_components:
+        v_ids = list(component)
+        new_vertices = vertices[v_ids]
+        index = np.min(faces)
+        v_ids = [v_id + index for v_id in v_ids]
+        keep_faces = faces[np.sum(np.isin(faces, v_ids), axis=1) == 3]
+        convert_ids = dict(zip(v_ids, range(index, len(v_ids)+index)))
+        new_faces = np.array([convert_ids[x] for x in keep_faces.flatten()]).reshape(keep_faces.shape)
+        disconn_meshes.append((new_vertices, new_faces))
+
+    return disconn_meshes
+
+
+def get_geodesic_heat_one_mesh(vertices, faces, n_sample):
     """
     Computes geodesic distance between n_sample points on the triangular mesh using heat method
 
@@ -162,7 +193,6 @@ def get_geodesic_heat(vertices, faces, n_sample, connect=False):
         vertices (numpy array): 3D coordinates for vertices
         faces (numpy array): row of vertices contained in each face
         n_sample (integer): number of vertices to sample
-        connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
 
     Result:
         heat geodesic distance in vector form
@@ -170,9 +200,7 @@ def get_geodesic_heat(vertices, faces, n_sample, connect=False):
     if vertices.shape[0] < n_sample:
         warnings.warn("Fewer vertices than points to sample, skipping")
         return None
-    if connect:
-        faces = connect_mesh(vertices, faces)
-    even_sample = np.linspace(0, vertices.shape[0]-1, n_sample).astype("uint32")
+    even_sample = np.linspace(0, vertices.shape[0] - 1, n_sample).astype("uint32")
     solver = pp3d.MeshHeatMethodDistanceSolver(vertices, faces)
     dist_mat = solver.compute_distance(even_sample[0])[even_sample]
     for i in range(1, len(even_sample)):
@@ -182,26 +210,7 @@ def get_geodesic_heat(vertices, faces, n_sample, connect=False):
     return dist_vec
 
 
-def save_geodesic_heat(vertices, faces, n_sample, outfile, connect=False):
-    """
-    Saves geodesic distance vector between n_sample points on the triangular mesh using heat method
-
-    Args:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
-        n_sample (integer): number of vertices to sample
-        outfile (string): file path to write to
-        connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
-
-    Result:
-        None (writes to file)
-    """
-    dist_vec = get_geodesic_heat(vertices, faces, n_sample, connect)
-    if dist_vec is not None:
-        np.savetxt(outfile, dist_vec, fmt='%.8f')
-
-
-def get_geodesic_networkx(vertices, faces, n_sample, connect=False):
+def get_geodesic_networkx_one_mesh(vertices, faces, n_sample):
     """
     Computes geodesic distance between n_sample points on the triangular mesh using
     graph distance on edges between vertices
@@ -210,7 +219,6 @@ def get_geodesic_networkx(vertices, faces, n_sample, connect=False):
         vertices (numpy array): 3D coordinates for vertices
         faces (numpy array): row of vertices contained in each face
         n_sample (integer): number of vertices to sample
-        connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
 
     Result:
         graph geodesic distance in vector form
@@ -218,8 +226,6 @@ def get_geodesic_networkx(vertices, faces, n_sample, connect=False):
     if vertices.shape[0] < n_sample:
         warnings.warn("Fewer vertices than points to sample, skipping")
         return None
-    if connect:
-        faces = connect_mesh(vertices, faces)
     graph = nx.Graph()
     for i in range(vertices.shape[0]):
         graph.add_node(i)
@@ -228,7 +234,7 @@ def get_geodesic_networkx(vertices, faces, n_sample, connect=False):
             v1 = faces[i, edge_id[0]]
             v2 = faces[i, edge_id[1]]
             graph.add_edge(v1, v2, weight=euclidean(vertices[v1], vertices[v2]))
-    even_sample = np.linspace(0, vertices.shape[0]-1, n_sample).astype("uint32")
+    even_sample = np.linspace(0, vertices.shape[0] - 1, n_sample).astype("uint32")
     arguments = list(it.combinations(even_sample, 2))
     dist_vec = np.zeros(len(arguments))
     for i in range(len(arguments)):
@@ -238,31 +244,91 @@ def get_geodesic_networkx(vertices, faces, n_sample, connect=False):
     return dist_vec
 
 
-def save_geodesic(vertices, faces, n_sample, outfile, method="networxk", connect=False):
+def return_geodesic(vertices, faces, n_sample, method="networkx", connect=False):
     """
-    Saves geodesic distance vector between n_sample points on the triangular mesh using
-    graph distance on edges between vertices
+    Returns a list of geodesic distance matrices for each component of mesh (i.e. multiple cells in an .obj file)
 
     Args:
         vertices (numpy array): 3D coordinates for vertices
         faces (numpy array): row of vertices contained in each face
         n_sample (integer): number of vertices to sample
-        outfile (string): file path to write to
         method (string): one of 'networxk' or 'heat', how to compute geodesic distance
-                networkx is slower but more exact for non-watertight methods, heat is a faster approximation
+            networkx is slower but more exact for non-watertight methods, heat is a faster approximation
+        connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
+            If True, output will always be one distance matrix
+
+    Result:
+        list of heat geodesic distances in vector form
+    """
+    if connect:
+        new_faces = connect_mesh(vertices, faces)
+        if method == "heat":
+            dist_vec = get_geodesic_heat_one_mesh(vertices, new_faces, n_sample)
+        elif method == "networkx":
+            dist_vec = get_geodesic_networkx_one_mesh(vertices, new_faces, n_sample)
+        else:
+            raise Exception("Invalid method, must be one of 'networkx' or 'heat'")
+        return [dist_vec]
+    else:
+        disconn_meshes = disconnect_mesh(vertices, faces)
+        geo_list = []
+        for mesh in disconn_meshes:
+            if method == "heat":
+                dist_vec = get_geodesic_heat_one_mesh(mesh[0], mesh[1], n_sample)
+            elif method == "networkx":
+                dist_vec = get_geodesic_networkx_one_mesh(mesh[0], mesh[1], n_sample)
+            else:
+                raise Exception("Invalid method, must be one of 'networkx' or 'heat'")
+            geo_list.append(dist_vec)
+        return geo_list
+
+
+def save_geodesic(vertices, faces, n_sample, outfile, method="networkx", connect=False):
+    """
+    Saves heat geodesic distance vector for each component of mesh (i.e. multple cells in an .obj file)
+
+    Args:
+        vertices (numpy array): 3D coordinates for vertices
+        faces (numpy array): row of vertices contained in each face
+        n_sample (integer): number of vertices to sample
+        outfile (string): file path to write to. If connect is False and there are multiple disconnected components
+            to the input mesh, multiple files are created with different index numbers. If outfile is provided with
+            string formatting {} characters, index is inserted there. Otherwise it is inserted before extension.
+        method (string): one of 'networxk' or 'heat', how to compute geodesic distance
+            networkx is slower but more exact for non-watertight methods, heat is a faster approximation
         connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
 
     Result:
         None (writes to file)
     """
-    if method == "networkx":
-        dist_vec = get_geodesic_networkx(vertices, faces, n_sample, connect)
-    elif method == "heat":
-        dist_vec = get_geodesic_heat(vertices, faces, n_sample, connect)
+    if connect:
+        new_faces = connect_mesh(vertices, faces)
+        if method == "heat":
+            dist_vec = get_geodesic_heat_one_mesh(vertices, new_faces, n_sample)
+        elif method == "networkx":
+            dist_vec = get_geodesic_networkx_one_mesh(vertices, new_faces, n_sample)
+        else:
+            raise Exception("Invalid method, must be one of 'networkx' or 'heat'")
+        if dist_vec is not None:
+            np.savetxt(outfile, dist_vec, fmt='%.8f')
     else:
-        raise Exception("Invalid method, must be one of 'networkx' or 'heat'")
-    if dist_vec is not None:
-        np.savetxt(outfile, dist_vec, fmt='%.8f')
+        disconn_meshes = disconnect_mesh(vertices, faces)
+        for i in range(len(disconn_meshes)):
+            mesh = disconn_meshes[i]
+            if method == "heat":
+                dist_vec = get_geodesic_heat_one_mesh(mesh[0], mesh[1], n_sample)
+            elif method == "networkx":
+                dist_vec = get_geodesic_networkx_one_mesh(mesh[0], mesh[1], n_sample)
+            else:
+                raise Exception("Invalid method, must be one of 'networkx' or 'heat'")
+            if dist_vec is not None:
+                if "{" in outfile:
+                    np.savetxt(outfile.format(i + 1), dist_vec, fmt='%.8f')
+                else:
+                    file_name_split = outfile.split(".")
+                    file_name = ".".join(file_name_split[:-1]) + "_" + str(i + 1)
+                    extension = file_name_split[-1]
+                    np.savetxt(file_name + "." + extension, dist_vec, fmt='%.8f')
 
 
 def save_geodesic_from_obj(file_name, infolder, outfolder, n_sample, method="networxk", connect=False):
@@ -270,7 +336,8 @@ def save_geodesic_from_obj(file_name, infolder, outfolder, n_sample, method="net
     Computes geodesic distance for mesh in .obj file
 
     Args:
-        infolder(string): path to directory containing .obj files
+        file_name (string): name of single .obj file
+        infolder (string): path to directory containing .obj files
         outfolder (string): path to directory to write distance matrices
         n_sample (integer): number of vertices to sample from each mesh
         method (string): one of 'networxk' or 'heat', how to compute geodesic distance
@@ -281,7 +348,10 @@ def save_geodesic_from_obj(file_name, infolder, outfolder, n_sample, method="net
         None (writes files to outfolder)
     """
     vertices, faces = read_obj(pj(infolder, file_name))
-    outfile = pj(outfolder, file_name.replace(".obj", "_dist.txt"))
+    if connect:
+        outfile = pj(outfolder, file_name.replace(".obj", "_dist.txt"))
+    else:
+        outfile = pj(outfolder, file_name.replace(".obj", "{}_dist.txt")) # string formatting for indices
     save_geodesic(vertices, faces, n_sample, outfile, method, connect)
 
 
