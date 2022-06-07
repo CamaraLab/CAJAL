@@ -41,75 +41,6 @@ def read_obj(file_path):
     return vertices, faces
 
 
-def sample_vertices(vertices, n_sample):
-    """
-    Evenly samples n vertices. Most .obj vertices are ordered counter-clockwise, so evenly sampling from vertex matrix
-    can roughly approximate even sampling across the mesh
-
-    Args:
-        vertices (numpy array): 3D coordinates for vertices
-        n_sample (integer): number of vertices to sample
-
-    Returns:
-        numpy array of sampled vertices
-    """
-    return vertices[np.linspace(0, vertices.shape[0]-1, n_sample).astype("uint32"), :]
-
-
-def save_sample_vertices(vertices, n_sample, outfile):
-    """
-    Evenly sample n vertices and save in csv
-
-    Args:
-        vertices (numpy array): 3D coordinates for vertices
-        n_sample (integer): number of vertices to sample
-        outfile (string): file path to write vertices
-
-    Returns:
-        None (writes to file)
-    """
-    new_vertices = sample_vertices(vertices, n_sample)
-    np.savetxt(outfile, new_vertices, delimiter=",", fmt="%.16f")
-
-
-def save_sample_from_obj(file_name, infolder, outfolder, n_sample):
-    """
-    Evenly sample n vertices from .obj and save in csv
-
-    Args:
-        file_name (string): .obj file name
-        infolder (string): folder containing .obj file
-        outfolder (string): folder to save sampled vertices csv
-        n_sample (integer): number of vertices to sample
-
-    Returns:
-        None (writes to file)
-    """
-    vertices, faces = read_obj(pj(infolder, file_name))
-    save_sample_vertices(vertices, n_sample, pj(outfolder, file_name.replace(".obj", ".csv")))
-
-
-def save_sample_from_obj_parallel(infolder, outfolder, n_sample, num_cores=8):
-    """
-    Computes geodesic distance in parallel processes for all meshes in .obj files in a directory
-
-    Args:
-        infolder(string): path to directory containing .obj files
-        outfolder (string): path to directory to write distance matrices
-        n_sample (integer): number of vertices to sample from each mesh
-        num_cores (integer): number of processes to use for parallelization
-
-    Returns:
-        None (writes files to outfolder)
-    """
-    if not os.path.exists(outfolder):
-        os.mkdir(outfolder)
-    arguments = [(file_name, infolder, outfolder, n_sample)
-                 for file_name in os.listdir(infolder)]
-    with Pool(processes=num_cores) as pool:
-        pool.starmap(save_sample_from_obj, arguments)
-
-
 def connect_mesh(vertices, faces):
     """
     Adds triangles to mesh to form a minimum spanning tree of its connected components
@@ -183,6 +114,124 @@ def disconnect_mesh(vertices, faces):
         disconn_meshes.append((new_vertices, new_faces))
 
     return disconn_meshes
+
+
+def sample_vertices(vertices, n_sample):
+    """
+    Evenly samples n vertices. Most .obj vertices are ordered counter-clockwise, so evenly sampling from vertex matrix
+    can roughly approximate even sampling across the mesh
+
+    Args:
+        vertices (numpy array): 3D coordinates for vertices
+        n_sample (integer): number of vertices to sample
+
+    Returns:
+        numpy array of sampled vertices
+    """
+    if vertices.shape[0] < n_sample:
+        warnings.warn("Fewer vertices than points to sample, skipping")
+        return None
+    return vertices[np.linspace(0, vertices.shape[0]-1, n_sample).astype("uint32"), :]
+
+
+def return_sampled_vertices(vertices, faces, n_sample, disconnect=True):
+    """
+    Returns list of sampled vertices from each component of mesh (i.e. multiple cells in an .obj file)
+
+    Args:
+        vertices (numpy array): 3D coordinates for vertices
+        faces (numpy array): row of vertices contained in each face
+        n_sample (integer): number of vertices to sample
+        disconnect (boolean): Whether to sample vertices from whole mesh, or separate into disconnected components
+
+    Returns:
+        list of numpy arrays of sampled vertices
+    """
+    if not disconnect:
+        new_vertices = sample_vertices(vertices, n_sample)
+        return [new_vertices]
+    else:
+        disconn_meshes = disconnect_mesh(vertices, faces)
+        sample_list = []
+        for mesh in disconn_meshes:
+            new_vertices = sample_vertices(mesh[0], n_sample)
+            sample_list.append(new_vertices)
+        return sample_list
+
+
+def save_sample_vertices(vertices, faces, n_sample, outfile, disconnect=True):
+    """
+    Evenly sample n vertices and save in csv
+
+    Args:
+        vertices (numpy array): 3D coordinates for vertices
+        faces (numpy array): row of vertices contained in each face
+        n_sample (integer): number of vertices to sample
+        outfile (string): file path to write vertices. If disconnect is True and there are multiple disconnected
+            components to the input mesh, multiple files are created with different index numbers. If outfile is given
+            with string formatting {} characters, index is inserted there. Otherwise it is inserted before extension.
+        disconnect (boolean): Whether to sample vertices from whole mesh, or separate into disconnected components
+
+    Returns:
+        None (writes to file)
+    """
+    if not disconnect:
+        new_vertices = sample_vertices(vertices, n_sample)
+        if new_vertices is not None:
+            np.savetxt(outfile, new_vertices, delimiter=",", fmt="%.16f")
+    else:
+        disconn_meshes = disconnect_mesh(vertices, faces)
+        for i in range(len(disconn_meshes)):
+            mesh = disconn_meshes[i]
+            new_vertices = sample_vertices(mesh[0], n_sample)
+            if new_vertices is not None:
+                if "{" in outfile:
+                    np.savetxt(outfile.format(i + 1), new_vertices, delimiter=",", fmt="%.16f")
+                else:
+                    file_name_split = outfile.split(".")
+                    file_name = ".".join(file_name_split[:-1]) + "_" + str(i + 1)
+                    extension = file_name_split[-1]
+                    np.savetxt(file_name + "." + extension, new_vertices, delimiter=",", fmt="%.16f")
+
+
+def save_sample_from_obj(file_name, infolder, outfolder, n_sample, disconnect=True):
+    """
+    Evenly sample n vertices from .obj and save in csv
+
+    Args:
+        file_name (string): .obj file name
+        infolder (string): folder containing .obj file
+        outfolder (string): folder to save sampled vertices csv
+        n_sample (integer): number of vertices to sample
+        disconnect (boolean): Whether to sample vertices from whole mesh, or separate into disconnected components
+
+    Returns:
+        None (writes to file)
+    """
+    vertices, faces = read_obj(pj(infolder, file_name))
+    save_sample_vertices(vertices, faces, n_sample, pj(outfolder, file_name.replace(".obj", ".csv")), disconnect)
+
+
+def save_sample_from_obj_parallel(infolder, outfolder, n_sample, disconnect=True, num_cores=8):
+    """
+    Computes geodesic distance in parallel processes for all meshes in .obj files in a directory
+
+    Args:
+        infolder(string): path to directory containing .obj files
+        outfolder (string): path to directory to write distance matrices
+        n_sample (integer): number of vertices to sample from each mesh
+        disconnect (boolean): Whether to sample vertices from whole mesh, or separate into disconnected components
+        num_cores (integer): number of processes to use for parallelization
+
+    Returns:
+        None (writes files to outfolder)
+    """
+    if not os.path.exists(outfolder):
+        os.mkdir(outfolder)
+    arguments = [(file_name, infolder, outfolder, n_sample, disconnect)
+                 for file_name in os.listdir(infolder)]
+    with Pool(processes=num_cores) as pool:
+        pool.starmap(save_sample_from_obj, arguments)
 
 
 def get_geodesic_heat_one_mesh(vertices, faces, n_sample):
@@ -292,7 +341,7 @@ def save_geodesic(vertices, faces, n_sample, outfile, method="networkx", connect
         faces (numpy array): row of vertices contained in each face
         n_sample (integer): number of vertices to sample
         outfile (string): file path to write to. If connect is False and there are multiple disconnected components
-            to the input mesh, multiple files are created with different index numbers. If outfile is provided with
+            to the input mesh, multiple files are created with different index numbers. If outfile is given with
             string formatting {} characters, index is inserted there. Otherwise it is inserted before extension.
         method (string): one of 'networxk' or 'heat', how to compute geodesic distance
             networkx is slower but more exact for non-watertight methods, heat is a faster approximation
