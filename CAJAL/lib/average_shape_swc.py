@@ -129,15 +129,15 @@ def plot_avg_medoid(avg_spt, medoid_spt, color=None, figheight=6):
 
 
 def plot_all_avg_shapes(cluster_ids_list, clusters, data_dir, files_list, match_list, gw_dist, k=3, figheight=6):
-    fig = plt.figure(figsize=(figheight * 2, figheight))
     nrow = len(cluster_ids_list)
+    fig = plt.figure(figsize=(figheight * 2, figheight*nrow))
     for a in range(nrow):
         cluster_ids = cluster_ids_list[a]
         avg_spt, medoid_spt, confidence = get_avg_shape_spt(cluster_ids, clusters, data_dir,
                                                             files_list, match_list, gw_dist, k)
         ax = fig.add_subplot(nrow, 2, 2 * a + 1)
         plot_networkx(medoid_spt, ax, color=confidence)
-        plt.title("Clusters medoid: " + ",".join(cluster_ids))
+        plt.title("Clusters medoid: " + ",".join([str(i) for i in cluster_ids]))
         ax = fig.add_subplot(nrow, 2, 2 * a + 2)
         plot_networkx(avg_spt, ax, color=confidence)
-        plt.title("Clusters avg: " + ",".join(cluster_ids))
+        plt.title("Clusters avg: " + ",".join([str(i) for i in cluster_ids]))
