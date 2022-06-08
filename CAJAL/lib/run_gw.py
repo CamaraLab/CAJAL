@@ -384,3 +384,16 @@ def save_dist_mat_preload_global(dist_mat_list_, file_prefix, gw_results_dir, sa
         np.savez_compressed(pj(gw_results_dir, file_prefix + "_gw_matching.npz"), *[res[1] for res in dist_results])
     else:
         np.savetxt(pj(gw_results_dir, file_prefix + "_gw_dist_mat.txt"), np.array(dist_results), fmt='%.8f')
+
+
+def read_gw_mat(file_path):
+    """
+    Read in GW distance saved in vector format
+
+    Args:
+         file_path (string): path to file saving GW distance
+
+    Returns:
+        NxN distance matrix
+    """
+    return squareform(np.loadtxt(file_path))

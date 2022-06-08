@@ -1,0 +1,14 @@
+igraph
+leidenalg
+matplotlib
+networkx
+numpy
+pandas
+pot==0.7.0
+potpourri3d
+python-louvain
+scipy
+scikit-image
+tifffile
+trimesh
+umap-learn
