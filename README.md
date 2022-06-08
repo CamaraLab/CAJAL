@@ -32,4 +32,6 @@ Sample points radially from neuron tracing SWC format. Compute Euclidean distanc
 
 ----
 
-__TODO: Reading in GW distance matrix and visualizing morphology summary space.__
+[Visualizing pairwise GW distances between neurons](https://github.com/CamaraLab/CAJAL/blob/main/notebooks/analyze_gw_neurons.ipynb)
+
+Visualize GW morphology space using a UMAP embedding, plot other morphology features, and compute the average neuron graph shape for each cluster.
