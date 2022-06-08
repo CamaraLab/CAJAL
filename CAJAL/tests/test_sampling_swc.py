@@ -4,7 +4,7 @@ import pandas as pd
 import os
 import random
 from CAJAL.lib import sample_swc
-from CAJAL.lib.run_gw import pj
+from CAJAL.lib.utilities import pj
 
 
 class TestExamplesClass(unittest.TestCase):

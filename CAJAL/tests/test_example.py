@@ -4,6 +4,7 @@ import numpy as np
 import os
 import time
 
+import CAJAL.lib.utilities
 from CAJAL.lib import run_gw, calculate_gw_pairwise as cgp
 
 
@@ -13,15 +14,16 @@ class TestExamplesClass(unittest.TestCase):
         # distance from cell to itself should be close to 0
         data_dir = "../data/sampled_pts/example_sampled_50/"
         file_name = os.listdir(data_dir)[0]
-        dist_list = [run_gw.get_distances_one(run_gw.pj(data_dir, file_name)),
-                     run_gw.get_distances_one(run_gw.pj(data_dir, file_name))]
+        dist_list = [run_gw.get_distances_one(CAJAL.lib.utilities.pj(data_dir, file_name)),
+                     run_gw.get_distances_one(CAJAL.lib.utilities.pj(data_dir, file_name))]
         gw_dist = run_gw.distance_matrix_preload_global(dist_list)
         self.assertEqual(len(gw_dist), 1)
         self.assertLess(gw_dist[0], 1e-5)
         distances_dir = "../data/sampled_pts/example_geodesic_50/"
         file_name = os.listdir(distances_dir)[0]
-        dist_list = [run_gw.read_mp_array(squareform(np.loadtxt(run_gw.pj(distances_dir, file_name)))),
-                     run_gw.read_mp_array(squareform(np.loadtxt(run_gw.pj(distances_dir, file_name))))]
+        dist_list = [
+            CAJAL.lib.utilities.read_mp_array(squareform(np.loadtxt(CAJAL.lib.utilities.pj(distances_dir, file_name)))),
+            CAJAL.lib.utilities.read_mp_array(squareform(np.loadtxt(CAJAL.lib.utilities.pj(distances_dir, file_name))))]
         gw_dist = run_gw.distance_matrix_preload_global(dist_list)
         self.assertEqual(len(gw_dist), 1)
         self.assertLess(gw_dist[0], 1e-5)

@@ -10,18 +10,7 @@ setup(
     packages=["CAJAL", "CAJAL.lib"],
     python_requires=">=3.6",
 
-    install_requires=[
-        'networkx',
-        'numpy',
-        'pandas',
-        'pot==0.7.0',
-        'potpourri3d',
-        'scipy',
-        'scikit-image',
-        'tifffile',
-        'trimesh',
-        'umap-learn'
-     ],
+    install_requires=open("requirements.in").readlines(),
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Programming Language :: Python :: 3',
