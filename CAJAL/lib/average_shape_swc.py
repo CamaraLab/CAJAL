@@ -5,6 +5,7 @@ import numpy as np
 from scipy.sparse.csgraph import dijkstra
 import itertools as it
 import networkx as nx
+import matplotlib.pyplot as plt
 from CAJAL.lib.utilities import pj, load_dist_mat
 
 
@@ -94,13 +95,17 @@ def get_avg_shape_spt(cluster_ids, clusters, data_dir, files_list, match_list, g
     return d_avg, get_spt(load_dist_mat(pj(data_dir, files_list[medoid]))), confidence
 
 
-def plot_networkx(d, ax, color=None, layout="spring", **kwargs):
+def plot_networkx(d, ax, color=None, layout="spring"):
     # Color is a vector of values for each node - edges will be colored based on their end node
     nx_graph = nx.convert_matrix.from_numpy_matrix(d)
     layout_dict = {
-        "spring": nx.spring_layout,
+        "circular": nx.circular_layout,
+        "kamada_kawai": nx.kamada_kawai_layout,
+        "planar": nx.planar_layout,
+        "random": nx.random_layout,
+        "shell": nx.shell_layout,
         "spectral": nx.spectral_layout,
-        "circular": nx.circular_layout
+        "spring": nx.spring_layout
     }
     layout_func = layout_dict.get(layout)
     pos = layout_func(nx_graph)
@@ -108,6 +113,31 @@ def plot_networkx(d, ax, color=None, layout="spring", **kwargs):
         color = range(len(nx_graph.nodes))
     edge_end = [i[1] for i in nx_graph.edges]
     plot_color = np.array(color)[edge_end]
-    nx.draw_networkx_edges(nx_graph, pos, ax=ax, edge_color=plot_color, **kwargs)
-    # nx.draw_networkx_nodes(nx_graph, pos, nodelist=nx_graph.nodes, node_color=color,
-    #                        with_labels=False, node_size=2, ax=ax)
+    nx.draw_networkx_edges(nx_graph, pos, alpha=1, width=2, ax=ax, edge_color=plot_color)
+    nx.draw_networkx_nodes(nx_graph, pos, nodelist=nx_graph.nodes, node_color=color,
+                           with_labels=False, node_size=2, ax=ax)
+
+
+def plot_avg_medoid(avg_spt, medoid_spt, color=None, figheight=6):
+    fig = plt.figure(figsize=(figheight*2, figheight))
+    ax = fig.add_subplot(1, 2, 1)
+    plot_networkx(medoid_spt, ax, color=color)
+    plt.title("Clusters medoid")
+    ax = fig.add_subplot(1, 2, 2)
+    plot_networkx(avg_spt, ax, color=color)
+    plt.title("Clusters avg")
+
+
+def plot_all_avg_shapes(cluster_ids_list, clusters, data_dir, files_list, match_list, gw_dist, k=3, figheight=6):
+    fig = plt.figure(figsize=(figheight * 2, figheight))
+    nrow = len(cluster_ids_list)
+    for a in range(nrow):
+        cluster_ids = cluster_ids_list[a]
+        avg_spt, medoid_spt, confidence = get_avg_shape_spt(cluster_ids, clusters, data_dir,
+                                                            files_list, match_list, gw_dist, k)
+        ax = fig.add_subplot(nrow, 2, 2 * a + 1)
+        plot_networkx(medoid_spt, ax, color=confidence)
+        plt.title("Clusters medoid: " + ",".join(cluster_ids))
+        ax = fig.add_subplot(nrow, 2, 2 * a + 2)
+        plot_networkx(avg_spt, ax, color=confidence)
+        plt.title("Clusters avg: " + ",".join(cluster_ids))
