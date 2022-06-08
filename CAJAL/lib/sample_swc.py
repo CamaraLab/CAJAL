@@ -1,7 +1,7 @@
 # Functions for sampling even points from an SWC reconstruction of a neuron
 import re
 import numpy as np
-from CAJAL.lib.run_gw import pj
+from CAJAL.lib.utilities import pj
 from scipy.spatial.distance import euclidean, squareform
 import networkx as nx
 import warnings

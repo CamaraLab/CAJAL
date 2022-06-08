@@ -10,7 +10,7 @@ import itertools as it
 import warnings
 from multiprocessing import Pool
 
-from CAJAL.lib.run_gw import pj
+from CAJAL.lib.utilities import pj
 
 
 def read_obj(file_path):

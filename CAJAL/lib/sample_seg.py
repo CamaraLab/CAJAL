@@ -5,7 +5,7 @@ from skimage import measure
 import tifffile
 import warnings
 
-from CAJAL.lib.run_gw import pj
+from CAJAL.lib.utilities import pj
 
 
 def save_cell_boundaries(imarray, outfile, n_sample, background=0):

@@ -1,7 +1,7 @@
 import unittest
 import os
 from CAJAL.lib import swc_processing as sp
-from CAJAL.lib.run_gw import pj
+from CAJAL.lib.utilities import pj
 
 
 class TestExamplesClass(unittest.TestCase):
