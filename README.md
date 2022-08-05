@@ -6,6 +6,7 @@ Until we upload this package to PyPI, the pip installation works from GitHub:
 ```commandline
 pip install git+https://github.com/CamaraLab/CAJAL.git
 ```
+Installation on a standard desktop computer should take a few minutes.
 
 ## Docker
 We will eventually release a Docker image running Jupyter with a stable version of this package installed, but for now the below command runs a container with all dependencies installed:
