@@ -8,6 +8,21 @@ pip install git+https://github.com/CamaraLab/CAJAL.git
 ```
 Installation on a standard desktop computer should take a few minutes.
 
+----
+
+On Windows, the Python Optimal Transport (pot) library requires Microsoft Visual C++ 14.0 or greater, which can be installed via the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+
+----
+
+The easiest way to run CAJAL's plotting functions is via [Jupyter](https://jupyter.org/). The CAJAL tutorials are also provided as Jupyter Notebooks. Install Jupyter with
+```commandline
+pip install notebook
+```
+Then start up Jupyter from terminal / Powershell using
+```commandline
+jupyter notebook
+```
+
 ## Docker
 We will eventually release a Docker image running Jupyter with a stable version of this package installed, but for now the below command runs a container with all dependencies installed:
 ```commandline
