@@ -15,7 +15,7 @@ if __name__ == "__main__":
                         help='number of vertices to sample from each swc file')
     parser.add_argument('--num_cores', default=8,
                         help='number of processes to use for parallelization')
-    parser.add_argument("--types_keep", nargs="+", default=[1,2,3,4],
+    parser.add_argument("--types_keep", nargs="+", default=[0,1,2,3,4],
                         help='list of SWC neuron part types to sample points from. \
                         By default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)')
 
