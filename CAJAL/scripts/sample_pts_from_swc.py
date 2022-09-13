@@ -2,7 +2,7 @@
 import argparse
 import pathlib
 import sys
-sys.path.append('..') # can probably be removed when push to package
+sys.path.append('..')  # can probably be removed when push to package
 from CAJAL.lib.sample_swc import save_sample_pts_parallel
 
 if __name__ == "__main__":
@@ -18,7 +18,7 @@ if __name__ == "__main__":
                         branches connected to soma')
     parser.add_argument('--num_cores', default=8,
                         help='number of processes to use for parallelization')
-    parser.add_argument("--types_keep", nargs="+", default=[1,2,3,4],
+    parser.add_argument("--types_keep", nargs="+", default=[0, 1, 2, 3, 4],
                         help='list of SWC neuron part types to sample points from. \
                         By default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)')
 

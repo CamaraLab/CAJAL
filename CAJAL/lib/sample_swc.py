@@ -8,6 +8,7 @@ import warnings
 from multiprocessing import Pool
 import time
 import os
+from collections.abc import Iterable
 
 
 def read_swc(file_path):
@@ -36,7 +37,7 @@ def read_swc(file_path):
     return vertices
 
 
-def prep_coord_dict(vertices, types_keep=(1, 2, 3, 4), keep_disconnect=False):
+def prep_coord_dict(vertices, types_keep=(0, 1, 2, 3, 4), keep_disconnect=False):
     """
     Read through swc file list, get dictionary of vertex coordinates and total length of all segments
 
@@ -52,7 +53,8 @@ def prep_coord_dict(vertices, types_keep=(1, 2, 3, 4), keep_disconnect=False):
         vertex_coords: dictionary of xyz coordinates for the ID of each vertex in vertices_keep
         total_length: sum of segment lengths from branches of kept vertices
     """
-    types_keep = [str(x) for x in types_keep]  # in case types_keep are numbers
+    # in case types_keep are numbers
+    types_keep = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
 
     vertices_keep = []
     vertex_coords = {}
@@ -62,7 +64,9 @@ def prep_coord_dict(vertices, types_keep=(1, 2, 3, 4), keep_disconnect=False):
         this_coord = np.array((float(v[2]), float(v[3]), float(v[4])))
         pid = int(v[-1])
         if pid < 0:
-            if keep_disconnect or v[1] == "1":  # only keep soma origin vertices if not keep_disconnect
+            # If not keeping disconnected parts, only keep vertex without parent
+            # if it has soma type or is first vertex
+            if keep_disconnect or v[1] == "1" or len(vertices_keep) == 0:
                 vertex_coords[this_id] = this_coord
                 vertices_keep.append(v)
         elif pid >= 0 and pid in vertex_coords.keys():
@@ -75,7 +79,7 @@ def prep_coord_dict(vertices, types_keep=(1, 2, 3, 4), keep_disconnect=False):
     return vertices_keep, vertex_coords, total_length
 
 
-def sample_pts_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3, 4)):
+def sample_pts_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2, 3, 4)):
     """
     Sample points at every set interval (step_size) along branches of neuron
 
@@ -94,7 +98,8 @@ def sample_pts_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3, 4))
     sampled_pts_list = []
     num_origins = 0
 
-    types_keep = [str(x) for x in types_keep]  # in case types_keep are numbers
+    # in case types_keep are numbers
+    types_keep = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
 
     # loop through list of vertices, sampling points from edge of vertex to parent
     for v in vertices:
@@ -120,7 +125,7 @@ def sample_pts_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3, 4))
     return sampled_pts_list, num_origins
 
 
-def sample_n_pts(vertices, vertex_coords, total_length, types_keep=(1, 2, 3, 4),
+def sample_n_pts(vertices, vertex_coords, total_length, types_keep=(0, 1, 2, 3, 4),
                  goal_num_pts=50, min_step_change=1e-7, max_iters=50, verbose=False):
     """
     Use binary search to find step size between points that will sample the required number of points
@@ -174,11 +179,14 @@ def sample_n_pts(vertices, vertex_coords, total_length, types_keep=(1, 2, 3, 4),
             print("Prev step size", prev_step_size)
             print("Step size", step_size)
             print("")
-    sampled_pts = np.array(sampled_pts_list)
-    return sampled_pts, num_pts, step_size, i
+    if i == 0:
+        raise Exception("Sampled 0 points from neuron, could be too large of min_step_change, or types_keep does not include values in second column of SWC files")
+    else:
+        sampled_pts = np.array(sampled_pts_list)
+        return sampled_pts, num_pts, step_size, i
 
 
-def sample_network_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3, 4)):
+def sample_network_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2, 3, 4)):
     """
     Sample points at every set interval (step_size) along branches of neuron, return networkx
 
@@ -198,7 +206,8 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3,
     prev_pts = {}  # Save last point before this one so can connect edge
     # pos = {}
 
-    types_keep = [str(x) for x in types_keep]  # in case types_keep are numbers
+    # in case types_keep are numbers
+    types_keep = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
 
     # loop through list of vertices, sampling points from edge of vertex to parent
     for v in vertices:
@@ -232,10 +241,10 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(1, 2, 3,
         else:
             vertex_dist[this_id] = vertex_dist[pid] + seg_len
             prev_pts[this_id] = prev_pts[pid]
-    return graph # , pos
+    return graph  # , pos
 
 
-def get_sample_pts(file_name, infolder, types_keep=(1, 2, 3, 4),
+def get_sample_pts(file_name, infolder, types_keep=(0, 1, 2, 3, 4),
                    goal_num_pts=50, min_step_change=1e-7,
                    max_iters=50, keep_disconnect=True, verbose=False):
     """
@@ -276,7 +285,7 @@ def get_sample_pts(file_name, infolder, types_keep=(1, 2, 3, 4),
                         goal_num_pts, min_step_change, max_iters, verbose)
 
 
-def save_sample_pts(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
+def save_sample_pts(file_name, infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
                     goal_num_pts=50, min_step_change=1e-7,
                     max_iters=50, keep_disconnect=True, verbose=False):
     """
@@ -311,7 +320,7 @@ def save_sample_pts(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
         return False
 
 
-def get_geodesic(file_name, infolder, types_keep=(1, 2, 3, 4),
+def get_geodesic(file_name, infolder, types_keep=(0, 1, 2, 3, 4),
                  goal_num_pts=50, min_step_change=1e-7,
                  max_iters=50, verbose=False):
     """
@@ -358,7 +367,7 @@ def get_geodesic(file_name, infolder, types_keep=(1, 2, 3, 4),
         return None
 
 
-def save_geodesic(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
+def save_geodesic(file_name, infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
                   goal_num_pts=50, min_step_change=1e-7,
                   max_iters=50, verbose=False):
     """
@@ -388,7 +397,7 @@ def save_geodesic(file_name, infolder, outfolder, types_keep=(1, 2, 3, 4),
         return "failed"
 
 
-def save_sample_pts_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
+def save_sample_pts_parallel(infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
                              goal_num_pts=50, min_step_change=1e-7,
                              max_iters=50, num_cores=8, keep_disconnect=True):
     """
@@ -419,7 +428,7 @@ def save_sample_pts_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
     # print(time.time() - start)
 
 
-def save_geodesic_parallel(infolder, outfolder, types_keep=(1, 2, 3, 4),
+def save_geodesic_parallel(infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
                            goal_num_pts=50, min_step_change=1e-7,
                            max_iters=50, num_cores=8):
     """

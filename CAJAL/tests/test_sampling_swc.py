@@ -14,9 +14,9 @@ class TestExamplesClass(unittest.TestCase):
         infolder = "../data/swc_files/"
         file_name = os.listdir(infolder)[0]
         sampled_pts, _, _, _ = sample_swc.get_sample_pts(file_name=file_name, infolder=infolder,
-                                                         types_keep=(1, 2, 3, 4),
+                                                         types_keep=[0, 1, 2, 3, 4],
                                                          goal_num_pts=50, min_step_change=1e-7,
-                                                         max_iters=50, verbose=False)
+                                                         max_iters=50, verbose=False, keep_disconnect=False)
         prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_50",
                                           file_name.replace(".swc", ".csv")), header=None)
         self.assertEqual(np.allclose(sampled_pts, prev_sampled_pts), True)
@@ -26,9 +26,9 @@ class TestExamplesClass(unittest.TestCase):
         infolder = "../data/swc_files/"
         file_name = os.listdir(infolder)[0]
         sampled_pts, _, _, _ = sample_swc.get_sample_pts(file_name=file_name, infolder=infolder,
-                                                         types_keep=(3, 4),
+                                                         types_keep=[3, 4],
                                                          goal_num_pts=50, min_step_change=1e-7,
-                                                         max_iters=50, verbose=False)
+                                                         max_iters=50, verbose=False, keep_disconnect=False)
         prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_bdad_50",
                                           file_name.replace(".swc", ".csv")), header=None)
         self.assertEqual(np.allclose(sampled_pts, prev_sampled_pts), True)
@@ -38,10 +38,11 @@ class TestExamplesClass(unittest.TestCase):
         infolder = "../data/swc_files/"
         file_name = os.listdir(infolder)[0]
         geo_dist_mat = sample_swc.get_geodesic(file_name=file_name, infolder=infolder,
-                                               types_keep=(1, 2, 3, 4),
+                                               types_keep=[0, 1, 2, 3, 4],
                                                goal_num_pts=50, min_step_change=1e-7,
                                                max_iters=50, verbose=False)
-        prev_geo_dist_mat = np.loadtxt(pj("../data/sampled_pts/example_geodesic_50", file_name.replace(".swc", "_dist.txt")))
+        prev_geo_dist_mat = np.loadtxt(pj("../data/sampled_pts/example_geodesic_50",
+                                          file_name.replace(".swc", "_dist.txt")))
         self.assertEqual(np.allclose(geo_dist_mat, prev_geo_dist_mat), True)
 
     def test_geodesic_bdad(self):
@@ -49,10 +50,11 @@ class TestExamplesClass(unittest.TestCase):
         infolder = "../data/swc_files/"
         file_name = os.listdir(infolder)[0]
         geo_dist_mat = sample_swc.get_geodesic(file_name=file_name, infolder=infolder,
-                                               types_keep=(3, 4),
+                                               types_keep=[3, 4],
                                                goal_num_pts=50, min_step_change=1e-7,
                                                max_iters=50, verbose=False)
-        prev_geo_dist_mat = np.loadtxt(pj("../data/sampled_pts/example_geodesic_bdad_50", file_name.replace(".swc", "_dist.txt")))
+        prev_geo_dist_mat = np.loadtxt(pj("../data/sampled_pts/example_geodesic_bdad_50",
+                                          file_name.replace(".swc", "_dist.txt")))
         self.assertEqual(np.allclose(geo_dist_mat, prev_geo_dist_mat), True)
 
     def test_sample_all(self):
@@ -60,8 +62,8 @@ class TestExamplesClass(unittest.TestCase):
         infolder = "../data/swc_files"
         outfolder = "../data/test_data/test_sampled_50"
         sample_swc.save_sample_pts_parallel(infolder, outfolder,
-                                            types_keep=(1, 2, 3, 4), goal_num_pts=50, min_step_change=1e-7,
-                                            max_iters=50, num_cores=8)
+                                            types_keep=[0, 1, 2, 3, 4], goal_num_pts=50, min_step_change=1e-7,
+                                            max_iters=50, num_cores=8, keep_disconnect=False)
         sample_files = random.sample(os.listdir(outfolder), 10)
         for file_name in sample_files:
             prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_sampled_50", file_name), header=None)
@@ -73,13 +75,53 @@ class TestExamplesClass(unittest.TestCase):
         infolder = "../data/swc_files"
         outfolder = "../data/test_data/test_geodesic_50"
         sample_swc.save_geodesic_parallel(infolder, outfolder,
-                                          types_keep=(1, 2, 3, 4), goal_num_pts=50, min_step_change=1e-7,
+                                          types_keep=[0, 1, 2, 3, 4], goal_num_pts=50, min_step_change=1e-7,
                                           max_iters=50, num_cores=8)
         sample_files = random.sample(os.listdir(outfolder), 10)
         for file_name in sample_files:
             prev_sampled_pts = pd.read_csv(pj("../data/sampled_pts/example_geodesic_50", file_name), header=None)
             sampled_pts = pd.read_csv(pj(outfolder, file_name), header=None)
             self.assertEqual(np.allclose(sampled_pts, prev_sampled_pts), True)
+
+    def test_min_step_change(self):
+        # Test what errors when min step change too big
+        infolder = "../data/swc_files/"
+        file_name = os.listdir(infolder)[0]
+        with self.assertRaises(Exception) as context:
+            sampled_pts, _, _, _ = sample_swc.get_sample_pts(file_name=file_name, infolder=infolder,
+                                                             types_keep=[0, 1, 2, 3, 4],
+                                                             goal_num_pts=50, min_step_change=1e6,
+                                                             max_iters=50, verbose=False)
+        self.assertTrue("Sampled 0 points" in str(context.exception))
+
+    def test_types_keep(self):
+        # Test what errors when types_keep doesn't include values from SWC
+        infolder = "../data/swc_files/"
+        file_name = os.listdir(infolder)[0]
+        with self.assertRaises(Exception) as context:
+            sampled_pts, _, _, _ = sample_swc.get_sample_pts(file_name=file_name, infolder=infolder,
+                                                             types_keep=[10, 11],
+                                                             goal_num_pts=50, min_step_change=1e-7,
+                                                             max_iters=50, verbose=False)
+        self.assertTrue("Sampled 0 points" in str(context.exception))
+
+    def test_single_type(self):
+        # Test that we don't error if types_keep is not a list
+        infolder = "../data/swc_files/"
+        file_name = os.listdir(infolder)[0]
+        sampled_pts, _, _, _ = sample_swc.get_sample_pts(file_name=file_name, infolder=infolder,
+                                                         types_keep=3,
+                                                         goal_num_pts=50, min_step_change=1e-7,
+                                                         max_iters=50, verbose=False)
+
+    def test_zero_swc(self):
+        # Test that we don't error if swc file does not have soma with type 1 (i.e. only 0 types)
+        infolder = "../data/test_swc/"
+        file_name = "zero_type.swc"
+        sampled_pts, _, _, _ = sample_swc.get_sample_pts(file_name=file_name, infolder=infolder,
+                                                         types_keep=[0,1,2,3,4],
+                                                         goal_num_pts=50, min_step_change=1e-7,
+                                                         max_iters=50, verbose=False)
 
 
 if __name__ == '__main__':
