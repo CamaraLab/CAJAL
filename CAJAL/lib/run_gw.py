@@ -29,67 +29,74 @@ def get_distances_one(data_file, metric="euclidean", return_mp=True, header=None
     Compute the pairwise distances in the point cloud stored in the file.
     Return distance matrix as numpy array or mp (multiprocessing) array
 
-
     Args:
         data_file (string): file path to point cloud file
                           (currently assumes a header line)
         metric (string): distance metric passed into pdist()
-        return_mp (boolean): only used of distances_dir is None.
-                            if True, return multiprocessing array, if False return numpy array
+        return_mp (boolean): if True, return multiprocessing array, if False return numpy array
         header (boolean): passed into read_csv, whether data file has a header line
 
     Returns:
-        None (creates path to distances_dir and saves files there)
+        Either a numpy array or a multiprocessing array, depending on the value of the flag return_mp.
     """
+    
     coords = pd.read_csv(data_file, header=header)
     dist_mat = pdist(coords, metric=metric)
 
     # Return either as numpy array or mp (multiprocessing) array
-    if return_mp:
-        return_dist = read_mp_array(squareform(dist_mat))
-    else:
+    try: 
         return_dist = squareform(dist_mat)
+    except Exception as err:
+        print(err)
+        print("Scipy raised an error while computing intracell distances in ", data_file)
+        print("Check that this file is correctly formatted.")
+        raise
+        
+    if return_mp:
+        return_dist = read_mp_array(return_dist)
     return return_dist
 
-
-def save_distances_one(data_file, distances_dir=None, file_prefix="",
-                       metric="euclidean", header=None):
-    """
-    Not currently used, kept as legacy
-    Compute the pairwise distances in the point cloud stored in the file.
-    Save each to a file in distances_dir.
-
-
-    Args:
-        data_file (string): file path to point cloud file
-                          (currently assumes a header line)
-        distances_dir (string): if None (default), return list of multiprocessing array.
-                               if filepath string, save distance matrices in this directory
-        file_prefix (string): if distances_dir is a file path, prefix each output distance
-                             file with this string
-        metric (string): distance metric passed into pdist()
-        header (boolean): passed into read_csv, whether data file has a header line
-
-    Returns:
-        None (creates path to distances_dir and saves files there)
-    """
-    coords = pd.read_csv(data_file, header=header)
-    dist_mat = pdist(coords, metric=metric)
-
-    # Return distance matrices in list, except
-    # save distance matrices to the file path of distances_dir
-    outfile = file_prefix + "_" + data_file.replace(".csv", "") + "_dist.txt" \
-        if file_prefix != "" else data_file.replace(".csv", "") + "_dist.txt"
-    np.savetxt(pj(distances_dir, outfile),
-               dist_mat, fmt='%.8f')
-    return outfile
+# def save_distances_one(data_file, distances_dir=None, file_prefix="",
+#                        metric="euclidean", header=None):
+#     """
+#     Not currently used, kept as legacy
+#     Compute the pairwise distances in the point cloud stored in the file.
+#     Save each to a file in distances_dir.
 
 
-def get_distances_all(data_dir, data_prefix=None, distances_dir=None, metric="euclidean",
-                      return_mp=True, header=None):
+#     Args:
+#         data_file (string): file path to point cloud file
+#                           (currently assumes a header line)
+#         distances_dir (string): if None (default), return list of multiprocessing array.
+#                                if filepath string, save distance matrices in this directory
+#         file_prefix (string): if distances_dir is a file path, prefix each output distance
+#                              file with this string
+#         metric (string): distance metric passed into pdist()
+#         header (boolean): passed into read_csv, whether data file has a header line
+
+#     Returns:
+#         None (creates path to distances_dir and saves files there)
+#     """
+#     coords = pd.read_csv(data_file, header=header)
+#     dist_mat = pdist(coords, metric=metric)
+
+#     # Return distance matrices in list, except
+#     # save distance matrices to the file path of distances_dir
+#     outfile = file_prefix + "_" + data_file.replace(".csv", "") + "_dist.txt" \
+#         if file_prefix != "" else data_file.replace(".csv", "") + "_dist.txt"
+#     np.savetxt(pj(distances_dir, outfile),
+#                dist_mat, fmt='%.8f')
+#     return outfile
+
+
+def get_distances_all(data_dir, data_prefix=None, data_suffix="csv",
+                      #distances_dir=None,
+                      metric="euclidean", return_mp=True, header=None):
     """
     Compute the pairwise distances in the point cloud stored in each file.
-    Return list of distance matrices, or save each to a file in distances_dir.
+    Return list of distance matrices.
+        (TODO : Add support for a flag "distances_dir" which will enable the user
+         to write the list of distance matrices in addition to / rather than returning it.)
     
     
     Args:
@@ -105,10 +112,13 @@ def get_distances_all(data_dir, data_prefix=None, distances_dir=None, metric="eu
         header (boolean): passed into read_csv, whether data file has a header line
     
     Returns:
-        None (creates path to distances_dir and saves files there)
+        List of distance matrices.
+        (In the future, will be a list of distance matrices or None,
+         in the case where the distances_dir flag is enabled.)
+
     """
-    if distances_dir is not None and not os.path.exists(distances_dir):
-        os.makedirs(distances_dir)
+    # if distances_dir is not None and not os.path.exists(distances_dir):
+    #     os.makedirs(distances_dir)
 
     files_list = list_sort_files(data_dir, data_prefix)
     

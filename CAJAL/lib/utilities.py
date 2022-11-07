@@ -34,22 +34,30 @@ def load_dist_mat(dist_file, return_mp=False):
     return dist_mat
 
 
-def list_sort_files(data_dir, data_prefix=None):
+
+def list_sort_files(data_dir, data_prefix=None, data_suffix=None):
     """
-    Get sorted list of files in the data directory, each containing the same number of points per cell
+    Get sorted list of files in the data_dir directory.
 
     Args:
         data_dir (string): path to folder containing files to list
         data_prefix (string, or None): if not None, only list files starting with this prefix
-
+        data_suffix (string, or None): if not None, only list files starting with this prefix
     Returns:
         alphabetically sorted list of files from given folder
     """
     files_list = os.listdir(data_dir)
-    files_list = [data_file for data_file in files_list
-                  if data_prefix is None or data_file.startswith(data_prefix)]
-    files_list.sort()  # sort the list because sometimes os.listdir() result is not sorted
+    if data_prefix is not None:
+        if data_suffix is not None:
+            files_list = [data_file for data_file in files_list if data_file.startswith(data_prefix) and data_file.endswith(data_suffix)]
+        else:
+            files_list = [data_file for data_file in files_list if data_file.startswith(data_prefix)]
+    elif data_suffix is not None:
+        files_list = [data_file for data_file in files_list if data_file.endswith(data_suffix)]
+
+    files_list.sort()
     return files_list
+        
 
 
 def read_mp_array(np_array):
