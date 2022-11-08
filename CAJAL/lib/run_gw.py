@@ -24,7 +24,7 @@ TODO:
 '''
 
 
-def get_distances_one(data_file, metric="euclidean", return_mp=True, header=None):
+def get_intracell_distances_one(data_file, metric="euclidean", return_mp=True, header=None):
     """
     Compute the pairwise distances in the point cloud stored in the file.
     Return distance matrix as numpy array or mp (multiprocessing) array
@@ -89,7 +89,7 @@ def get_distances_one(data_file, metric="euclidean", return_mp=True, header=None
 #     return outfile
 
 
-def get_distances_all(data_dir, data_prefix=None, data_suffix="csv",
+def get_intracell_distances_all(data_dir, data_prefix=None, data_suffix="csv",
                       #distances_dir=None,
                       metric="euclidean", return_mp=True, header=None):
     """
@@ -120,10 +120,10 @@ def get_distances_all(data_dir, data_prefix=None, data_suffix="csv",
     # if distances_dir is not None and not os.path.exists(distances_dir):
     #     os.makedirs(distances_dir)
 
-    files_list = list_sort_files(data_dir, data_prefix)
+    files_list = list_sort_files(data_dir, data_prefix, data_suffix=data_suffix)
     
     # Compute pairwise distance between points in each file
-    return_list = [get_distances_one(pj(data_dir, data_file), metric=metric, return_mp=return_mp, header=header)
+    return_list = [get_intracell_distances_one(pj(data_dir, data_file), metric=metric, return_mp=return_mp, header=header)
                    for data_file in files_list]
     check_num_pts = all([len(x) == len(return_list[0]) for x in return_list])
     if not check_num_pts:

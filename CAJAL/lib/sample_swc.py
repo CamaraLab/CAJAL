@@ -404,8 +404,9 @@ def save_sample_pts_parallel(infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
     Parallelize sampling the same number of points from all SWC files in a folder
 
     Args:
-        infolder (string): path to folder containing SWC files
-        outfolder (string): path to output folder to save distance vectors
+        infolder (string): path to folder containing SWC files. Only files ending in ".SWC" or ".swc" will be
+        processed; other files will be ignored with a warning.
+        outfolder (string): path to output folder to save *.csv files.
         types_keep (tuple,list): list of SWC neuron part types to sample points from
             by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
         goal_num_pts (integer): number of points to sample
