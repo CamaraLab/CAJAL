@@ -188,10 +188,10 @@ def init_fn(dist_mat_list_, save_mat):
     return_mat = save_mat
 
 
-def distance_matrix_preload_global(dist_mat_list_, save_mat=False, num_cores=12, chunk_size=100):
+def compute_GW_distance_matrix_preload_global(dist_mat_list_, save_mat=False, num_cores=12, chunk_size=100):
     """
-    Calculate the GW distance between every pair of distance matrices
-    
+    Compute the GW distance between every pair of matrices in a given list of intracell distance matrices
+        
     Args:
         dist_mat_list_ (list): list of multiprocessing or numpy arrays containing distance matrix for each cell
         save_mat (boolean): if True, returns coupling matrix (matching) between points
@@ -201,7 +201,7 @@ def distance_matrix_preload_global(dist_mat_list_, save_mat=False, num_cores=12,
             larger size is faster but takes more memory, see multiprocessing pool.imap() for details
     
     Returns:
-        None (writes distance matrix of GW distances to file)
+        A GW distance matrix of the GW distances between all the intracell distance matrices in dist_mat_list_.
     """
     arguments = it.combinations(range(len(dist_mat_list_)), 2)
 
@@ -218,13 +218,15 @@ def distance_matrix_preload_global(dist_mat_list_, save_mat=False, num_cores=12,
     return dist_results
 
 
-def save_dist_mat_preload_global(dist_mat_list_, file_prefix, gw_results_dir,
+def compute_and_save_GW_dist_mat(dist_mat_list_, file_prefix, gw_results_dir,
                                  save_mat=False, num_cores=12, chunk_size=100):
     """
-    Save the GW distance between each pair of distance matrices in vector form
+    
+    Compute the GW distance between each pair of distance matrices in vector form,
+    and write the resulting matrix of GW distances to a file.
 
     Args:
-        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing distance matrix for each cell
+        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing intracell distance matrix for each cell
         file_prefix (string): name of output file to write GW distance matrix to
         gw_results_dir (string): path to directory to write output file to
         save_mat (boolean): if True, returns coupling matrix (matching) between points
@@ -240,7 +242,7 @@ def save_dist_mat_preload_global(dist_mat_list_, file_prefix, gw_results_dir,
     if not os.path.exists(gw_results_dir):
         os.makedirs(gw_results_dir)
 
-    dist_results = distance_matrix_preload_global(dist_mat_list_, save_mat=save_mat,
+    dist_results = compute_GW_distance_matrix_preload_global(dist_mat_list_, save_mat=save_mat,
                                                   num_cores=num_cores, chunk_size=chunk_size)
 
     # Save results - suffix name of output files is currently hardcoded
