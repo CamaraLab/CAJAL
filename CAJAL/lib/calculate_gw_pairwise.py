@@ -15,7 +15,7 @@ def run_euclidean(data_dir, gw_results_dir, data_prefix, num_cores, file_prefix)
 
 def run_geodesic(distances_dir, gw_results_dir, data_prefix, num_cores, file_prefix):
     t1 = time.time()
-    dist_mat_list = run_gw.load_distances_global(distances_dir=distances_dir, data_prefix=data_prefix)
+    dist_mat_list = run_gw.load_intracell_distances(distances_dir=distances_dir, data_prefix=data_prefix)
     run_gw.save_dist_mat_preload_global(dist_mat_list, file_prefix, gw_results_dir, save_mat=False,
                                         num_cores=num_cores)
     t3 = time.time()

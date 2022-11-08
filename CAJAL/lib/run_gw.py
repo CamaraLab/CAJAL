@@ -131,7 +131,7 @@ def get_intracell_distances_all(data_dir, data_prefix=None, data_suffix="csv",
     return return_list
 
 
-def load_distances_global(distances_dir, data_prefix=None, return_mp=True):
+def load_intracell_distances(distances_dir, data_prefix=None, return_mp=True):
     """
     Load distance matrices from directory into list of arrays
     that can be shared with the multiprocessing pool.
