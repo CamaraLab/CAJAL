@@ -15,6 +15,7 @@ setup(
         "networkx~=2.8.8",
         "numpy",
         "pandas",
+        "Cython",
         "pot~=0.7.0",
         "potpourri3d",
         "python-louvain",
