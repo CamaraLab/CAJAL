@@ -8,9 +8,23 @@ setup(
     author_email='pcamara@pennmedicine.upenn.edu',
     license='GPLv3',
     packages=["CAJAL", "CAJAL.lib"],
+    install_requires=[
+        "igraph",
+        "leidenalg",
+        "matplotlib",
+        "networkx~=2.8.8",
+        "numpy",
+        "pandas",
+        "pot~=0.7.0",
+        "potpourri3d",
+        "python-louvain",
+        "scipy",
+        "scikit-image",
+        "tifffile",
+        "trimesh",
+        "umap-learn"
+    ],
     python_requires=">=3.6",
-
-    install_requires=open("requirements.in").readlines(),
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Programming Language :: Python :: 3',
