@@ -23,7 +23,7 @@ setup(
         "scikit-image",
         "tifffile",
         "trimesh",
-        "umap-learn"
+        "umap-learn~=0.5.3"
     ],
     python_requires=">=3.6",
     classifiers=[
