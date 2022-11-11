@@ -24,9 +24,9 @@ jupyter notebook
 ```
 
 ## Docker
-We will eventually release a Docker image running Jupyter with a stable version of this package installed, but for now the below command runs a container with all dependencies installed:
+We provide a Docker image, built on top of the Jupyter/tensorflow-notebook image, which contains CAJAL and its dependencies. Running the following command will launch a Jupyter notebook server with CAJAL and its dependencies installed.
 ```commandline
-docker run -it -p 8888:8888 -e GRANT_SUDO=yes --user root camaralab/python3:ot
+docker run -it -p 8888:8888 camaralab/cajal:maximal
 ```
 
 ## Overview
