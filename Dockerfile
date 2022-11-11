@@ -27,6 +27,9 @@ FROM jupyter/tensorflow-notebook@sha256:c224e3a2c4f5180ab50913d129fe650f64033b37
 # run "conda list" or "pip list".
 
 # When editing this command, be careful to preserve the space between the version number and the backtick.
+# There should not be any space or comments after the backtick; only a newline/carriage return.
+# The job of the backtick is to tell Docker to ignore the newline/carriage return,
+# letting us write the statement in a more readable way.
 RUN python3 -m pip install `
 igraph==0.10.2 `
 leidenalg==0.9.0 `
