@@ -24,9 +24,9 @@ jupyter notebook
 ```
 
 ## Docker
-We provide a Docker image, built on top of the Jupyter/tensorflow-notebook image, which contains CAJAL and its dependencies. Running the following command will launch a Jupyter notebook server with CAJAL and its dependencies installed.
+We provide a Docker image, built on top of the Jupyter/tensorflow-notebook image, which contains CAJAL and its dependencies. Running the following command will launch a Jupyter notebook server on localhost with CAJAL and its dependencies installed. The -p flag controls the port number on local host, writing "-p 4264:8888" will let you access the Jupyter server from 127.0.0.1:4264. The -v "bind mount" flag allows one to mount a local directory on the host machine to a folder inside the container so that you can read and write files on the host machine from within the Docker image. Here one must mount the folder on the host machine as /home/jovyan/work or /home/jovyan/someotherfolder as the primary user "jovyan" in the Docker image only has access to that directory and to the /opt/conda folder. See https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html
 ```commandline
-docker run -it -p 8888:8888 camaralab/cajal:maximal
+docker run -it -p 8888:8888 -v C:\Users\myusername\Documents\myfolder:/home/jovyan/work camaralab/cajal:maximal
 ```
 
 ## Overview
