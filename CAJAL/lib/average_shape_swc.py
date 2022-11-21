@@ -115,7 +115,7 @@ def plot_networkx(d, ax, color=None, layout="spring"):
     plot_color = np.array(color)[edge_end]
     nx.draw_networkx_edges(nx_graph, pos, alpha=1, width=2, ax=ax, edge_color=plot_color)
     nx.draw_networkx_nodes(nx_graph, pos, nodelist=nx_graph.nodes, node_color=color,
-                           with_labels=False, node_size=2, ax=ax)
+                           node_size=2, ax=ax)
 
 
 def plot_avg_medoid(avg_spt, medoid_spt, color=None, figheight=6):
