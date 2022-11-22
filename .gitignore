@@ -134,3 +134,5 @@ QuantizedGromovWasserstein/
 # Pycharm
 .idea/
 
+# Linux backup files
+*~
