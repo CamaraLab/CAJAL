@@ -13,13 +13,28 @@ from collections.abc import Iterable
 
 def read_swc(file_path):
     """
-    Read swc file into list of rows, check that file is sorted
+    Reads an SWC file and returns a list of lists of strings.
 
+    The SWC file should conform to the documentation here: http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
+
+    In particular, all rows should be either a comment starting with the character "#" or should have at least eight strings separated by whitespace.
+    
+    read_swc(file_path)[i] is the i-th non-comment row, split into a list of strings by whitespace.
+
+    If there are fewer than eight whitespace-separated tokens in the i-th row, an error is raised.
+
+    If there are greater than eight whitespace-separated tokens in the i-th row, the first eight tokens are kept and the rest discarded.
+
+    The eighth token is assumed to be the parent sample index, which is -1 for the root.
+
+    read_swc expects the rows of the graph to be in topologically sorted order (parents before children) If this is not satisfied, read_swc raises an exception.
+    In particular, the first node must be the root of the tree, and its parent has index -1.
+        
     Args:
-        file_path (string): path to SWC file
+        file_path (string): absolute path to SWC file
 
     Returns:
-        list of vertex rows from SWC file
+        list of vertex rows from SWC file, where each vertex row is a list of eight strings.
     """
     vertices = []
     ids = set()
@@ -28,14 +43,15 @@ def read_swc(file_path):
         for line in f:
             if line[0] == "#":
                 continue
-            row = re.split("\s|\t", line.strip())
-            if row[-1] not in ids:
-                warnings.warn("SWC parent nodes must be listed before the child node that references them")
-                return None
+            row = re.split("\s|\t", line.strip())[0:8]
+            if len(row) < 8:
+                raise TypeError("Row" + row + "in file" + filepath + "has fewer than eight whitespace-separated strings.")
+            if row[7] not in ids:
+                raise ValueError("SWC parent nodes must be listed before the child node that references them. The node with index "
+                                 + row[0] + " was accessed before its parent "+ row[7])
             ids.add(row[0])
             vertices.append(row)
     return vertices
-
 
 def prep_coord_dict(vertices, types_keep=(0, 1, 2, 3, 4), keep_disconnect=False):
     """
