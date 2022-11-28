@@ -31,4 +31,4 @@ correlated with its morphology.
 
 Cajal also provides visualization tools for the user to interpret the results of the Gromov-Wasserstein distance computation.
 
-Cajal is written and developed by the `Cámara Lab <https://camara-lab.org/>` at the University of Pennsylvania. 
+Cajal is written and developed by the `Cámara Lab <https://camara-lab.org/>`_ at the University of Pennsylvania. 
