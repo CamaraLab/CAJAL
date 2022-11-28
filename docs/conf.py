@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:
@@ -9,8 +10,9 @@ import sys
 
 
 project = 'cajal'
-copyright = '2022, Pablo Camara'
-author = 'Camara Lab'
+# This looks weird to me but it renders correctly in the HTML.
+copyright = '2022, Pablo Cámara'
+author = 'Cámara Lab'
 
 # This release should be updated manually.
 release = '0.10'
