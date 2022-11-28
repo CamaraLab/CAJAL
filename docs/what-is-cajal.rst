@@ -23,4 +23,10 @@ The Gromov-Hausdorff distance between *A* and *B* is then defined as the distort
 
 Unfortunately, this quantity cannot be computed in practice, as there are 50! or about 3x10^64 ways to give a one-to-one pairing between the points of A and B, and we cannot search through all of these. Therefore, Cajal relies on a more computationally efficient approximation, the Gromov-Wasserstein distance. Both the Gromov-Hausdorff distance and the Gromov-Wasserstein distance satisfy the axioms for a metric, meaning that they give a sensible and reasonably well-behaved notion of distance.
 
+Cajal provides tools to compute the pairwise Gromov-Wasserstein distance between all cells in a directory of cell image data. Building on this foundation, the analyst can then use standard clustering
+tools to identify groups of cells with similar morphology, and use this to predict features of a new cell by comparing its shape with other cells, or investigate whether a cell feature is highly
+correlated with its morphology.
 
+Cajal also provides visualization tools for the user to interpret the results of the Gromov-Wasserstein distance computation.
+
+Cajal is written and developed by the `Camara Lab <https://camara-lab.org/>` at the University of Pennsylvania. 

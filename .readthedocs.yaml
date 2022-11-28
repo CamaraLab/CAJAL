@@ -5,6 +5,7 @@ python:
     - method: pip
       path: .
     - requirements: docs/requirements.txt
+    - requirements: requirements.txt
 build:
   os: "ubuntu-20.04"
   tools:
