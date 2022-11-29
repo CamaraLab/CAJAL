@@ -10,7 +10,7 @@ Installation on a standard desktop computer should take a few minutes.
 
 ----
 
-On Windows, the Python Optimal Transport (pot) library requires Microsoft Visual C++ 14.0 or greater, which can be installed via the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+On Windows, the Python Optimal Transport (pot) library requires Microsoft Visual C++ 14.0 or greater, which can be installed via the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/). On Ubuntu, it requires g++ and may require the package python3.x-dev, which registers the Python header files with g++.
 
 ----
 
