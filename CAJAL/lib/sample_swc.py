@@ -6,10 +6,12 @@ from scipy.spatial.distance import euclidean, squareform
 import networkx as nx
 import warnings
 from multiprocessing import Pool
-import time
+# import time
 import os
 from collections.abc import Iterable
 
+StructureID = int
+CoordTriple = tuple[float,float,float]
 
 def read_swc(file_path):
     """
@@ -45,7 +47,7 @@ def read_swc(file_path):
                 continue
             row = re.split("\s|\t", line.strip())[0:8]
             if len(row) < 8:
-                raise TypeError("Row" + row + "in file" + filepath + "has fewer than eight whitespace-separated strings.")
+                raise TypeError("Row" + row + "in file" + file_path + "has fewer than eight whitespace-separated strings.")
             if row[7] not in ids:
                 raise ValueError("SWC parent nodes must be listed before the child node that references them. The node with index "
                                  + row[0] + " was accessed before its parent "+ row[7])
@@ -432,16 +434,16 @@ def save_sample_pts_parallel(infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
         keep_disconnect (boolean): if True, will keep all branches from SWC. if False, will keep only connected to soma
 
     Returns:
-        None
+        A list of Booleans which describe the success or failure of each file.
     """
     if not os.path.exists(outfolder):
         os.mkdir(outfolder)
     arguments = [(file_name, infolder, outfolder, types_keep, goal_num_pts,
                   min_step_change, max_iters, keep_disconnect, False)
                  for file_name in os.listdir(infolder)]
-    start = time.time()
+    # start = time.time()
     with Pool(processes=num_cores) as pool:
-        save_results = pool.starmap(save_sample_pts, arguments)
+        return(pool.starmap(save_sample_pts, arguments))
     # print(time.time() - start)
 
 
@@ -462,13 +464,13 @@ def save_geodesic_parallel(infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
         num_cores (integer): number of processes to use for parallelization
 
     Returns:
-        None
+        A list of Booleans indicating the success or failure for each file in the folder
     """
     if not os.path.exists(outfolder):
         os.mkdir(outfolder)
     arguments = [(file_name, infolder, outfolder, types_keep, goal_num_pts, min_step_change, max_iters, False)
                  for file_name in os.listdir(infolder)]
-    start = time.time()
+    # start = time.time()
     with Pool(processes=num_cores) as pool:
-        save_results = pool.starmap(save_geodesic, arguments)
+        return(pool.starmap(save_geodesic, arguments))
     # print(time.time() - start)
