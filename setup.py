@@ -23,9 +23,9 @@ setup(
         "scikit-image",
         "tifffile",
         "trimesh",
-        "umap-learn~=0.5.3"
+        "umap-learn~=0.5.3" # Depends on numba which requires python < 3.11 as of 11/29/2022
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     classifiers=[
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Programming Language :: Python :: 3',
