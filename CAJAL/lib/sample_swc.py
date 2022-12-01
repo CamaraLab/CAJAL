@@ -5,13 +5,67 @@ from CAJAL.lib.utilities import pj
 from scipy.spatial.distance import euclidean, squareform
 import networkx as nx
 import warnings
+from typing import List, Dict, Tuple, Optional
 from multiprocessing import Pool
 # import time
 import os
 from collections.abc import Iterable
+from collections.abc import Sequence
 
+# TODO - stylistic change. Once we are ready to increase the minimum supported
+# version of Python to >= 3.9, these should be changed from uppercase Tuple,
+# Dict, List to lowercase tuple, dict, list etc.
 StructureID = int
-CoordTriple = tuple[float,float,float]
+CoordTriple = Tuple[float,float,float]
+NeuronNode = Tuple[StructureID,CoordTriple]
+NodeIndex = int
+# A ComponentTree is a directed graph formatted as a dictionary, where each node contains the key of its parent.
+# Our convention will be that the component_tree[0] is always the root.
+ComponentTree = Dict[NodeIndex, Tuple[NeuronNode,NodeIndex]] 
+SWCData = List[ComponentTree]
+
+def read_SWCData(file_path : str) -> SWCData:
+    """
+    Reads an SWC file and returns a representation of the data as a list of the connected components of the neuron.    
+
+    The SWC file should conform to the documentation here: www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
+
+    Args:
+        file_path (string): absolute path to SWC file.
+    Returns:
+        list of connected components of the neurons.
+    """
+
+    swc_data : SWCData = []
+    
+    with open(file_path, "r") as f:
+        for line in f:
+            if line[0] == "#":
+                continue
+            row = re.split("\s|\t", line.strip())[0:7]
+            if len(row) < 7:
+                raise TypeError("Row" + line + "in file" + file_path + "has fewer than seven whitespace-separated strings.")
+            node_index, structure_id = int(row[0]), int(row[1])
+            x, y, z = float(row[2]), float(row[3]), float(row[4])
+                      # Radius discarded
+            parent_id = int(row[6])
+            if parent_id == -1:
+                root_node : NeuronNode = (structure_id, (x, y, z))
+                new_component_tree : ComponentTree = { node_index : (root_node,-1) }
+            else:
+                my_dict : Optional[ComponentTree] = None
+                for d in swc_data:
+                    if parent_id in d.keys():
+                        my_dict = d
+                        break
+                if my_dict is None:
+                    raise ValueError("SWC parent nodes must be listed before the child node that references them. The node with index "
+                                     + row[0] + " was accessed before its parent "+ row[6])
+                my_dict[node_index]=((structure_id, (x,y,z)),parent_id)
+        return swc_data
+    
+    
+    
 
 def read_swc(file_path):
     """
@@ -19,15 +73,15 @@ def read_swc(file_path):
 
     The SWC file should conform to the documentation here: http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
 
-    In particular, all rows should be either a comment starting with the character "#" or should have at least eight strings separated by whitespace.
+    In particular, all rows should be either a comment starting with the character "#" or should have at least seven strings separated by whitespace.
     
     read_swc(file_path)[i] is the i-th non-comment row, split into a list of strings by whitespace.
 
-    If there are fewer than eight whitespace-separated tokens in the i-th row, an error is raised.
+    If there are fewer than seven whitespace-separated tokens in the i-th row, an error is raised.
 
-    If there are greater than eight whitespace-separated tokens in the i-th row, the first eight tokens are kept and the rest discarded.
+    If there are greater than seven whitespace-separated tokens in the i-th row, the first seven tokens are kept and the rest discarded.
 
-    The eighth token is assumed to be the parent sample index, which is -1 for the root.
+    The seventh token is assumed to be the parent node index and to be -1 if the node has no parent.
 
     read_swc expects the rows of the graph to be in topologically sorted order (parents before children) If this is not satisfied, read_swc raises an exception.
     In particular, the first node must be the root of the tree, and its parent has index -1.
@@ -45,12 +99,12 @@ def read_swc(file_path):
         for line in f:
             if line[0] == "#":
                 continue
-            row = re.split("\s|\t", line.strip())[0:8]
-            if len(row) < 8:
+            row = re.split("\s|\t", line.strip())[0:7]
+            if len(row) < 7:
                 raise TypeError("Row" + row + "in file" + file_path + "has fewer than eight whitespace-separated strings.")
-            if row[7] not in ids:
+            if row[6] not in ids:
                 raise ValueError("SWC parent nodes must be listed before the child node that references them. The node with index "
-                                 + row[0] + " was accessed before its parent "+ row[7])
+                                 + row[0] + " was accessed before its parent "+ row[6])
             ids.add(row[0])
             vertices.append(row)
     return vertices
