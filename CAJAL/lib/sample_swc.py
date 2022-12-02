@@ -10,7 +10,7 @@ from multiprocessing import Pool
 # import time
 import os
 from collections.abc import Iterable
-from collections.abc import Sequence
+
 
 # TODO - stylistic change. Once we are ready to increase the minimum supported
 # version of Python to >= 3.9, these should be changed from uppercase Tuple,
@@ -24,7 +24,7 @@ NodeIndex = int
 ComponentTree = Dict[NodeIndex, Tuple[NeuronNode,NodeIndex]] 
 SWCData = List[ComponentTree]
 
-def read_SWCData(file_path : str) -> SWCData:
+def read_SWCData(file_path : str, keep_disconnect) -> SWCData:
     """
     Reads an SWC file and returns a representation of the data as a list of the connected components of the neuron.    
 
@@ -37,6 +37,8 @@ def read_SWCData(file_path : str) -> SWCData:
     """
 
     swc_data : SWCData = []
+    # component_dict : Dict[NodeIndex,ComponentTree] = [] 
+    # core_dict : Optional[ComponentTree] = None
     
     with open(file_path, "r") as f:
         for line in f:
@@ -51,7 +53,7 @@ def read_SWCData(file_path : str) -> SWCData:
             parent_id = int(row[6])
             if parent_id == -1:
                 root_node : NeuronNode = (structure_id, (x, y, z))
-                new_component_tree : ComponentTree = { node_index : (root_node,-1) }
+                swc_data.append( { node_index : (root_node,-1) } )
             else:
                 my_dict : Optional[ComponentTree] = None
                 for d in swc_data:
@@ -63,9 +65,6 @@ def read_SWCData(file_path : str) -> SWCData:
                                      + row[0] + " was accessed before its parent "+ row[6])
                 my_dict[node_index]=((structure_id, (x,y,z)),parent_id)
         return swc_data
-    
-    
-    
 
 def read_swc(file_path):
     """
@@ -150,8 +149,7 @@ def prep_coord_dict(vertices, types_keep=(0, 1, 2, 3, 4), keep_disconnect=False)
                 total_length += seg_len
     return vertices_keep, vertex_coords, total_length
 
-
-def sample_pts_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2, 3, 4)):
+def sample_pts_step(vertices : List[List[str]], vertex_coords, step_size, types_keep=(0,1,2,3,4)):
     """
     Sample points at every set interval (step_size) along branches of neuron
 
@@ -164,26 +162,46 @@ def sample_pts_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2, 3, 
 
     Returns:
         sampled_pts_list: list of xyz coordinates for sampled points
-        num_origins: number of connected parts of neuron, should be 1
+        num_roots: number of connected parts of neuron
     """
+    
+    # The implementation of this function constructs a new graph (forest) T on
+    # top of the input graph (forest), G, where G is sampled from the SWC
+    # file. The nodes of T lie on the geometric line segments connecting the
+    # nodes of G. Every node of T is of the form ax+by,
+    # where x and y are nodes of G with x the parent of y, and a, b
+    # are real coefficients with a, b >=0 and a+b == 1. The parent node of a
+    # node in T is the next nearest node along the path to the root of that tree. T is
+    # constructed so that the geodesic distance between a parent and child node is exactly step_size.
+    
+    # The keys of vertex_dist are nodes in G.  The value vertex_dist[v] is a
+    # float, which is the geodesic distance between v and the nearest node
+    # above it in T, say x. Note that if step_size < dist(v,parent(v)), then x
+    # will lie on the line segment between v and parent(v); however, if
+    # step_size >> dist(v, parent(v)), then there may be several nodes of G
+    # between v and x.
     vertex_dist = {}
+
+    # The list of nodes of T, represented as numpy float arrays of length 3.
     sampled_pts_list = []
-    num_origins = 0
+    num_roots = 0
 
     # in case types_keep are numbers
-    types_keep = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
-
+    if types_keep is not None:
+        types_keep = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
+    
     # loop through list of vertices, sampling points from edge of vertex to parent
     for v in vertices:
         this_id = int(v[0])
         this_coord = np.array((float(v[2]), float(v[3]), float(v[4])))
         pid = int(v[-1])
         if pid < 0:
-            num_origins += 1
+            num_roots += 1
             vertex_dist[this_id] = 0
             sampled_pts_list.append(this_coord)
             continue
         seg_len = euclidean(vertex_coords[pid], this_coord)
+        # 
         pts_dist = np.arange(step_size, seg_len + vertex_dist[pid], step_size)
         if v[1] in types_keep and len(pts_dist) > 0:
             pts_dist = pts_dist - vertex_dist[pid]
@@ -194,7 +212,7 @@ def sample_pts_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2, 3, 
             vertex_dist[this_id] = new_dist
         else:
             vertex_dist[this_id] = vertex_dist[pid] + seg_len
-    return sampled_pts_list, num_origins
+    return sampled_pts_list, num_roots
 
 
 def sample_n_pts(vertices, vertex_coords, total_length, types_keep=(0, 1, 2, 3, 4),
@@ -228,8 +246,8 @@ def sample_n_pts(vertices, vertex_coords, total_length, types_keep=(0, 1, 2, 3, 
     while num_pts != goal_num_pts and abs(step_size - prev_step_size) > min_step_change and i < \
             max_iters:
         i += 1
-        sampled_pts_list, num_origins = sample_pts_step(vertices, vertex_coords, step_size, types_keep)
-        if num_origins > goal_num_pts:
+        sampled_pts_list, num_roots = sample_pts_step(vertices, vertex_coords, step_size, types_keep)
+        if num_roots > goal_num_pts:
             warnings.warn("More disconnected segments in neuron than points to sample, skipping")
             return None
 
