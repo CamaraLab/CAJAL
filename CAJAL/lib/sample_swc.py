@@ -234,7 +234,8 @@ def sample_pts_step(vertices : List[List[str]], vertex_coords: Dict[int,np.ndarr
 def sample_n_pts(vertices : List[List[str]], vertex_coords : Dict[int,np.ndarray],
                  total_length : float, types_keep : Optional[Iterable[int]] = None,
                  goal_num_pts : int =50, min_step_change : float =1e-7,
-                 max_iters : int =50, verbose : bool =False):
+                 max_iters : int =50,
+                 verbose : bool =False) -> Optional[Tuple[np.ndarray,int,float,int]]:
     """
     Use binary search to find step size between points that will sample the required number of points
 
@@ -267,7 +268,7 @@ def sample_n_pts(vertices : List[List[str]], vertex_coords : Dict[int,np.ndarray
         i += 1
         sampled_pts_list, num_roots = sample_pts_step(vertices, vertex_coords, step_size, types_keep)
         if num_roots > goal_num_pts:
-            warnings.warn("More disconnected segments in neuron than points to sample, skipping")
+            warnings.warn("More connected components in neuron than points to sample, skipping")
             return None
 
         # continue binary search
@@ -360,31 +361,43 @@ def get_sample_pts(file_name : str, infolder : str,
                    types_keep : Optional[Iterable[int]] =None,
                    goal_num_pts : int =50, min_step_change : float =1e-7,
                    max_iters : int =50, keep_disconnect : bool = True,
-                   verbose: bool =False):
+                   verbose: bool =False) -> Optional[Tuple[np.ndarray,int,float,int]]:
     """
     Sample points from SWC file
 
     Args:
         file_name (string): SWC file name (including .swc)
+    
         infolder (string): path to folder containing SWC file
-        types_keep (tuple,list): list of SWC neuron part types to
-            sample points from. If types_keep is None then all part types
-            are sampled.
+    
+        types_keep (tuple,list): list of SWC neuron part types to sample points from. If types_keep is None then all part types are sampled.
+    
         goal_num_pts (integer): number of points to sample.
-        min_step_change (float): stops while loop from infinitely trying closer
-            and closer step sizes
+    
+        min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+    
         max_iters (integer): maximum number of iterations of while loop
-        keep_disconnect (boolean): if True, will keep all branches from SWC.
-            If False, will keep only connected to soma
-        verbose (boolean): if True, will print step size information for each
-            search iteration
+    
+        keep_disconnect (boolean): if True, will keep all branches from SWC. If False, will keep only connected to soma
+    
+        verbose (boolean): if True, will print step size information for each search iteration
 
     Returns:
-        list:
-            [0]: list of xyz coordinates of sampled points
-            [1]: actual number of points sampled
-            [2]: step size that samples required number of points
-            [3]: number of iterations to reach viable step size
+        None, if either of these occur:
+    
+        - The file does not end with ".swc" or ".SWC".
+    
+        - There are more connected components in the sample than goal_num_pts.
+
+        Otherwise, a 4-tuple:
+
+        [0]: list of xyz coordinates of sampled points
+    
+        [1]: actual number of points sampled
+    
+        [2]: step size that samples required number of points
+    
+        [3]: number of iterations to reach viable step size
     """
 
     if file_name[-4:] != ".SWC" and file_name[-4:] != ".swc":
@@ -397,39 +410,50 @@ def get_sample_pts(file_name : str, infolder : str,
     # Get total length of segment type (for max step size)
     coord_list_out = prep_coord_dict(swc_list, types_keep,
                                      keep_disconnect=keep_disconnect)
-    if coord_list_out is None:
-        return None
-
     return sample_n_pts(coord_list_out[0], coord_list_out[1],
                         coord_list_out[2],
                         types_keep, goal_num_pts, min_step_change,
                         max_iters, verbose)
 
 
-def save_sample_pts(file_name: str, infolder : str, outfolder : str,
+def compute_and_save_sample_pts(file_name: str, infolder : str, outfolder : str,
                     types_keep : Optional[Iterable[int]] = None,
                     goal_num_pts : int = 50, min_step_change : float =1e-7,
                     max_iters : int =50, keep_disconnect:bool=True,
-                    verbose:bool=False):
-    """
-        Sample points from SWC file and save them in CSV
+                    verbose:bool=False) -> bool:
+    """A wrapper function for get_sample_pts which saves the output as a
+        comma-separated-value text file.  The output filename is the same as
+        the input filename except that it ends in .csv instead of .swc.  The
+        output text file will contain goal_num_pts rows and three
+        comma-separated columns with the xyz values of the sampled points.  xyz
+        coordinates are specified to 16 places after the decimal.
+        
 
         Args:
+    
             file_name (string): SWC file name (including .swc)
+    
             infolder (string): path to folder containing SWC file
+    
             outfolder (string): path to output folder to save CSVs
-            types_keep (tuple,list): list of SWC neuron part types to sample points from
-                by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
+    
+            types_keep (tuple,list): list of SWC neuron part types to sample points from. If types_keep is None, all points are sampled.
+
             goal_num_pts (integer): number of points to sample
+    
             min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+    
             max_iters (integer): maximum number of iterations of while loop
-            keep_disconnect (boolean): if True, will keep all branches from SWC.
-                if False, will keep only connected to soma
+    
+            keep_disconnect (boolean): if True, will keep all branches from SWC. if False, will keep only those connected to soma
+    
             verbose (boolean): if true, will print step size information for each search iteration
 
         Returns:
-            Boolean success of sampling points from this SWC file
+            Boolean success of sampling points from this SWC file.
+
     """
+
     sample_pts_out = get_sample_pts(file_name, infolder, types_keep, goal_num_pts,
                                     min_step_change, max_iters, keep_disconnect, verbose)
 
@@ -443,25 +467,38 @@ def save_sample_pts(file_name: str, infolder : str, outfolder : str,
         return False
 
 
-def get_geodesic(file_name, infolder, types_keep=(0, 1, 2, 3, 4),
-                 goal_num_pts=50, min_step_change=1e-7,
-                 max_iters=50, verbose=False):
+def get_geodesic(file_name:str, infolder:str, types_keep:Optional[Iterable[int]]=None,
+                 goal_num_pts : int =50, min_step_change : float =1e-7,
+                 max_iters : int =50, verbose: bool=False) -> Optional[np.ndarray]:
     """
-    Sample points from SWC file, compute geodesic distance (networkx graph distance) between
-    points, returns distance in vector form
+    Sample points from a given SWC file, compute the geodesic distance (networkx graph distance) between
+    points, and return the matrix of pairwise geodesic distances between points in the cell.
 
     Args:
         file_name (string): SWC file name (including .swc)
+
         infolder (string): path to folder containing SWC file
-        types_keep (tuple,list): list of SWC neuron part types to sample points from
-            by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
-        goal_num_pts (integer): number of points to sample
+
+        types_keep (tuple,list): list of SWC neuron part types to sample points from. By default, all points are kept. 
+
+        goal_num_pts (integer): number of points to sample.
+
         min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+
         max_iters (integer): maximum number of iterations of while loop
+
         verbose (boolean): if true, will print step size information for each search iteration
 
     Returns:
-        Boolean success of sampling points from this SWC file
+
+        None, if either of these occur:
+    
+        - The file does not end with ".swc" or ".SWC".
+    
+        - There are more connected components in the sample than goal_num_pts.
+
+        Otherwise, returns a numpy vector-form distance vector encoding the intracell geodesic distance matrix 
+       
     """
 
     if file_name[-4:] != ".SWC" and file_name[-4:] != ".swc":
@@ -473,8 +510,6 @@ def get_geodesic(file_name, infolder, types_keep=(0, 1, 2, 3, 4),
 
     # Get total length of segment type (for max step size)
     coord_list_out = prep_coord_dict(swc_list, types_keep, keep_disconnect=False)
-    if coord_list_out is None:
-        return None
 
     sample_pts_out = sample_n_pts(coord_list_out[0], coord_list_out[1], coord_list_out[2], types_keep,
                                   goal_num_pts, min_step_change, max_iters, verbose)
@@ -490,57 +525,77 @@ def get_geodesic(file_name, infolder, types_keep=(0, 1, 2, 3, 4),
         return None
 
 
-def save_geodesic(file_name, infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
-                  goal_num_pts=50, min_step_change=1e-7,
-                  max_iters=50, verbose=False):
+def compute_and_save_geodesic(file_name : str, infolder:str, outfolder:str,
+                  types_keep : Optional[Iterable[int]] =None,
+                  goal_num_pts : int =50, min_step_change : float =1e-7,
+                  max_iters: int =50, verbose : bool =False) -> bool:
     """
-    Sample points from SWC file, compute geodesic distance (networkx graph distance) between
-    points, save distance in vector format
+    A wrapper for get_geodesic which writes the results to a text file. If the input filename is "file_name.swc" then the output filename will be "file_name_dist.txt".
+
+    The file has a single column. The rows of the file are the distances d(x_i,x_j) for x_i, x_j sample points and i < j.
+
+    The distances are floating point real numbers specified to 8 places past the decimal.
+    
 
     Args:
         file_name (string): SWC file name (including .swc)
+    
         infolder (string): path to folder containing SWC file
+
         outfolder (string): path to output folder to save distance vectors
-        types_keep (tuple,list): list of SWC neuron part types to sample points from
-            by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
+
+        types_keep (tuple,list): list of SWC neuron part types to sample points from. By default, uses all.
+    
         goal_num_pts (integer): number of points to sample
+    
         min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+    
         max_iters (integer): maximum number of iterations of while loop
+    
         verbose (boolean): if true, will print step size information for each search iteration
 
     Returns:
-        Boolean success of sampling points from this SWC file
+        Boolean success of sampling points from this SWC file.
     """
     geo_dist_mat = get_geodesic(file_name, infolder, types_keep, goal_num_pts, min_step_change, max_iters, verbose)
 
     if geo_dist_mat is not None:
         np.savetxt(pj(outfolder, file_name[:-4] + "_dist.txt"), geo_dist_mat, fmt='%.8f')
-        return "succeeded"
+        return True
     else:
-        return "failed"
+        return False
 
 
-def save_sample_pts_parallel(infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
-                             goal_num_pts=50, min_step_change=1e-7,
-                             max_iters=50, num_cores=8, keep_disconnect=True):
+def compute_and_save_sample_pts_parallel(infolder : str, outfolder : str,
+                             types_keep: Optional[Iterable[int]]=None,
+                             goal_num_pts : int =50, min_step_change :float =1e-7,
+                             max_iters : int =50, num_cores :int =8,
+                             keep_disconnect: bool =True) -> Iterable[bool]:
     """
-    Parallelize sampling the same number of points from all SWC files in a folder
+    Parallelize sampling the same number of points from all SWC files in a folder.
 
     Args:
-        infolder (string): path to folder containing SWC files. Only files ending in ".SWC" or ".swc" will be
-        processed; other files will be ignored with a warning.
-        outfolder (string): path to output folder to save *.csv files.
-        types_keep (tuple,list): list of SWC neuron part types to sample points from
-            by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
+    
+        infolder (string): path to folder containing SWC files. Only files ending in '.SWC' or '.swc' will be processed, other files will be ignored with a warning
+    
+        outfolder (string): path to output folder to save .csv files.
+    
+        types_keep (tuple,list): list of SWC neuron part types to sample points from.
+     
         goal_num_pts (integer): number of points to sample
+    
         min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+    
         max_iters (integer): maximum number of iterations of while loop
+    
         num_cores (integer): number of processes to use for parallelization
+    
         keep_disconnect (boolean): if True, will keep all branches from SWC. if False, will keep only connected to soma
 
     Returns:
-        A list of Booleans which describe the success or failure of each file.
+        A lazy list of Booleans which describe the success or failure of each file.
     """
+    
     if not os.path.exists(outfolder):
         os.mkdir(outfolder)
     arguments = [(file_name, infolder, outfolder, types_keep, goal_num_pts,
@@ -548,28 +603,34 @@ def save_sample_pts_parallel(infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
                  for file_name in os.listdir(infolder)]
     # start = time.time()
     with Pool(processes=num_cores) as pool:
-        return(pool.starmap(save_sample_pts, arguments))
+        return(pool.starmap(compute_and_save_sample_pts, arguments))
     # print(time.time() - start)
 
 
-def save_geodesic_parallel(infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
-                           goal_num_pts=50, min_step_change=1e-7,
-                           max_iters=50, num_cores=8):
+def compute_and_save_geodesic_parallel(infolder : str,
+                    outfolder : str, types_keep : Optional[Iterable[int]]=None,
+                    goal_num_pts : int =50, min_step_change : float =1e-7,
+                    max_iters : int =50, num_cores: int =8) -> Iterable[bool]:
     """
     Parallelize sampling and computing geodesic distance for the same number of points from all SWC files in a folder
 
     Args:
         infolder (string): path to folder containing SWC files
+    
         outfolder (string): path to output folder to save distance vectors
-        types_keep (tuple,list): list of SWC neuron part types to sample points from
-            by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
+    
+        types_keep (tuple,list): list of SWC neuron part types to sample points from. By default, all parts will be used.
+
         goal_num_pts (integer): number of points to sample
+    
         min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+    
         max_iters (integer): maximum number of iterations of while loop
+    
         num_cores (integer): number of processes to use for parallelization
 
     Returns:
-        A list of Booleans indicating the success or failure for each file in the folder
+        A lazy list of Booleans indicating the success or failure for each file in the folder
     """
     if not os.path.exists(outfolder):
         os.mkdir(outfolder)
@@ -577,5 +638,5 @@ def save_geodesic_parallel(infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
                  for file_name in os.listdir(infolder)]
     # start = time.time()
     with Pool(processes=num_cores) as pool:
-        return(pool.starmap(save_geodesic, arguments))
+        return(pool.starmap(compute_and_save_geodesic, arguments))
     # print(time.time() - start)
