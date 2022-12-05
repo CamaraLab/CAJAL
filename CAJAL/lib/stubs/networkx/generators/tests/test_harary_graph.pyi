@@ -1,0 +1,6 @@
+from networkx.algorithms.isomorphism.isomorph import is_isomorphic as is_isomorphic
+from networkx.generators.harary_graph import hkn_harary_graph as hkn_harary_graph, hnm_harary_graph as hnm_harary_graph
+
+class TestHararyGraph:
+    def test_hnm_harary_graph(self) -> None: ...
+    def test_hkn_harary_graph(self) -> None: ...

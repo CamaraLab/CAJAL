@@ -1,16 +1,15 @@
 # Functions for sampling even points from an SWC reconstruction of a neuron
 import re
 import numpy as np
+# import numpy.typing as npt      
 from CAJAL.lib.utilities import pj
 from scipy.spatial.distance import euclidean, squareform
 import networkx as nx
 import warnings
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Iterable, Set
 from multiprocessing import Pool
 # import time
 import os
-from collections.abc import Iterable
-
 
 # TODO - stylistic change. Once we are ready to increase the minimum supported
 # version of Python to >= 3.9, these should be changed from uppercase Tuple,
@@ -66,9 +65,9 @@ def read_SWCData(file_path : str, keep_disconnect) -> SWCData:
                 my_dict[node_index]=((structure_id, (x,y,z)),parent_id)
         return swc_data
 
-def read_swc(file_path):
+def read_swc(file_path : str) -> List[List[str]]:
     """
-    Reads an SWC file and returns a list of lists of strings.
+    Reads an SWC file and returns a list of the non-comment lines, split by spaces into tokens.
 
     The SWC file should conform to the documentation here: http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
 
@@ -92,7 +91,7 @@ def read_swc(file_path):
         list of vertex rows from SWC file, where each vertex row is a list of eight strings.
     """
     vertices = []
-    ids = set()
+    ids : Set[str] = set()
     ids.add("-1")
     with open(file_path, "r") as f:
         for line in f:
@@ -100,7 +99,7 @@ def read_swc(file_path):
                 continue
             row = re.split("\s|\t", line.strip())[0:7]
             if len(row) < 7:
-                raise TypeError("Row" + row + "in file" + file_path + "has fewer than eight whitespace-separated strings.")
+                raise TypeError("Row" + line + "in file" + file_path + "has fewer than eight whitespace-separated strings.")
             if row[6] not in ids:
                 raise ValueError("SWC parent nodes must be listed before the child node that references them. The node with index "
                                  + row[0] + " was accessed before its parent "+ row[6])
@@ -108,14 +107,16 @@ def read_swc(file_path):
             vertices.append(row)
     return vertices
 
-def prep_coord_dict(vertices, types_keep=(0, 1, 2, 3, 4), keep_disconnect=False):
+def prep_coord_dict(vertices : List[List[str]],
+                    types_keep : Optional[Iterable[int]] = None,
+                    keep_disconnect=False) -> Tuple[List[List[str]], Dict[int,np.ndarray], float]:
     """
     Read through swc file list, get dictionary of vertex coordinates and total length of all segments
 
     Args:
         vertices (list): list of vertex rows from SWC file
-        types_keep (tuple,list): list of SWC neuron part types to sample points from
-            by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
+        types_keep (tuple,list): list of SWC neuron part types to sample points from. By default, uses all points.
+    Only points 
         keep_disconnect (boolean): If False, will only keep branches connected to the soma.
             If True, will keep all branches, including free-floating ones
 
@@ -125,11 +126,13 @@ def prep_coord_dict(vertices, types_keep=(0, 1, 2, 3, 4), keep_disconnect=False)
         total_length: sum of segment lengths from branches of kept vertices
     """
     # in case types_keep are numbers
-    types_keep = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
+    types_keep_strings : Optional[List[str]] = None
+    if types_keep is not None:
+        types_keep_strings = [str(x) for x in types_keep]
 
-    vertices_keep = []
-    vertex_coords = {}
-    total_length = 0
+    vertices_keep : List[List[str]] = []
+    vertex_coords : Dict[int,np.ndarray] = {}
+    total_length : float = 0
     for v in vertices:
         this_id = int(v[0])
         this_coord = np.array((float(v[2]), float(v[3]), float(v[4])))
@@ -140,16 +143,27 @@ def prep_coord_dict(vertices, types_keep=(0, 1, 2, 3, 4), keep_disconnect=False)
             if keep_disconnect or v[1] == "1" or len(vertices_keep) == 0:
                 vertex_coords[this_id] = this_coord
                 vertices_keep.append(v)
-        elif pid >= 0 and pid in vertex_coords.keys():
-            # keep branch vertex if connected to soma origin
+        elif pid in vertex_coords.keys():
+            # keep branch vertex if connected to soma root
             vertex_coords[this_id] = this_coord
             vertices_keep.append(v)
             seg_len = euclidean(vertex_coords[pid], this_coord)
-            if v[1] in types_keep:
+            if types_keep_strings is None or v[1] in types_keep_strings:
                 total_length += seg_len
+        elif types_keep_strings is not None and v[1] in types_keep_strings:
+            raise ValueError(
+                "Vertex " + v[0] +" is of type "+ v[1] +
+                " which is in the list of types to keep, but its\
+                parent may not be. CAJAL does not currently have a\
+                strategy to deal with such SWC files. \
+                Suggest cleaning the data or setting \
+                types_keep = None.")
+            
     return vertices_keep, vertex_coords, total_length
 
-def sample_pts_step(vertices : List[List[str]], vertex_coords, step_size, types_keep=(0,1,2,3,4)):
+def sample_pts_step(vertices : List[List[str]], vertex_coords: Dict[int,np.ndarray],
+                    step_size : float,
+                    types_keep: Optional[Iterable[int]] = None) -> Tuple[List[np.ndarray],int]:
     """
     Sample points at every set interval (step_size) along branches of neuron
 
@@ -180,34 +194,36 @@ def sample_pts_step(vertices : List[List[str]], vertex_coords, step_size, types_
     # will lie on the line segment between v and parent(v); however, if
     # step_size >> dist(v, parent(v)), then there may be several nodes of G
     # between v and x.
-    vertex_dist = {}
+    vertex_dist : Dict[int,float] = {}
 
     # The list of nodes of T, represented as numpy float arrays of length 3.
-    sampled_pts_list = []
-    num_roots = 0
+    sampled_pts_list : List[np.ndarray] = []
 
+    # The number of connected components of the forest.
+    num_roots : int = 0
+
+    types_keep_strings : Optional[List[str]]= None
     # in case types_keep are numbers
     if types_keep is not None:
-        types_keep = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
+        types_keep_strings = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
     
     # loop through list of vertices, sampling points from edge of vertex to parent
     for v in vertices:
         this_id = int(v[0])
         this_coord = np.array((float(v[2]), float(v[3]), float(v[4])))
         pid = int(v[-1])
-        if pid < 0:
+        if pid == -1:
             num_roots += 1
             vertex_dist[this_id] = 0
             sampled_pts_list.append(this_coord)
             continue
         seg_len = euclidean(vertex_coords[pid], this_coord)
-        # 
         pts_dist = np.arange(step_size, seg_len + vertex_dist[pid], step_size)
-        if v[1] in types_keep and len(pts_dist) > 0:
+        if (types_keep_strings is None or v[1] in types_keep_strings) and len(pts_dist) > 0:
             pts_dist = pts_dist - vertex_dist[pid]
             new_dist = seg_len - pts_dist[-1]
             new_pts = [vertex_coords[pid] + (this_coord - vertex_coords[pid]) * x / seg_len for x in pts_dist]
-            if v[1] in types_keep:
+            if types_keep_strings is None or v[1] in types_keep_strings:
                 sampled_pts_list.extend(new_pts)
             vertex_dist[this_id] = new_dist
         else:
@@ -215,17 +231,20 @@ def sample_pts_step(vertices : List[List[str]], vertex_coords, step_size, types_
     return sampled_pts_list, num_roots
 
 
-def sample_n_pts(vertices, vertex_coords, total_length, types_keep=(0, 1, 2, 3, 4),
-                 goal_num_pts=50, min_step_change=1e-7, max_iters=50, verbose=False):
+def sample_n_pts(vertices : List[List[str]], vertex_coords : Dict[int,np.ndarray],
+                 total_length : float, types_keep : Optional[Iterable[int]] = None,
+                 goal_num_pts : int =50, min_step_change : float =1e-7,
+                 max_iters : int =50, verbose : bool =False):
     """
     Use binary search to find step size between points that will sample the required number of points
 
     Args:
-        vertices (list): list of rows from SWC file that are connected to the soma
+        vertices (list): list of tokenized rows from SWC file that are connected to the soma
         vertex_coords (dict): dictionary of xyz coordinates for the ID of each vertex in vertices_keep
         total_length (float): sum of segment lengths from branches of kept vertices
-        types_keep (tuple,list): list of SWC neuron part types to sample points from
-            by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
+        types_keep: list of SWC neuron part types to sample points from.
+            By default, all points are kept. The standard structure identifiers are 1-4, with 0 the key for "undefined";
+            indices greater than 5 are reserved for custom types. types_keep = (0,1,2,3,4) should handle most files.
         goal_num_pts (integer): number of points to sample
         min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
         max_iters (integer): maximum number of iterations of while loop
@@ -238,7 +257,7 @@ def sample_n_pts(vertices, vertex_coords, total_length, types_keep=(0, 1, 2, 3, 
         i: number of iterations to reach viable step size
     """
     num_pts = 0
-    min_step_size = 0
+    min_step_size = 0.0
     max_step_size = total_length
     prev_step_size = max_step_size
     step_size = (min_step_size + max_step_size) / 2.0
@@ -276,7 +295,8 @@ def sample_n_pts(vertices, vertex_coords, total_length, types_keep=(0, 1, 2, 3, 
         return sampled_pts, num_pts, step_size, i
 
 
-def sample_network_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2, 3, 4)):
+def sample_network_step(vertices : List[List[str]], vertex_coords : Dict[int,np.ndarray],
+                                        step_size : float, types_keep : Optional[Iterable[int]] =None):
     """
     Sample points at every set interval (step_size) along branches of neuron, return networkx
 
@@ -290,14 +310,16 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2,
     Returns:
         graph: networkx graph of sampled points weighted by distance between points
     """
-    vertex_dist = {}
-    num_origins = 0
+    vertex_dist : Dict[int,float] = {}
+    num_roots= 0
     graph = nx.Graph()
-    prev_pts = {}  # Save last point before this one so can connect edge
+    prev_pts : Dict[int,str] = {}  # Save last point before this one so can connect edge
     # pos = {}
 
+    types_keep_strings : Optional[List[str]]= None
     # in case types_keep are numbers
-    types_keep = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
+    if types_keep is not None:
+        types_keep_strings = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
 
     # loop through list of vertices, sampling points from edge of vertex to parent
     for v in vertices:
@@ -305,7 +327,7 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2,
         this_coord = np.array((float(v[2]), float(v[3]), float(v[4])))
         pid = int(v[-1])
         if pid < 0:
-            num_origins += 1
+            num_roots += 1
             vertex_dist[this_id] = 0
             graph.add_node(str(this_id))
             # pos[str(this_id)] = this_coord[:2]
@@ -313,7 +335,7 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2,
             continue
         seg_len = euclidean(vertex_coords[pid], this_coord)
         pts_dist = np.arange(step_size, seg_len + vertex_dist[pid], step_size)
-        if v[1] in types_keep and len(pts_dist) > 0:
+        if (types_keep_strings is None or v[1] in types_keep_strings) and len(pts_dist) > 0:
             pts_dist = pts_dist - vertex_dist[pid]
             new_dist = seg_len - pts_dist[-1]
             new_pts = [vertex_coords[pid] + (this_coord - vertex_coords[pid]) * x / seg_len for x in pts_dist]
@@ -321,7 +343,7 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2,
             new_pts_len = [vertex_dist[pid] + euclidean(new_pts[0], vertex_coords[pid])] + \
                           [euclidean(new_pts[i], new_pts[i - 1]) for i in range(1, len(new_pts))]
             # Add new points to graph, with edge weighted by euclidean to parent
-            if v[1] in types_keep:
+            if types_keep_strings is None or v[1] in types_keep_strings:
                 for i in range(1, len(new_pts_ids)):
                     graph.add_node(new_pts_ids[i])
                     # pos[new_pts_ids[i]] = new_pts[i - 1][:2]
@@ -334,22 +356,28 @@ def sample_network_step(vertices, vertex_coords, step_size, types_keep=(0, 1, 2,
     return graph  # , pos
 
 
-def get_sample_pts(file_name, infolder, types_keep=(0, 1, 2, 3, 4),
-                   goal_num_pts=50, min_step_change=1e-7,
-                   max_iters=50, keep_disconnect=True, verbose=False):
+def get_sample_pts(file_name : str, infolder : str,
+                   types_keep : Optional[Iterable[int]] =None,
+                   goal_num_pts : int =50, min_step_change : float =1e-7,
+                   max_iters : int =50, keep_disconnect : bool = True,
+                   verbose: bool =False):
     """
     Sample points from SWC file
 
     Args:
         file_name (string): SWC file name (including .swc)
         infolder (string): path to folder containing SWC file
-        types_keep (tuple,list): list of SWC neuron part types to sample points from
-            by default, uses only 1 (soma), 2 (axon), 3 (basal dendrite), 4 (apical dendrite)
-        goal_num_pts (integer): number of points to sample
-        min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+        types_keep (tuple,list): list of SWC neuron part types to
+            sample points from. If types_keep is None then all part types
+            are sampled.
+        goal_num_pts (integer): number of points to sample.
+        min_step_change (float): stops while loop from infinitely trying closer
+            and closer step sizes
         max_iters (integer): maximum number of iterations of while loop
-        keep_disconnect (boolean): if True, will keep all branches from SWC. if False, will keep only connected to soma
-        verbose (boolean): if True, will print step size information for each search iteration
+        keep_disconnect (boolean): if True, will keep all branches from SWC.
+            If False, will keep only connected to soma
+        verbose (boolean): if True, will print step size information for each
+            search iteration
 
     Returns:
         list:
@@ -367,17 +395,22 @@ def get_sample_pts(file_name, infolder, types_keep=(0, 1, 2, 3, 4),
     swc_list = read_swc(pj(infolder, file_name))
 
     # Get total length of segment type (for max step size)
-    coord_list_out = prep_coord_dict(swc_list, types_keep, keep_disconnect=keep_disconnect)
+    coord_list_out = prep_coord_dict(swc_list, types_keep,
+                                     keep_disconnect=keep_disconnect)
     if coord_list_out is None:
         return None
 
-    return sample_n_pts(coord_list_out[0], coord_list_out[1], coord_list_out[2], types_keep,
-                        goal_num_pts, min_step_change, max_iters, verbose)
+    return sample_n_pts(coord_list_out[0], coord_list_out[1],
+                        coord_list_out[2],
+                        types_keep, goal_num_pts, min_step_change,
+                        max_iters, verbose)
 
 
-def save_sample_pts(file_name, infolder, outfolder, types_keep=(0, 1, 2, 3, 4),
-                    goal_num_pts=50, min_step_change=1e-7,
-                    max_iters=50, keep_disconnect=True, verbose=False):
+def save_sample_pts(file_name: str, infolder : str, outfolder : str,
+                    types_keep : Optional[Iterable[int]] = None,
+                    goal_num_pts : int = 50, min_step_change : float =1e-7,
+                    max_iters : int =50, keep_disconnect:bool=True,
+                    verbose:bool=False):
     """
         Sample points from SWC file and save them in CSV
 
