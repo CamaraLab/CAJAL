@@ -1,3 +1,0 @@
-from collections.abc import Generator
-
-def reversed(G) -> Generator[None, None, None]: ...

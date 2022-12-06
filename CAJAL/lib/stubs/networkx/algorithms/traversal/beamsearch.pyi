@@ -1,3 +1,0 @@
-from _typeshed import Incomplete
-
-def bfs_beam_edges(G, source, value, width: Incomplete | None = ...): ...

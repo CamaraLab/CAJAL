@@ -1,3 +1,0 @@
-from networkx.algorithms.moral import moral_graph as moral_graph
-
-def test_get_moral_graph() -> None: ...

@@ -1,3 +1,0 @@
-from _typeshed import Incomplete
-
-def asyn_fluidc(G, k, max_iter: int = ..., seed: Incomplete | None = ...): ...
