@@ -25,9 +25,11 @@ SWCData = List[ComponentTree]
 
 def read_SWCData(file_path : str, keep_disconnect) -> SWCData:
     """
-    Reads an SWC file and returns a representation of the data as a list of the connected components of the neuron.    
+    Reads an SWC file and returns a representation of the data as a list \
+    of the connected components of the neuron.    
 
-    The SWC file should conform to the documentation here: www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
+    The SWC file should conform to the documentation here: \
+    www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
 
     Args:
         file_path (string): absolute path to SWC file.
@@ -45,7 +47,8 @@ def read_SWCData(file_path : str, keep_disconnect) -> SWCData:
                 continue
             row = re.split("\s|\t", line.strip())[0:7]
             if len(row) < 7:
-                raise TypeError("Row" + line + "in file" + file_path + "has fewer than seven whitespace-separated strings.")
+                raise TypeError("Row" + line + "in file" + file_path +
+                                "has fewer than seven whitespace-separated strings.")
             node_index, structure_id = int(row[0]), int(row[1])
             x, y, z = float(row[2]), float(row[3]), float(row[4])
                       # Radius discarded
@@ -60,7 +63,8 @@ def read_SWCData(file_path : str, keep_disconnect) -> SWCData:
                         my_dict = d
                         break
                 if my_dict is None:
-                    raise ValueError("SWC parent nodes must be listed before the child node that references them. The node with index "
+                    raise ValueError("SWC parent nodes must be listed before \
+                    the child node that references them. The node with index "
                                      + row[0] + " was accessed before its parent "+ row[6])
                 my_dict[node_index]=((structure_id, (x,y,z)),parent_id)
         return swc_data
@@ -69,19 +73,23 @@ def read_swc(file_path : str) -> List[List[str]]:
     """
     Reads an SWC file and returns a list of the non-comment lines, split by spaces into tokens.
 
-    The SWC file should conform to the documentation here: http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
+    The SWC file should conform to the documentation here: \
+    http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
 
-    In particular, all rows should be either a comment starting with the character "#" or should have at least seven strings separated by whitespace.
+    In particular, all rows should be either a comment starting with the character "#" or \
+    should have at least seven strings separated by whitespace.
     
     read_swc(file_path)[i] is the i-th non-comment row, split into a list of strings by whitespace.
 
     If there are fewer than seven whitespace-separated tokens in the i-th row, an error is raised.
 
-    If there are greater than seven whitespace-separated tokens in the i-th row, the first seven tokens are kept and the rest discarded.
+    If there are greater than seven whitespace-separated tokens in the i-th row, \
+    the first seven tokens are kept and the rest discarded.
 
     The seventh token is assumed to be the parent node index and to be -1 if the node has no parent.
 
-    read_swc expects the rows of the graph to be in topologically sorted order (parents before children) If this is not satisfied, read_swc raises an exception.
+    read_swc expects the rows of the graph to be in topologically sorted \
+    order (parents before children) If this is not satisfied, read_swc raises an exception.
     In particular, the first node must be the root of the tree, and its parent has index -1.
         
     Args:
