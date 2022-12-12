@@ -8,12 +8,13 @@ from scipy.spatial.distance import squareform, cdist, euclidean
 import trimesh
 import itertools as it
 import warnings
+from typing import Tuple
 from multiprocessing import Pool
 
 from CAJAL.lib.utilities import pj
 
 
-def read_obj(file_path):
+def read_obj(file_path: str) -> Tuple[np.ndarray,np.ndarray]:
     """
     Reads in the vertices and triangular faces of a .obj file
 
@@ -35,13 +36,9 @@ def read_obj(file_path):
             faces.append([float(x) for x in line[1:]])
         # Skipping over any vertex textures or normals
     obj_file.close()
-    vertices = np.array(vertices)
-    faces = np.array(faces)-1
-    faces = faces.astype("int64")
-    return vertices, faces
+    return np.array(vertices), (np.array(faces)-1).astype("int64")
 
-
-def connect_mesh(vertices, faces):
+def connect_mesh(vertices: np.ndarray, faces: np.ndarray):
     """
     Adds triangles to mesh to form a minimum spanning tree of its connected components
 
