@@ -104,8 +104,6 @@ def get_intracell_distances_all(data_dir, data_prefix=None, data_suffix="csv",
                           (currently assumes a header line)
         data_prefix (string): only read files from data_dir starting with this string
                              None (default) uses all files
-        distances_dir (string): if None (default), return list of multiprocessing array.
-                               if filepath string, save distance matrices in this directory
         metric (string): distance metric passed into pdist()
         return_mp (boolean): only used of distances_dir is None.
                             if True, return multiprocessing array, if False return numpy array
@@ -123,7 +121,8 @@ def get_intracell_distances_all(data_dir, data_prefix=None, data_suffix="csv",
     files_list = list_sort_files(data_dir, data_prefix, data_suffix=data_suffix)
     
     # Compute pairwise distance between points in each file
-    return_list = [get_intracell_distances_one(pj(data_dir, data_file), metric=metric, return_mp=return_mp, header=header)
+    return_list = [get_intracell_distances_one(pj(data_dir, data_file),
+                                               metric=metric, return_mp=return_mp, header=header)
                    for data_file in files_list]
     check_num_pts = all([len(x) == len(return_list[0]) for x in return_list])
     if not check_num_pts:
@@ -145,7 +144,8 @@ def load_intracell_distances(distances_dir, data_prefix=None, return_mp=True):
         list of multiprocessing arrays containing distance matrix for each cell
     """
     files_list = list_sort_files(distances_dir, data_prefix)
-    return [load_dist_mat(pj(distances_dir, dist_file), return_mp=return_mp) for dist_file in files_list]
+    return [load_dist_mat(pj(distances_dir, dist_file), return_mp=return_mp)
+            for dist_file in files_list]
 
 
 def calculate_gw_preload_global(arguments):
