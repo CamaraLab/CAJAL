@@ -18,6 +18,7 @@ if the cells are geometrically similar in the sense that one cell can be deforme
    what-is-cajal
    computing-gw-distances
    sample_swc
+   
 .. This is a comment.
    \\:hidden:
    \\To add a caption in the TOC use :caption: in the toctree, i.e. :caption: First steps
