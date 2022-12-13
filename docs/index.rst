@@ -18,6 +18,7 @@ if the cells are geometrically similar in the sense that one cell can be deforme
    what-is-cajal
    computing-gw-distances
    sample_swc
+   sample_mesh
    
 .. This is a comment.
    \\:hidden:

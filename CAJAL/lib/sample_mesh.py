@@ -2,19 +2,29 @@
 import os
 import csv
 import numpy as np
+import numpy.typing as npt
 import potpourri3d as pp3d
 import networkx as nx
+import networkx.algorithms.shortest_paths as nxsp
 from scipy.spatial.distance import squareform, cdist, euclidean
 import trimesh
 import itertools as it
 import warnings
-from typing import Tuple
+from typing import Tuple, List, Set, Dict, Optional
 from multiprocessing import Pool
 
 from CAJAL.lib.utilities import pj
 
+# We represent a mesh as a pair (vertices, faces) : Tuple[VertexArray,FaceArray].
+# A VertexArray is a numpy array of shape (n, 3), where n is the number of vertices in the mesh.
+# Each row of a VertexArray is an XYZ coordinate triple for a point in the mesh.
+VertexArray = npt.NDArray[np.float_]
+# A FaceArray is a numpy array of shape (m, 3) where m is the number of faces in the mesh.
+# Each row of a FaceArray is a list of three natural numbers, corresponding to indices in the corresponding VertexArray,
+# representing triangular faces joining those three points.
+FaceArray = npt.NDArray[np.int_]
 
-def read_obj(file_path: str) -> Tuple[np.ndarray,np.ndarray]:
+def read_obj(file_path: str) -> Tuple[VertexArray,FaceArray]:
     """
     Reads in the vertices and triangular faces of a .obj file
 
@@ -32,33 +42,53 @@ def read_obj(file_path: str) -> Tuple[np.ndarray,np.ndarray]:
     for line in obj_split:
         if line[0] == "v":
             vertices.append([float(x) for x in line[1:]])
-        elif line[0] == "f":
+        elif line[0] == "f": 
             faces.append([float(x) for x in line[1:]])
         # Skipping over any vertex textures or normals
     obj_file.close()
     return np.array(vertices), (np.array(faces)-1).astype("int64")
 
-def connect_mesh(vertices: np.ndarray, faces: np.ndarray):
+def connect_mesh(vertices: VertexArray, faces: FaceArray) -> FaceArray:
     """
-    Adds triangles to mesh to form a minimum spanning tree of its connected components
-
     Args:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
+        vertices : VertexArray, the vertices of a mesh
+        faces : FaceArray, the faces of a mesh
 
     Returns:
-        numpy array of new faces including connecting triangles
+        numpy int array "new_faces" of shape (m+k,3) which extends the
+        original faces array; the mesh represented by (vertices, new_faces) is
+        connected. The 
     """
+    
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+    # The nodes of "graph" are natural numbers which are array indices for the array "vertices".
     graph = trimesh.graph.vertex_adjacency_graph(mesh)
-    connected_components = [i[1] for i in enumerate(nx.connected_components(graph))]
+    # The elements of connected_components[k] are nodes from "graph", i.e., natural number array indices.
+    connected_components : List[Set[int]] = [i[1] for i in enumerate(nx.connected_components(graph))]
     if len(connected_components) == 1:
-        return vertices, faces
-    # Need to find a minimum spanning tree of edges I can add between components
-    # Dictionary of faces I could add
-    connections = {}
-    # Graph of possible connections
+        return faces
+
+    # We build a graph spt_graph whose nodes are connected components,
+    # represented as integer indices for the list connected_components.
     spt_graph = nx.Graph()
+
+    # spt_graph is a weighted graph; the weight between components i and j is the
+    # minimum distance in 3D space from a node in connected_components[i] to a node in connected_components[j].
+
+    # Then, we form a minimum spanning tree T for spt_graph. If T contains an
+    # edge between i and j, we add a new face to the mesh connecting components
+    # i and j.  If there are k connected components of the mesh to begin with,
+    # then a total of k-1 new faces will be added to the mesh
+    
+    # We build a a minimum spanning tree of edges I can add between components
+
+    # connections will associate to each pair of components i, j a new face
+    # straddling the two components.  Not all new faces in "connections" will
+    # be added to the mesh - only the ones that lie along an edge in the
+    # minimal spanning tree.
+    connections : Dict[Tuple[int,int],Tuple[int,int,int]]= {}
+
+
     # Add components as nodes in graph
     for i in range(len(connected_components)): spt_graph.add_node(i)
     # For every pair of components, find nearest points
@@ -68,36 +98,37 @@ def connect_mesh(vertices: np.ndarray, faces: np.ndarray):
             ref, query = (i, j) if len(connected_components[i]) > len(connected_components[j]) else (j, i)
             ref_ids = list(connected_components[ref])
             query_ids = list(connected_components[query])
+            # dist_ij is a rectangular matrix of floats.
+            # dist_ij[i, j] is the distance between the i-th node of component ref_ids and the j-th node of query_ids.
             dist_ij = cdist(vertices[ref_ids], vertices[query_ids])
-            nearest = np.unravel_index(dist_ij.argmin(), dist_ij.shape)
-            next_nearest = np.argsort(dist_ij[nearest[0]])[1]
-            face = [ref_ids[nearest[0]], query_ids[nearest[1]], query_ids[next_nearest]]
+            nearest : Tuple[int,int] = np.unravel_index(dist_ij.argmin(), dist_ij.shape) # type: ignore[assignment]
+            next_nearest = np.argpartition(dist_ij[nearest[0]],1)[1]
+            face : Tuple[int,int,int] = (ref_ids[nearest[0]], query_ids[nearest[1]], query_ids[next_nearest])
             # Save face so I know to add it if this edge is in SPT
-            connections[(i, j)] = [face]
+            connections[(i, j)] = face
             spt_graph.add_edge(i, j, weight=dist_ij[nearest])
-    new_faces = []
+    new_faces : List[Tuple[int,int,int]] = []
     for u, v, w in nx.minimum_spanning_edges(spt_graph):
-        new_faces = new_faces + connections[(min(u, v), max(u, v))]
-    new_faces = np.array(new_faces)
-    return np.vstack([faces, new_faces])
+        new_faces.append(connections[(min(u, v), max(u, v))])
+    return np.vstack([faces, np.array(new_faces)])
 
 
-def disconnect_mesh(vertices, faces):
+def disconnect_mesh(vertices: VertexArray, faces: FaceArray) -> List[Tuple[VertexArray,FaceArray]]:
     """
-    Checks for disconnected components of mesh, separates and returns each one individually
-
+    Returns the list of connected submeshes of the given mesh, as ordered pairs (vertices_i, faces_i).
+    
     Args:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
+        vertices (VertexArray) : vertices of the mesh
+        faces (FaceArray): faces of the mesh
 
     Returns:
-        list of vertices/faces pairings for disconnected meshes
+        List of ordered pairs (vertices_i, faces_i) corresponding to the connected components of the original mesh
     """
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
     graph = trimesh.graph.vertex_adjacency_graph(mesh)
     connected_components = [i[1] for i in enumerate(nx.connected_components(graph))]
     if len(connected_components) == 1:
-        return [[vertices, faces]]
+        return [(vertices, faces)]
 
     disconn_meshes = []
     for component in connected_components:
@@ -113,7 +144,7 @@ def disconnect_mesh(vertices, faces):
     return disconn_meshes
 
 
-def sample_vertices(vertices, n_sample):
+def sample_vertices(vertices: VertexArray, n_sample : int) -> Optional[VertexArray]:
     """
     Evenly samples n vertices. Most .obj vertices are ordered counter-clockwise, so evenly sampling from vertex matrix
     can roughly approximate even sampling across the mesh
@@ -123,27 +154,42 @@ def sample_vertices(vertices, n_sample):
         n_sample (integer): number of vertices to sample
 
     Returns:
-        numpy array of sampled vertices
+        None, if there are fewer vertices than points to sample.
+        Otherwise, a numpy array of sampled vertices, of shape (n_sample, 3).
     """
+    
     if vertices.shape[0] < n_sample:
         warnings.warn("Fewer vertices than points to sample, skipping")
         return None
     return vertices[np.linspace(0, vertices.shape[0]-1, n_sample).astype("uint32"), :]
 
 
-def return_sampled_vertices(vertices, faces, n_sample, disconnect=True):
+def return_sampled_vertices(vertices: VertexArray, faces : FaceArray,
+                            n_sample: int, disconnect : bool =True) -> List[Optional[VertexArray]]:
     """
     Returns list of sampled vertices from each component of mesh (i.e. multiple cells in an .obj file)
 
     Args:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
+        vertices (VertexArray): vertices of a mesh
+        faces (FaceArray): faces of a mesh
         n_sample (integer): number of vertices to sample
-        disconnect (boolean): Whether to sample vertices from whole mesh, or separate into disconnected components
-
+        disconnect (boolean): If disconnect is True, the mesh will \
+            be decomposed into a list of connected meshes, \
+            and the function will return a list of VertexArrays \
+            of shape (n_sample,3), one for each component of the \
+            mesh, or "None" if the component has fewer than \
+            n_sample vertices.\
+            If disconnect is False, we sample n_sample vertices \
+            throughout the mesh, without regard to \
+            whether it is connected, and return a list of VertexArrays of length 1.
+            
     Returns:
-        list of numpy arrays of sampled vertices
+        list of VertexArrays of sampled vertices of size n_sample. \
+        A list entry will be "None" if there are fewer \
+         vertices than n_sample in that component. \
+         
     """
+    
     if not disconnect:
         new_vertices = sample_vertices(vertices, n_sample)
         return [new_vertices]
@@ -156,18 +202,25 @@ def return_sampled_vertices(vertices, faces, n_sample, disconnect=True):
         return sample_list
 
 
-def save_sample_vertices(vertices, faces, n_sample, outfile, disconnect=True):
+def sample_vertices_and_save(vertices : VertexArray, faces: FaceArray,
+                         n_sample: int, outfile: str,
+                         disconnect: bool =True) -> None:
     """
-    Evenly sample n vertices and save in csv
+    Evenly sample n vertices from a mesh and write the samples to csv. The output file(s) will have n_sample rows,
+    where each row contains the xyz coordinates of a vertex.
 
     Args:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
+        vertices : VertexArray, vertices of the mesh
+        faces : FaceArray, faces of the mesh
         n_sample (integer): number of vertices to sample
         outfile (string): file path to write vertices. If disconnect is True and there are multiple disconnected
             components to the input mesh, multiple files are created with different index numbers. If outfile is given
             with string formatting {} characters, index is inserted there. Otherwise it is inserted before extension.
-        disconnect (boolean): Whether to sample vertices from whole mesh, or separate into disconnected components
+        disconnect (boolean): If disconnect is True, the mesh will \
+            be decomposed into a list of connected meshes, \
+            and the function will create one file for each connected \
+            component of the mesh with more than n_sample vertices.
+            If disconnect is false, one file is created.
 
     Returns:
         None (writes to file)
@@ -190,10 +243,14 @@ def save_sample_vertices(vertices, faces, n_sample, outfile, disconnect=True):
                     extension = file_name_split[-1]
                     np.savetxt(file_name + "." + extension, new_vertices, delimiter=",", fmt="%.16f")
 
-
+                    
 def save_sample_from_obj(file_name, infolder, outfolder, n_sample, disconnect=True):
     """
-    Evenly sample n vertices from .obj and save in csv
+    Read a mesh from a given \*.obj file, sample n_sample vertices from
+    each connected component, and write the results to \*.csv files.
+
+    This function is a wrapper for "sample_vertices_and_save" that
+    reads from an input file before sampling. Consult the documentation for that function.
 
     Args:
         file_name (string): .obj file name
@@ -204,22 +261,28 @@ def save_sample_from_obj(file_name, infolder, outfolder, n_sample, disconnect=Tr
 
     Returns:
         None (writes to file)
+
     """
     vertices, faces = read_obj(pj(infolder, file_name))
-    save_sample_vertices(vertices, faces, n_sample, pj(outfolder, file_name.replace(".obj", ".csv")), disconnect)
+    sample_vertices_and_save(vertices, faces, n_sample, pj(outfolder, file_name.replace(".obj", ".csv")), disconnect)
 
 
-def save_sample_from_obj_parallel(infolder, outfolder, n_sample, disconnect=True, num_cores=8):
+def obj_sample_parallel(infolder: str, outfolder: str,
+                        n_sample: int, disconnect: bool =True,
+                        num_cores : int =8) -> None:
     """
-    Computes geodesic distance in parallel processes for all meshes in .obj files in a directory
-
+    Read all \*.obj files in the given directory "infolder" into memory.
+    Decomposes each mesh into its connected components.
+    For each component, samples n_sample points from each component (in parallel),
+    and writes the resulting samples to a \*.csv file in directory "outfolder."
+        
     Args:
         infolder(string): path to directory containing .obj files
         outfolder (string): path to directory to write distance matrices
         n_sample (integer): number of vertices to sample from each mesh
         disconnect (boolean): Whether to sample vertices from whole mesh, or separate into disconnected components
         num_cores (integer): number of processes to use for parallelization
-
+    
     Returns:
         None (writes files to outfolder)
     """
@@ -231,17 +294,30 @@ def save_sample_from_obj_parallel(infolder, outfolder, n_sample, disconnect=True
         pool.starmap(save_sample_from_obj, arguments)
 
 
-def get_geodesic_heat_one_mesh(vertices, faces, n_sample):
+def get_geodesic_heat_one_mesh(vertices : VertexArray,
+                               faces : FaceArray,
+                               n_sample: int
+                               ) -> Optional[npt.NDArray[np.float_]]:
     """
-    Computes geodesic distance between n_sample points on the triangular mesh using heat method
+    Given a mesh, this function randomly samples n_sample points from the mesh,
+    computes the pairwise geodesic distances between the sampled points using the heat method,
+    and returns the square matrix of pairwise geodesic distances, linearized into a vector,
+    or "None" if there are fewer than n_sample vertices in the mesh.    
+    
+    For more on the heat method, see:
+
+    https://github.com/nmwsharp/potpourri3d/blob/master/README.md#mesh-distance
+
+    https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/
 
     Args:
         vertices (numpy array): 3D coordinates for vertices
         faces (numpy array): row of vertices contained in each face
         n_sample (integer): number of vertices to sample
 
-    Result:
-        heat geodesic distance in vector form
+    Returns:
+        heat geodesic distance in vector form, of shape
+        (n_sample \* (n_sample - 1)/2, 1)
     """
     if vertices.shape[0] < n_sample:
         warnings.warn("Fewer vertices than points to sample, skipping")
@@ -256,10 +332,16 @@ def get_geodesic_heat_one_mesh(vertices, faces, n_sample):
     return dist_vec
 
 
-def get_geodesic_networkx_one_mesh(vertices, faces, n_sample):
+def get_geodesic_networkx_one_mesh(
+        vertices : VertexArray,
+        faces : FaceArray,
+        n_sample : int) -> Optional[npt.NDArray[np.float_]]:
     """
-    Computes geodesic distance between n_sample points on the triangular mesh using
-    graph distance on edges between vertices
+    Given a mesh, this function randomly samples n_sample points from the
+    mesh, computes the pairwise geodesic distances between the sampled points
+    along the (distance-weighted) underlying graph of the mesh, and returns the
+    square matrix of pairwise geodesic distances, linearized into a vector, or
+    "None" if there are fewer than n_sample vertices in the mesh.
 
     Args:
         vertices (numpy array): 3D coordinates for vertices
@@ -268,6 +350,7 @@ def get_geodesic_networkx_one_mesh(vertices, faces, n_sample):
 
     Result:
         graph geodesic distance in vector form
+
     """
     if vertices.shape[0] < n_sample:
         warnings.warn("Fewer vertices than points to sample, skipping")
@@ -285,14 +368,19 @@ def get_geodesic_networkx_one_mesh(vertices, faces, n_sample):
     dist_vec = np.zeros(len(arguments))
     for i in range(len(arguments)):
         pair = arguments[i]
-        dist_vec[i] = nx.algorithms.shortest_paths.generic.shortest_path_length(graph, source=pair[0], target=pair[1],
-                                                                                weight="weight")
+        dist_vec[i] = nxsp.generic.shortest_path_length(
+            graph, source=pair[0], target=pair[1], weight="weight")
     return dist_vec
 
 
-def return_geodesic(vertices, faces, n_sample, method="networkx", connect=False):
+def return_geodesic(vertices : VertexArray,
+                    faces: FaceArray,
+                    n_sample : int,
+                    method: str = "networkx" ,
+                    connect: bool =False) -> List[Optional[npt.NDArray[np.float_]]]:
     """
-    Returns a list of geodesic distance matrices for each component of mesh (i.e. multiple cells in an .obj file)
+    Returns a list of intracell geodesic distance matrices, one for each component of the given mesh
+    (i.e. multiple cells in an .obj file)
 
     Args:
         vertices (numpy array): 3D coordinates for vertices
@@ -300,11 +388,20 @@ def return_geodesic(vertices, faces, n_sample, method="networkx", connect=False)
         n_sample (integer): number of vertices to sample
         method (string): one of 'networxk' or 'heat', how to compute geodesic distance
             networkx is slower but more exact for non-watertight methods, heat is a faster approximation
-        connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
+        connect (boolean):
+            If connect is True, then new faces will be added to the mesh until it is connected,
+            and we compute a single geodesic intracell distance matrix for this connected mesh.
+
+            If connect is False, then we compute a geodesic intracell distance matrix for each
+            component of the mesh.
+
+            whether to check for disconnected meshes and connect them simply by adding faces
             If True, output will always be one distance matrix
 
     Result:
-        list of heat geodesic distances in vector form
+        List of geodesic distance matrices, each linearized into vector form.
+        If connect is True, this list has one element.
+
     """
     if connect:
         new_faces = connect_mesh(vertices, faces)
@@ -329,9 +426,14 @@ def return_geodesic(vertices, faces, n_sample, method="networkx", connect=False)
         return geo_list
 
 
-def save_geodesic(vertices, faces, n_sample, outfile, method="networkx", connect=False):
+def compute_and_save_geodesic(vertices: VertexArray,
+                              faces: FaceArray,
+                              n_sample: int,
+                              outfile: str,
+                              method:str ="networkx",
+                              connect: bool =False) -> None:
     """
-    Saves heat geodesic distance vector for each component of mesh (i.e. multple cells in an .obj file)
+    Compute and save the geodesic distance vector for each component of mesh (i.e. multple cells in an .obj file)
 
     Args:
         vertices (numpy array): 3D coordinates for vertices
@@ -377,9 +479,14 @@ def save_geodesic(vertices, faces, n_sample, outfile, method="networkx", connect
                     np.savetxt(file_name + "." + extension, dist_vec, fmt='%.8f')
 
 
-def save_geodesic_from_obj(file_name, infolder, outfolder, n_sample, method="networxk", connect=False):
+def save_geodesic_from_obj(file_name: str,
+                           infolder: str,
+                           outfolder: str,
+                           n_sample: int,
+                           method: str="networxk",
+                           connect: bool=False) -> None:
     """
-    Computes geodesic distance for mesh in .obj file
+    Computes geodesic distance matrices for mesh from an .obj file.
 
     Args:
         file_name (string): name of single .obj file
@@ -398,10 +505,15 @@ def save_geodesic_from_obj(file_name, infolder, outfolder, n_sample, method="net
         outfile = pj(outfolder, file_name.replace(".obj", "_dist.txt"))
     else:
         outfile = pj(outfolder, file_name.replace(".obj", "{}_dist.txt")) # string formatting for indices
-    save_geodesic(vertices, faces, n_sample, outfile, method, connect)
+    compute_and_save_geodesic(vertices, faces, n_sample, outfile, method, connect)
 
 
-def save_geodesic_from_obj_parallel(infolder, outfolder, n_sample, method="networkx", connect=False, num_cores=8):
+def save_geodesic_from_obj_parallel(infolder: str,
+                                    outfolder: str,
+                                    n_sample: int,
+                                    method:str ="networkx",
+                                    connect:bool =False,
+                                    num_cores: int =8)-> None:
     """
     Computes geodesic distance in parallel processes for all meshes in .obj files in a directory
 

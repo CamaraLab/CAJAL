@@ -145,13 +145,20 @@ matrices represent the Euclidean or geodesic metric.
 		    save_mat=True,
 		    num_cores=8
 		    )
-
-
-
 		
 3D meshes
 ---------
 
+CAJAL supports Wavefront \*.obj 3D mesh files. The lines of a mesh file are
+expected to be either
 
+- a comment, marked with a "#"
+- a vertex, written as `v float1 float2 float3`
+- a face, written as `f linenum1 linenum2 linenum3`
 
+Examples of \*.obj files can be found in the CAJAL Github repository in
+CAJAL/data/obj_files.
+
+It is expected that a \*.obj file may contain several distinct connected
+components. By default, these will be separated into individual cells.
 
