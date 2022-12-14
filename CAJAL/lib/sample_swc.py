@@ -252,14 +252,13 @@ def sample_pts_step(vertices : List[List[str]], vertex_coords: Dict[int,np.ndarr
             vertex_dist[this_id] = vertex_dist[pid] + seg_len
     return sampled_pts_list, num_roots
 
+
 def sample_n_pts(vertices : List[List[str]], vertex_coords : Dict[int,np.ndarray],
                  total_length : float, types_keep : Optional[Iterable[int]] = None,
                  goal_num_pts : int =50, min_step_change : float =1e-7,
                  max_iters : int =50,
                  verbose : bool =False) -> Optional[Tuple[np.ndarray,float,int]]:
     """
-    
-    
     Use binary search to find step size between points that will sample the required number of points
 
     Args:
@@ -279,6 +278,7 @@ def sample_n_pts(vertices : List[List[str]], vertex_coords : Dict[int,np.ndarray
         step_size: step size that samples required number of points
         i: number of iterations to reach viable step size
     """
+
     num_pts = 0
     min_step_size = 0.0
     max_step_size = total_length

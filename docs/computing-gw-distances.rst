@@ -1,21 +1,6 @@
 Computing GW Distances
 ======================
 
-
-Next, the user should compute the pairwise Euclidean distances between the
-sampled points of each SWC file. The function `get_intracell_distances_all` returns a list of distance
-matrices, one for each \*.csv file in the given folder, linearized as arrays
-(Python multiprocessing arrays by default)
-
-.. code-block:: python
-
-		from CAJAL import run_gw
-		dist_mat_list = run_gw.get_intracell_distances_all(data_dir=sampled_csv_folder)
-
-The Euclidean distance is not the only way to do this. The
-user can also represent a neuron in terms of the geodesic distances between
-points through the graph coded by the SWC file.
-
 Once the user prepares the list of intracell distance matrices, they can use
 the function :code:`compute_and_save_GW_dist_mat` to
 compute the Gromov-Wasserstein distance between all matrices in the given list
