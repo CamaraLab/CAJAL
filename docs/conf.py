@@ -46,5 +46,6 @@ html_css_files = [
 # -- Intersphinx --
 intersphinx_mapping = { 'scipy' : ('https://docs.scipy.org/doc/scipy/reference/', None),
                         'numpy' : ('https://numpy.org/doc/stable/', None),
-                        'python' : ('https://docs.python.org/3.10/', None)
+                        'python' : ('https://docs.python.org/3.10/', None),
+                        'pandas' : ('https://pandas.pydata.org/docs/', None)
                        }
