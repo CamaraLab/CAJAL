@@ -508,7 +508,7 @@ def save_geodesic_from_obj(file_name: str,
     compute_and_save_geodesic(vertices, faces, n_sample, outfile, method, connect)
 
 
-def save_geodesic_from_obj_parallel(infolder: str,
+def compute_and_save_geodesic_from_obj_parallel(infolder: str,
                                     outfolder: str,
                                     n_sample: int,
                                     method:str ="networkx",

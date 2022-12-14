@@ -3,81 +3,17 @@ Computing GW Distances
 
 Currently, CAJAL is equipped to deal with three kinds of input data files: neuronal tracing data (SWC files), 3D meshes (two-dimensional simplicial complexes) and 2D segmentation files (tiff files.)
 
-Neuronal Tracing Data
----------------------
-
-CAJAL supports neuronal tracing data in the SWC spec as specified here:
-http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
-
-To analyze the similarity of two neurons, CAJAL first replaces each neuron by
-an intracell distance matrix, where the rows and columns correspond to points
-in the cell, and the entry at position (i, j) is the distance between points
-x_i and x_j. Experience has shown diminishing returns in predictive power past
-n = 50-100 points.
-
-We offer some functions to help the user load and process SWC files, see :doc:`sample_swc`.
-
-We walk through an example. Suppose the user has a folder
-:code:`/CAJAL/data/swc_files` containing a number of swc files. The function
-:code:`compute_and_save_sample_pts_parallel` will go through each swc file in
-the input directory and randomly sample a given number of points from each
-neuron - in this case, 50 points from each. The 50 points are stored in the
-given directory :code:`/CAJAL/data/sampled_pds/swc_sampled_50` as a
-comma-separated value file with 50 lines, where each line contains one point as
-a triple of (x, y, z) coordinates. :code:`num_cores` is best set to the number
-of cores on your machine. 
-
-.. code-block:: python
-		
-		from CAJAL import sample_swc
-		swc_infolder = "/CAJAL/data/swc_files"
-		sampled_csv_folder = "/CAJAL/data/sampled_pts/swc_sampled_50"
-		sample_swc.compute_and_save_sample_pts_parallel(
-		    swc_infolder, sampled_csv_folder, goal_num_pts=50, num_cores=8)
-
-Next, the user should compute the pairwise Euclidean distances between the
-sampled points of each SWC file. The function `get_intracell_distances_all` returns a list of distance
-matrices, one for each \*.csv file in the given folder, linearized as arrays
-(Python multiprocessing arrays by default)
-
-.. code-block:: python
-
-		from CAJAL import run_gw
-		dist_mat_list = run_gw.get_intracell_distances_all(data_dir=sampled_csv_folder)
-
-Once the user prepares the list of intracell distance matrices, they can use
-the function :code:`compute_and_save_GW_dist_mat` to
-compute the Gromov-Wasserstein distance between all matrices in the given list
-and write the result to a single file in a given output directory. This output
-file is the linearization of the
-Gromov-Wasserstein distance matrix (or rather the entries above the diagonal).
-It is a text file with one column and n \*
-(n-1) / 2 rows, where n is the number of swc files to be processed.
-
-The argument "file_prefix" tells the function what the output file should be named;
-if file_prefix = "abc" then the output file will be titled
-"abc_gw_dist_mat.txt".
-
-If the flag save_mat is set to true, for each pair of cells A, B the function
-will also return the "coupling matrix" for the cells, which expresses the best
-possible deformation of A into B, that is, the deformation minimizing the
-worst-case distortion between any pairs of points. The Gromov-Wasserstein
-distance between A and B is the distortion induced by this optimal coupling
-matrix. These coupling matrices will be grouped in a folder, compressed and
-saved to the given directory as "abc_gw_matching.npz"
-
-
-.. code-block:: python
-
-		file_prefix = "a10_full_euclidean"
-		gw_results_dir= "/CAJAL/data/gw_results"
-		run_gw.compute_and_save_GW_dist_mat(dist_mat_list,file_prefix,gw_results_dir,
-		    save_mat=True, num_cores=12)
+Euclidean vs. geodesic distances
+--------------------------------
 
 CAJAL requires the user to encode a cell's morphology as an intracell distance
-matrix. However, the Euclidean distance is not the only way to do this. The
-user can also represent a neuron in terms of the geodesic distances between
-points through the graph coded by the SWC file.
+matrix. There are at least two reasonable ways to define the distance between
+two points in a cell:
+
+1. the ordinary, straight-line Euclidean
+   distance through space ("as the crow flies")
+2. the geodesic distance, the length of the shortest path
+   *through the body of the cell.*
 
 The choice between the Euclidean and geodesic distances will affect what kinds
 of cell deformations CAJAL regards as significant or relevant when trying to
@@ -107,6 +43,81 @@ because one must bend B to straighten it out into a line segment. However, if
 they are represented by their geodesic distance matrices, then the
 Gromov-Wasserstein distance will be zero.  One can deform A into B
 without any stretching or elongating, as they are the same length.
+
+Neuronal Tracing Data
+---------------------
+
+CAJAL supports neuronal tracing data in the SWC spec as specified here:
+http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
+
+To analyze the similarity of two neurons, CAJAL first replaces each neuron by
+an intracell distance matrix, where the rows and columns correspond to points
+in the cell, and the entry at position (i, j) is the distance between points
+x_i and x_j. Experience has shown diminishing returns in predictive power past
+n = 50-100 points.
+
+We offer some functions to help the user load and process SWC files, see
+:doc:`sample_swc` for full documentation.
+
+We walk through an example. Suppose the user has a folder
+:code:`/CAJAL/data/swc_files` containing a number of swc files. The function
+:code:`compute_and_save_sample_pts_parallel` will go through each swc file in
+the input directory and randomly sample a given number of points from each
+neuron - in this case, 50 points from each. The 50 points are stored in the
+given directory :code:`/CAJAL/data/sampled_pds/swc_sampled_50` as a
+comma-separated value file with 50 lines, where each line contains one point as
+a triple of (x, y, z) coordinates. :code:`num_cores` is best set to the number
+of cores on your machine. 
+
+.. code-block:: python
+		
+		from CAJAL import sample_swc
+		swc_infolder = "/CAJAL/data/swc_files"
+		sampled_csv_folder = "/CAJAL/data/sampled_pts/swc_sampled_50"
+		sample_swc.compute_and_save_sample_pts_parallel(
+		    swc_infolder, sampled_csv_folder, goal_num_pts=50, num_cores=8)
+
+Next, the user should compute the pairwise Euclidean distances between the
+sampled points of each SWC file. The function `get_intracell_distances_all` returns a list of distance
+matrices, one for each \*.csv file in the given folder, linearized as arrays
+(Python multiprocessing arrays by default)
+
+.. code-block:: python
+
+		from CAJAL import run_gw
+		dist_mat_list = run_gw.get_intracell_distances_all(data_dir=sampled_csv_folder)
+
+The Euclidean distance is not the only way to do this. The
+user can also represent a neuron in terms of the geodesic distances between
+points through the graph coded by the SWC file.
+
+Once the user prepares the list of intracell distance matrices, they can use
+the function :code:`compute_and_save_GW_dist_mat` to
+compute the Gromov-Wasserstein distance between all matrices in the given list
+and write the result to a single file in a given output directory. This output
+file is the linearization of the
+Gromov-Wasserstein distance matrix (or rather the entries above the diagonal).
+It is a text file with one column and n \*
+(n-1) / 2 rows, where n is the number of swc files to be processed.
+
+The argument "file_prefix" tells the function what the output file should be named;
+if file_prefix = "abc" then the output file will be titled
+"abc_gw_dist_mat.txt".
+
+If the flag save_mat is set to true, for each pair of cells A, B the function
+will also return the "coupling matrix" for the cells, which expresses the best
+possible deformation of A into B, that is, the deformation minimizing the
+worst-case distortion between any pairs of points. The Gromov-Wasserstein
+distance between A and B is the distortion induced by this optimal coupling
+matrix. These coupling matrices will be grouped in a folder, compressed and
+saved to the given directory as "abc_gw_matching.npz"
+
+.. code-block:: python
+
+		file_prefix = "a10_full_euclidean"
+		gw_results_dir= "/CAJAL/data/gw_results"
+		run_gw.compute_and_save_GW_dist_mat(dist_mat_list,file_prefix,gw_results_dir,
+		    save_mat=True, num_cores=12)
 
 The functions :code:`compute_and_save_sample_pts_parallel` and
 :code:`get_intracell_distances_all` are only appropriate when the user wants to
@@ -156,9 +167,75 @@ expected to be either
 - a vertex, written as `v float1 float2 float3`
 - a face, written as `f linenum1 linenum2 linenum3`
 
-Examples of \*.obj files can be found in the CAJAL Github repository in
-CAJAL/data/obj_files.
+Examples of \*.obj files compatible with CAJAL can be found in the CAJAL Github
+repository in CAJAL/data/obj_files.
 
 It is expected that a \*.obj file may contain several distinct connected
 components. By default, these will be separated into individual cells.
 
+However, the user may find themselves in a situation where each \*.obj file is
+supposed to represent a single cell, but due to some measurement error, the
+mesh given in the \*.obj file has multiple connected components - think of a
+scan of a neuron where there are missing segments in a dendrite. In this case
+CAJAL provides functionality to create a new mesh where all components will be
+joined together by new faces so that one can sensibly compute a geodesic
+distance between points in the mesh. (If the user wants to compute the
+Euclidean distance between points, such repairs are unnecessary, as Euclidean
+distance is insensitive to connectivity.)
+
+CAJAL also contains a number of functions to read to or write from a file so
+that one can save data between computing sessions.
+
+We walk through an example.
+
+The function :code:`obj_sample_parallel` will go through all \*.obj files in
+the given directory and sample a point cloud with n_sample points from each
+component of each \*.obj file, and save these point clouds as \*.csv files in
+the given output directory. (It is not necessary to write the point clouds to a
+file, they can be kept in memory as numpy arrays.)
+
+.. code-block:: python
+
+		from CAJAL.lib import sample_mesh
+		infolder = "/CAJAL/data/obj_files"
+		outfolder = "/CAJAL/data/sampled_pts/obj_sampled_50"
+		sample_mesh.obj_sample_parallel(infolder, outfolder, n_sample=50, disconnect=True, num_cores=8)
+
+The user can then compute a Euclidean intracell distance matrix for each
+connected component, and compute the GW distances between all component
+cells. This is identical to the process in :ref:`Neuronal Tracing Data`. Here,
+we load the saved intracell distance data back into memory, compute the GW
+distance matrix and write it to an output file. The flags "data_prefix" and
+"data_suffix" are optional filters, only files beginning and ending with the given
+string will be loaded into memory.
+
+.. code-block:: python
+
+		from CAJAL.lib import run_gw
+		dist_mat_list = run_gw.get_intracell_distances_all(
+		                     data_dir="/CAJAL/data/sampled_pts/obj_sampled_50",
+				     data_prefix=None,
+				     data_suffix="csv")
+		run_gw.compute_and_save_GW_dist_mat(dist_mat_list,
+		             file_prefix="obj_euclidean",
+			     gw_results_dir="CAJAL/data/gw_results",
+			     save_mat=False, num_cores=8)
+		 
+If the user wants to represent a cell by the matrix of geodesic distances
+instead, then the "sample" functions (which ignore the topology) are
+inappropriate. In this case CAJAL provides one batch-processing function which
+goes through all \*.obj files in a given directory, separates them into
+connected components, computes geodesic intracell distance matrices for each
+component, and writes all these square matrices as files to a standard
+output. (Bundling file I/O and math together in one function is less modular
+but it makes it easier to parallelize.)
+
+.. code-block:: python
+
+		sample_mesh.compute_and_save_geodesic_from_obj_parallel(
+		            infolder="/CAJAL/data/obj_files",
+			    outfolder="CAJAL/data/sampled_pts/obj_geodesic_50",
+			    n_sample=50,
+			    method="heat",
+			    connect=False,
+			    num_cores=8)
