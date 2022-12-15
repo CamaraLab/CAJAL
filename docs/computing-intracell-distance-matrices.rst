@@ -245,7 +245,7 @@ goes through all \*.obj files in a given directory, separates them into
 connected components, computes geodesic intracell distance matrices for each
 component, and writes all these square matrices as files to a standard
 output. (Bundling file I/O and math together in one function is less modular
-but it makes it easier to parallelize and overflow the memory)
+but it makes it easier to parallelize and not fill the memory)
 
 .. code-block:: python
 

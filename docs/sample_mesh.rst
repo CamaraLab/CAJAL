@@ -1,5 +1,5 @@
-Sampling from Meshes
-====================
+Processing Obj Meshes
+=====================
 
 CAJAL supports cell morphology data in the form of Wavefront \*.obj files.
 
