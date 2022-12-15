@@ -8,6 +8,7 @@ import pandas as pd
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
 from multiprocessing import Pool
+from typing import List, Optional
 
 from CAJAL.lib.utilities import pj, load_dist_mat, list_sort_files, read_mp_array
 
@@ -24,19 +25,23 @@ TODO:
 '''
 
 
-def compute_intracell_distances_one(data_file, metric="euclidean", return_mp=True, header=None):
+def compute_intracell_distances_one(
+        data_file: str,
+        metric: str ="euclidean",
+        return_mp: bool =True,
+        header: Optional[int | List[int]] = None):
     """
-    Compute the pairwise distances in the point cloud stored in the file.
+    Compute the pairwise distances in the point cloud stored in a \*.csv file.
     Return distance matrix as numpy array or mp (multiprocessing) array
 
     Args:
         data_file (string): file path to point cloud file (currently assumes a header line)
         metric (string): distance metric passed into pdist()
         return_mp (boolean): if True, return multiprocessing array, if False return numpy array
-        header (boolean): passed into read_csv, whether data file has a header line
+        header: If the \*.csv file has a row header labelling the columns, use this field to label it, see :func:`pandas.read_csv` for details.
 
     Returns:
-        Either a numpy array or a multiprocessing array, depending on the value of the flag return_mp.
+        A multiprocessing array, if return_mp == True; else a dynamic array.
     """
     
     coords = pd.read_csv(data_file, header=header)
@@ -88,9 +93,14 @@ def compute_intracell_distances_one(data_file, metric="euclidean", return_mp=Tru
 #     return outfile
 
 
-def compute_intracell_distances_all(data_dir, data_prefix=None, data_suffix="csv",
-                      #distances_dir=None,
-                      metric="euclidean", return_mp=True, header=None):
+def compute_intracell_distances_all(
+        data_dir: str,
+        data_prefix: str =None,
+        data_suffix: str ="csv",
+        #distances_dir=None,
+        metric: str ="euclidean",
+        return_mp: bool =True,
+        header: bool =None):
     """
     Compute the pairwise distances in the point cloud stored in each file.
     Return list of distance matrices.
@@ -185,10 +195,12 @@ def init_fn(dist_mat_list_, save_mat):
 
 def compute_GW_distance_matrix_preload_global(dist_mat_list_, save_mat=False, num_cores=12, chunk_size=100):
     """
-    Compute the GW distance between every pair of matrices in a given list of intracell distance matrices
+    Compute the GW distance between every pair of matrices in a given list of intracell \
+    distance matrices
         
     Args:
-        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing distance matrix for each cell
+        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing distance \
+    matrix for each cell
         save_mat (boolean): if True, returns coupling matrix (matching) between points
                             if False, only returns GW distance
         num_cores (int): number of parallel processes to run GW in
@@ -196,13 +208,15 @@ def compute_GW_distance_matrix_preload_global(dist_mat_list_, save_mat=False, nu
             larger size is faster but takes more memory, see multiprocessing pool.imap() for details
     
     Returns:
-        A GW distance matrix of the GW distances between all the intracell distance matrices in dist_mat_list_.
+        A GW distance matrix of the GW distances between all the intracell distance matrices in \
+    dist_mat_list_.
     """
     arguments = it.combinations(range(len(dist_mat_list_)), 2)
 
     if num_cores > 1:
         # Start up multiprocessing w/ list of distance matrices in global environment
-        with Pool(processes=num_cores, initializer=init_fn, initargs=(dist_mat_list_, save_mat)) as pool:
+        with Pool(processes=num_cores, initializer=init_fn,
+                  initargs=(dist_mat_list_, save_mat)) as pool:
             dist_results = list(pool.imap(calculate_gw_preload_global, arguments, chunksize=chunk_size))
     else:
         # Set dist_mat_list in global environment so can call the same functions
@@ -221,7 +235,8 @@ def compute_and_save_GW_dist_mat(dist_mat_list_, file_prefix, gw_results_dir,
     and write the resulting matrix of GW distances to a file.
 
     Args:
-        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing intracell distance matrix for each cell
+        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing intracell \
+    distance matrix for each cell
         file_prefix (string): name of output file to write GW distance matrix to
         gw_results_dir (string): path to directory to write output file to
         save_mat (boolean): if True, returns coupling matrix (matching) between points

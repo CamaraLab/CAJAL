@@ -93,12 +93,12 @@ A point cloud can be converted to a Euclidean distance matrix using
 		from scipy.spatial.distance import pdist
 		dist_mat = pdist(pt_cloud[0])
 
-The function `run_gw.compute_intracell_distances_one` reads a point cloud
+The function :func:`run_gw.compute_intracell_distances_one` reads a point cloud
 \*.csv file into memory and returns an intracell distance matrix.
 
 .. autofunction:: run_gw.compute_intracell_distances_one
 
-The function `run_gw.compute_intracell_distances_all` is the batch version,
+The function :func:`run_gw.compute_intracell_distances_all` is the batch version,
 operating on a directory of point cloud \*.csv files and returning a list of
 intracell distance matrices.
 
