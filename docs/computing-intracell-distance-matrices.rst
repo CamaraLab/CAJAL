@@ -66,7 +66,7 @@ specifically, CAJAL represents a point cloud as a numpy float array of shape
 n = 3. For tiff files, n = 2.
 
 If point clouds are saved to a file for long-term storage or to free memory,
-they should be saved as comma-separated value files where each each point lies
+CAJAL's convention is to save them as comma-separated value files where each each point lies
 on its own line and is represented as a triple of xyz coordinates.
 
 You can use :func:`numpy.savetxt` to write a point cloud to file.
@@ -114,6 +114,8 @@ http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
 We offer some functions to help the user load and process SWC files, see
 :doc:`sample_swc` for full documentation.
 
+Sampling from SWC Files
+^^^^^^^^^^^^^^^^^^^^^^^
 The function :func:`sample_swc.get_sample_pts` can be used to read an SWC file
 and sample its contents. The following function call will return a point cloud
 the of points spaced along branches of the neuron. The types_keep flag is
@@ -139,25 +141,13 @@ spaced way along the branches of each component. :func:`sample_swc.get_sample_pt
 points to sample, as it is not clear how to choose the points in an evenly
 spaced way.
 
-
-Point clouds can be written to a local directory as csv files, where each line
-contains three floating-point coordinates. Here the format string
-fmt="%.16f" means that we retain 16 values after the decimal place.
-
-.. code-block:: python
-
-		import numpy as np
-		np.savetxt("mycloud.csv", pt_cloud, delimiter=",", fmt="%.16f")
-
+One can then convert this to a Euclidean distance matrix with :func:`scipy.spatial.distance.pdist` or write it to a \*.csv file to be read later, as described in :ref:`Basic Data and File Formats`.
 
 We walk through an example. Suppose the user has a folder
 :code:`/CAJAL/data/swc_files` containing a number of swc files. The function
 :func:`sample_swc.compute_and_save_sample_pts_parallel` will go through each swc file in
 the input directory and randomly sample a given number of points from each
-neuron - in this case, 50 points from each. The 50 points are stored in the
-given directory :code:`/CAJAL/data/sampled_pds/swc_sampled_50` as a
-CSV file with 50 lines, where each line contains one point as
-a triple of (x, y, z) coordinates. :code:`num_cores` is best set to the number
+neuron - in this case, 50 points from each. :code:`num_cores` is best set to the number
 of cores on your machine. 
 
 .. code-block:: python
@@ -170,7 +160,7 @@ of cores on your machine.
 
 Next, the user should compute the pairwise Euclidean distances between the
 sampled points of each SWC file. The function
-`:func:compute_intracell_distances_all` returns a list of distance matrices,
+:func:`compute_intracell_distances_all` returns a list of distance matrices,
 one for each \*.csv file in the given folder, linearized as arrays.
 
 .. code-block:: python
@@ -178,6 +168,92 @@ one for each \*.csv file in the given folder, linearized as arrays.
 		from CAJAL import run_gw
 		dist_mat_list = run_gw.compute_intracell_distances_all(data_dir=sampled_csv_folder)
 
-The Euclidean distance is not the only way to do this. The
-user can also represent a neuron in terms of the geodesic distances between
+Computing geodesic intracell distance matrices
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		
+The user can also represent a neuron in terms of the geodesic distances between
 points through the graph coded by the SWC file.
+For full documentation, see `Geodesic Intracell Distances from SWC files`.
+
+To load an \*.swc file into memory and compute its intracell geodesic distance matrix, use :func:`sample_swc.get_geodesic`.
+
+The functions :code:`compute_and_save_sample_pts_parallel` and
+:code:`get_intracell_distances_all` are only appropriate when the user wants to
+represent a cell by its Euclidean distance matrix, as they forget the
+topology. To convert a folder of SWC files to a folder of intracell geodesic
+distance matrices, the user can run
+
+.. code-block:: python
+
+		infolder = "/CAJAL/data/swc_files"
+		outfolder = "/CAJAL/data/sampled_pts/swc_geodesic_50"
+		sample_swc.compute_and_save_geodesic_parallel(infolder, outfolder,
+                                  goal_num_pts=50, num_cores=8)
+
+3D meshes
+---------
+
+CAJAL supports Wavefront \*.obj 3D mesh files. The lines of a mesh file are
+expected to be either
+
+- a comment, marked with a "#"
+- a vertex, written as `v float1 float2 float3`
+- a face, written as `f linenum1 linenum2 linenum3`
+
+Examples of \*.obj files compatible with CAJAL can be found in the CAJAL Github
+repository in CAJAL/data/obj_files.
+
+It is expected that a \*.obj file may contain several distinct connected
+components. By default, these will be separated into individual cells.
+
+However, the user may find themselves in a situation where each \*.obj file is
+supposed to represent a single cell, but due to some measurement error, the
+mesh given in the \*.obj file has multiple connected components - think of a
+scan of a neuron where there are missing segments in a dendrite. In this case
+CAJAL provides functionality to create a new mesh where all components will be
+joined together by new faces so that one can sensibly compute a geodesic
+distance between points in the mesh. (If the user wants to compute the
+Euclidean distance between points, such repairs are unnecessary, as Euclidean
+distance is insensitive to connectivity.)
+
+Sampling from meshes
+^^^^^^^^^^^^^^^^^^^^
+
+The function :func:`sample_mesh.obj_sample_parallel` will go through all \*.obj files in
+the given directory and sample a point cloud with n_sample points from each
+component of each \*.obj file, and save these point clouds as \*.csv files in
+the given output directory. (It is not necessary to write the point clouds to a
+file, they can be kept in memory as numpy arrays.)
+
+.. code-block:: python
+
+		from CAJAL.lib import sample_mesh
+		infolder = "/CAJAL/data/obj_files"
+		outfolder = "/CAJAL/data/sampled_pts/obj_sampled_50"
+		sample_mesh.obj_sample_parallel(infolder, outfolder, n_sample=50,
+		disconnect=True, num_cores=8)
+
+The user can then compute a Euclidean intracell distance matrix for each
+connected component, and compute the GW distances between all component
+cells.
+
+Geodesic distances from meshes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+CAJAL provides one batch-processing function which
+goes through all \*.obj files in a given directory, separates them into
+connected components, computes geodesic intracell distance matrices for each
+component, and writes all these square matrices as files to a standard
+output. (Bundling file I/O and math together in one function is less modular
+but it makes it easier to parallelize and overflow the memory)
+
+.. code-block:: python
+
+		sample_mesh.compute_and_save_geodesic_from_obj_parallel(
+		            infolder="/CAJAL/data/obj_files",
+			    outfolder="CAJAL/data/sampled_pts/obj_geodesic_50",
+			    n_sample=50,
+			    method="heat",
+			    connect=False,
+			    num_cores=8)
+

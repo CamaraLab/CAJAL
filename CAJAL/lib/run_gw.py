@@ -35,13 +35,13 @@ def compute_intracell_distances_one(
     Return distance matrix as numpy array or mp (multiprocessing) array
 
     Args:
-        data_file (string): file path to point cloud file (currently assumes a header line)
-        metric (string): distance metric passed into pdist()
-        return_mp (boolean): if True, return multiprocessing array, if False return numpy array
-        header: If the \*.csv file has a row header labelling the columns, use this field to label it, see :func:`pandas.read_csv` for details.
+        * data_file (string): file path to point cloud file (currently assumes a header line)
+        * metric (string): distance metric passed into pdist()
+        * return_mp (boolean): if True, return multiprocessing array, if False return numpy array
+        * header: If the \*.csv file has a row header labelling the columns, use this field to label it, see :func:`pandas.read_csv` for details.
 
     Returns:
-        A multiprocessing array, if return_mp == True; else a dynamic array.
+        A multiprocessing array, if return_mp == True; else a numpy array.
     """
     
     coords = pd.read_csv(data_file, header=header)
@@ -106,11 +106,11 @@ def compute_intracell_distances_all(
     Return list of distance matrices.
     
     Args:
-        data_dir (string): file path to directory containing all point cloud files (currently assumes a header line)
-        data_prefix (string): only read files from data_dir starting with this string. None (default) uses all files
-        metric (string): distance metric passed into pdist()
-        return_mp (boolean): only used of distances_dir is None. If True, return multiprocessing array, if False return numpy array
-        header (boolean): passed into read_csv, whether data file has a header line
+        * data_dir (string): file path to directory containing all point cloud files (currently assumes a header line)
+        * data_prefix (string): only read files from data_dir starting with this string. None (default) uses all files
+        * metric (string): distance metric passed into pdist()
+        * return_mp (boolean): only used of distances_dir is None. If True, return multiprocessing array, if False return numpy array
+        * header (boolean): passed into read_csv, whether data file has a header line
     
     Returns:
         List of distance matrices. (In the future, will be a list of distance matrices or None, in the case where the distances_dir flag is enabled.)
@@ -199,12 +199,11 @@ def compute_GW_distance_matrix_preload_global(dist_mat_list_, save_mat=False, nu
     distance matrices
         
     Args:
-        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing distance \
-    matrix for each cell
-        save_mat (boolean): if True, returns coupling matrix (matching) between points
+        * dist_mat_list_ (list): list of multiprocessing or numpy arrays containing distance matrix for each cell
+        * save_mat (boolean): if True, returns coupling matrix (matching) between points
                             if False, only returns GW distance
-        num_cores (int): number of parallel processes to run GW in
-        chunk_size (int): chunk size for the iterator of all pairs of cells
+        * num_cores (int): number of parallel processes to run GW in
+        * chunk_size (int): chunk size for the iterator of all pairs of cells
             larger size is faster but takes more memory, see multiprocessing pool.imap() for details
     
     Returns:
