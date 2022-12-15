@@ -30,8 +30,7 @@ def compute_intracell_distances_one(data_file, metric="euclidean", return_mp=Tru
     Return distance matrix as numpy array or mp (multiprocessing) array
 
     Args:
-        data_file (string): file path to point cloud file
-                          (currently assumes a header line)
+        data_file (string): file path to point cloud file (currently assumes a header line)
         metric (string): distance metric passed into pdist()
         return_mp (boolean): if True, return multiprocessing array, if False return numpy array
         header (boolean): passed into read_csv, whether data file has a header line
@@ -95,29 +94,25 @@ def compute_intracell_distances_all(data_dir, data_prefix=None, data_suffix="csv
     """
     Compute the pairwise distances in the point cloud stored in each file.
     Return list of distance matrices.
-        (TODO : Add support for a flag "distances_dir" which will enable the user
-         to write the list of distance matrices in addition to / rather than returning it.)
-    
     
     Args:
-        data_dir (string): file path to directory containing all point cloud files
-                          (currently assumes a header line)
-        data_prefix (string): only read files from data_dir starting with this string
-                             None (default) uses all files
+        data_dir (string): file path to directory containing all point cloud files (currently assumes a header line)
+        data_prefix (string): only read files from data_dir starting with this string. None (default) uses all files
         metric (string): distance metric passed into pdist()
-        return_mp (boolean): only used of distances_dir is None.
-                            if True, return multiprocessing array, if False return numpy array
+        return_mp (boolean): only used of distances_dir is None. If True, return multiprocessing array, if False return numpy array
         header (boolean): passed into read_csv, whether data file has a header line
     
     Returns:
-        List of distance matrices.
-        (In the future, will be a list of distance matrices or None,
-         in the case where the distances_dir flag is enabled.)
+        List of distance matrices. (In the future, will be a list of distance matrices or None, in the case where the distances_dir flag is enabled.)
 
     """
+
     # if distances_dir is not None and not os.path.exists(distances_dir):
     #     os.makedirs(distances_dir)
 
+    # (TODO : Add support for a flag "distances_dir" which will enable the user
+    #  to write the list of distance matrices in addition to / rather than returning it.)
+    
     files_list = list_sort_files(data_dir, data_prefix, data_suffix=data_suffix)
     
     # Compute pairwise distance between points in each file

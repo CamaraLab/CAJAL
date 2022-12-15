@@ -29,6 +29,11 @@ saved to the given directory as "abc_gw_matching.npz"
 		run_gw.compute_and_save_GW_dist_mat(dist_mat_list,file_prefix,gw_results_dir,
 		    save_mat=True, num_cores=12)
 
+.. autofunction:: run_gw.compute_intracell_distances_one
+
+.. autofunction:: run_gw.compute_intracell_distances_all
+
+		    
 The functions :code:`compute_and_save_sample_pts_parallel` and
 :code:`get_intracell_distances_all` are only appropriate when the user wants to
 represent a cell by its Euclidean distance matrix. To convert a folder of
