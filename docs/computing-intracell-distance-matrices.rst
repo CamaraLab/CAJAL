@@ -257,3 +257,91 @@ but it makes it easier to parallelize and not fill the memory)
 			    connect=False,
 			    num_cores=8)
 
+Segmentation files 
+-------------------
+
+`Image segmentation <https://en.wikipedia.org/wiki/Image_segmentation>`_ is the
+process of separating an image into distinct components to simplify
+representations of objects. `Morphological segmentation
+<https://www.sciencedirect.com/science/article/abs/pii/104732039090014M>`_
+refers to image segmentation based on morphology.
+
+There are existing tools available to the user to segment an image, see for
+example the `ImageJ/Fiji Morphological Segmentation plugin
+<https://www.youtube.com/watch?v=gF4nhq7I2Eo>`_. (If you are unfamiliar with
+image segmentation, the linked YouTube video is only 6 minutes long and is a
+helpful introduction.) CAJAL provides tools to sample from the cell boundaries
+of segmented image files, such as the image provided at the
+`5:20 mark of the above video <https://youtu.be/gF4nhq7I2Eo?t=320>`_.
+
+Suppose that the user has a collection of \*.tiff files such as the following
+(from CAJAL/data/tiff_images/epd210cmd1l3_1.tif)
+
+.. image:: images/epd210cmd1l3_1.png
+
+The user can use :func:`tifffile.imread` or :func:`cv.imread` to load \*.tiff
+files into memory. CAJAL expects that an image is loaded as a Numpy integer array of
+shape (n, m), where n x m is the dimension of the picture in pixels and the
+value in image[n,m] codes the color of the image.
+
+.. code-block:: python
+
+		img=tifffile.imread(CAJAL/data/tiff_images/epd210cmd1l3_1.tif)
+		im_array2=cv.imread(CAJAL/data/tiff_images/epd210cmd1l3_1.tif)
+
+The OpenCV package provides some basic functionality to clean image data and
+perform segmentation, as mentioned earlier you can also use ImageJ for this
+task. We give an example to show how to segment `img`, an integer Numpy array
+of shape (n,m).
+
+.. code-block:: python
+
+                # Collapse the grayscale image to black and white.
+		# Everything with value below 100 gets mapped to white.
+		# Everything above 100 gets mapped to black.
+		_, thresh = cv.threshold(img,100,255,cv.THRESH_BINARY)
+		# See this tutorial for explanation of cv.morphologyEx 
+                # and the MORPH_OPEN and MORPH_CLOSED flags.
+		# https://docs.opencv.org/4.x/d9/d61/tutorial_py_morphological_ops.html
+		kernel = np.ones((5,5),np.uint8)
+                closing = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel)
+		closethenopen = cv.morphologyEx(closing, cv.MORPH_OPEN,kernel)
+		# closethenopen is black-and-white, like thresh, but with some
+		# noise removed.
+
+		from skimage import measure
+		# labeled_img is a numpy array of the same shape as closethenopen
+                # but instead of being black and white, each connected region
+		# of the image shares a unique common color.		
+		labeled_img = measure.label(closethenopen)
+
+		# The image is still somewhat noisy, with a few specks in it.
+		# We despeckle it naively by removing all connected regions
+		# with fewer than 1000 pixels by grouping these into the
+		# background region, labelled with 0.
+		labels = np.unique(labeled_img, return_counts=True)
+		labels = (labels[0][1:],labels[1][1:])
+		#remove specks
+		remove = np.isin(labeled_img, labels[0][labels[1]<1000])
+		img_keep = labeled_img.astype(np.uint8)
+		img_keep[remove] = 0
+
+		# To view the image from an interactive environment,
+		# i.e. Jupyter notebook, you can use matplotlib.
+		import matplotlib.pyplot as plt
+		fig, ax = plt.subplots()
+		ax.imshow(simplify_img_keep)
+		fig.set_size_inches(30, 30)
+		plt.show()
+
+		# Or write to a file and view with standard image utilities.
+		tifffile.imwrite('/home/jovyan/CAJAL/CAJAL/data/cleaned_file.tif',
+		img_keep, photometric='minisblack')
+
+After our cleaning, we get this:
+
+.. image:: images/cleanedfile.png
+
+
+		
+		

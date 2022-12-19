@@ -13,14 +13,20 @@ if the cells are geometrically similar in the sense that one cell can be deforme
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Overview and Walkthrough
 
    what-is-cajal
    computing-intracell-distance-matrices
    computing-gw-distances
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API
+
    sample_swc
    sample_mesh
-   
+
+
 .. This is a comment.
    \\:hidden:
    \\To add a caption in the TOC use :caption: in the toctree, i.e. :caption: First steps

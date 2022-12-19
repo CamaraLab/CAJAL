@@ -74,21 +74,3 @@ string will be loaded into memory.
 			     gw_results_dir="CAJAL/data/gw_results",
 			     save_mat=False, num_cores=8)
 		 
-If the user wants to represent a cell by the matrix of geodesic distances
-instead, then the "sample" functions (which ignore the topology) are
-inappropriate. In this case CAJAL provides one batch-processing function which
-goes through all \*.obj files in a given directory, separates them into
-connected components, computes geodesic intracell distance matrices for each
-component, and writes all these square matrices as files to a standard
-output. (Bundling file I/O and math together in one function is less modular
-but it makes it easier to parallelize.)
-
-.. code-block:: python
-
-		sample_mesh.compute_and_save_geodesic_from_obj_parallel(
-		            infolder="/CAJAL/data/obj_files",
-			    outfolder="CAJAL/data/sampled_pts/obj_geodesic_50",
-			    n_sample=50,
-			    method="heat",
-			    connect=False,
-			    num_cores=8)
