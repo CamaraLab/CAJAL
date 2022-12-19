@@ -260,6 +260,8 @@ but it makes it easier to parallelize and not fill the memory)
 Segmentation files 
 -------------------
 
+Overview of image segmentation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 `Image segmentation <https://en.wikipedia.org/wiki/Image_segmentation>`_ is the
 process of separating an image into distinct components to simplify
 representations of objects. `Morphological segmentation
@@ -272,7 +274,9 @@ example the `ImageJ/Fiji Morphological Segmentation plugin
 image segmentation, the linked YouTube video is only 6 minutes long and is a
 helpful introduction.) CAJAL provides tools to sample from the cell boundaries
 of segmented image files, such as the image provided at the
-`5:20 mark of the above video <https://youtu.be/gF4nhq7I2Eo?t=320>`_.
+`5:20 mark of the above video <https://youtu.be/gF4nhq7I2Eo?t=320>`_. CAJAL is
+**not** a tool for morphological image segmentation. However, we provide a
+brief sample script here to show how a user might prepare data for use with CAJAL.
 
 Suppose that the user has a collection of \*.tiff files such as the following
 (from CAJAL/data/tiff_images/epd210cmd1l3_1.tif)
@@ -342,6 +346,11 @@ After our cleaning, we get this:
 
 .. image:: images/cleanedfile.png
 
+This image is representative of the kind of image data CAJAL is meant to
+process: a 2D array of integers, where each cell, and the background, are
+represented by a connected block of integers with the same value. Two distinct
+cells should have different values. Each cell should have a different labelling
+value than the background.
 
-		
-		
+Sampling from segmented images
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
