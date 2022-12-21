@@ -4,10 +4,10 @@ from typing import overload
 import datetime
 import dateutil.tz._common
 import dateutil.tz.tz
-import dateutil.tz.tz.__get_gettz.<locals>
+# import dateutil.tz.tz.__get_gettz.<locals>
 import pytz
 UTC: pytz.UTC
-dateutil_gettz: dateutil.tz.tz.__get_gettz.<locals>.GettzFunc
+# dateutil_gettz: dateutil.tz.tz.__get_gettz.<locals>.GettzFunc
 dst_cache: dict
 import_optional_dependency: function
 
