@@ -1,51 +1,31 @@
-Computing Intracell Distance Matrices and Point Clouds
-======================================================
+Computing Intracellular Distance Matrices
+=========================================
 
-CAJAL represents a cell as a finite list of points, together with a distance
-between each point. More specifically, this data is represented as a matrix
-(the "intracell distance matrix") where the rows and columns correspond to
-points in the cell, and the entry at position (i, j) is the distance between
-points x_i and x_j. Experience has shown diminishing returns in predictive
-power past n = 50-100 points. In order to compute the Gromov-Wasserstein
+*CAJAL* represents a cell as a finite set of points uniformly sampled from its outline, together with a notion of distance
+between each pair of points. Internally this data is represented as a matrix
+(the "intracellular distance matrix") where the rows and columns correspond to
+points in the cell, and the entry at position (i, j) corresponds to the distance between
+points x_i and x_j. In general, we find that 50 to 100 sampled points per cell is enough for most applications. In order to compute the Gromov-Wasserstein
 distance between two cells, the user must first convert their cell morphology
-data into this format. This section discusses the functionality CAJAL provides
-for this purpose.
-
-Currently, CAJAL is equipped to deal with three kinds of input data files:
-neuronal tracing data (SWC files), 3D meshes (two-dimensional simplicial
-complexes) and 2D segmentation files (tiff files.)
+data into intracellular distance matrices. This section discusses the functionality *CAJAL* provides
+for this purpose. Currently, CAJAL is equipped to deal with three kinds of input data files:
+neuronal tracing data (SWC files), 3D meshes (OBJ files), and 2D cell segmentation files (TIFF files).
 
 Euclidean vs. geodesic distances
 --------------------------------
 
-CAJAL requires the user to encode a cell's morphology as an intracell distance
-matrix. There are at least two reasonable ways to define the distance between
-two points in a cell:
+*CAJAL* supports two types of intracellular distances:
 
 1. the ordinary, straight-line Euclidean
    distance through space ("as the crow flies")
 2. the geodesic distance, the length of the shortest path
-   *through the body of the cell.*
+   through the surface of the cell.
 
-The choice between the Euclidean and geodesic distances will affect what kinds
-of cell deformations CAJAL regards as significant or relevant when trying to
-deform one cell into another. If the user
-represents two cells A and B by Euclidean distance matrices, then CAJAL will
-regard any translation, rotation or mirroring of A across a plane as
-insignificant, in the sense that such operations on A are not considered a
-"distortion" and these deformations do not increase the GW distance. However,
-bending or flexing A is a distortion and increases the GW distance. One can
-visualize the neuron in this case as made of a thick wire which takes some
-effort to bend; the GW distance measures the cost of distorting or deforming
-it.
-
-On the other hand, if the user represents two neurons by their geodesic
-distance matrices, then translation, rotation, mirroring, bending and flexing A
-are all now "irrelevant" operations which do not increase the GW distance, but
-stretching, elongating or compressing A will be considered a costly
-deformation. One can visualize the neuron in this case as made of thin rubber,
-which is easily bent but takes some work to stretch or compress along any
-segment.
+The choice between using Euclidean or geodesic distance will affect what kinds
+of deformations *CAJAL* regards as relevant when comparing the shape of two cells. Using Euclidean distance to meassure intracellular distances 
+leads to morphological distances that are insensitive to translations, rotations, or mirroring of a cell. However,
+bending or flexing a cell will change the morphological distance between that cell and other cells. On the other hand, using geodesic
+intracellular distances leads to morphological distances that are insensitive to translations, rotations, mirroring, bending, and flexing of the cells. 
 
 To illustrate the distinction, suppose we have two pieces of string, A
 and B. Both A and B are twelve inches long. A is laid out in a straight line,
@@ -54,76 +34,23 @@ matrices, then the Gromov-Wasserstein distance between them will be nontrivial,
 because one must bend B to straighten it out into a line segment. However, if
 they are represented by their geodesic distance matrices, then the
 Gromov-Wasserstein distance will be zero.  One can deform A into B
-without any stretching or elongating, as they are the same length.
-
-
-Basic Data and File Formats
----------------------------
-
-By a "point cloud", we mean a set of points in n-dimensional space. More
-specifically, CAJAL represents a point cloud as a numpy float array of shape
-(k, n), where k is the number of data points. For SWC files and \*.obj meshes,
-n = 3. For tiff files, n = 2.
-
-If point clouds are saved to a file for long-term storage or to free memory,
-CAJAL's convention is to save them as comma-separated value files where each each point lies
-on its own line and is represented as a triple of xyz coordinates.
-
-You can use :func:`numpy.savetxt` to write a point cloud to file.
-Here the format string fmt="%.16f" means that we retain 16 values after the decimal place.
-
-.. code-block:: python
-
-		import numpy as np
-		np.savetxt("mycloud.csv", pt_cloud, delimiter=",", fmt="%.16f")
-
-You can read this back with :func:`numpy.loadtxt` or :func:`pandas.read_csv`.
-
-By an "intracell distance matrix", we mean either a numpy floating point array
-representing a matrix in "vector form" (see
-:func:`scipy.spatial.distance.pdist` and footnote 2 of 
-:func:`scipy.spatial.distance.squareform`) or a Python
-:func:`multiprocessing.Array`.
-
-A point cloud can be converted to a Euclidean distance matrix using
-:func:`scipy.spatial.distance.pdist`.
-
-.. code-block:: python
-		
-		from scipy.spatial.distance import pdist
-		dist_mat = pdist(pt_cloud[0])
-
-The function :func:`run_gw.compute_intracell_distances_one` reads a point cloud
-\*.csv file into memory and returns an intracell distance matrix.
-
-.. autofunction:: run_gw.compute_intracell_distances_one
-
-The function :func:`run_gw.compute_intracell_distances_all` is the batch version,
-operating on a directory of point cloud \*.csv files and returning a list of
-intracell distance matrices.
-
-.. autofunction:: run_gw.compute_intracell_distances_all
-
+without any stretching or elongating, as they are the same length. 
 
 Neuronal Tracing Data
 ---------------------
 
-CAJAL supports neuronal tracing data in the SWC spec as specified here:
-http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
+CAJAL supports neuronal tracing data in the SWC spec as specified `here
+<http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html>`_.
 
-We offer some functions to help the user load and process SWC files, see
-:doc:`sample_swc` for full documentation.
-
-Sampling from SWC Files
-^^^^^^^^^^^^^^^^^^^^^^^
+Sampling points from a SWC File
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The function :func:`sample_swc.get_sample_pts` can be used to read an SWC file
-and sample its contents. The following function call will return a point cloud
-the of points spaced along branches of the neuron. The types_keep flag is
-optional; if one gives a list of integers, only points in the neuron with that
-SWC structure identifier will be sampled. The standard structure identifiers
-are 1-4, with 0 the key for "undefined"; indices greater than 5 are reserved
-for custom types. By default (types_keep = None) all nodes are eligible to be sampled.
+and sample its contents. 
 
+.. autofunction:: sample_swc.get_sample_pts
+
+For example, the following function call will return a point cloud
+consisting of points equally spaced along the neuronal reconstruction in the file `a10_full_Chat-IRES-Cre-neo_Ai14-280699.05.02.01_570681325_m.swc <https://github.com/CamaraLab/CAJAL/blob/main/CAJAL/data/swc_files/a10_full_Chat-IRES-Cre-neo_Ai14-280699.05.02.01_570681325_m.swc>`_. 
 
 .. code-block:: python
 		
@@ -134,21 +61,46 @@ for custom types. By default (types_keep = None) all nodes are eligible to be sa
 					  types_keep=None,
 					  goal_num_pts = 50)[0]
 
-CAJAL attempts to sample points in an evenly spaced way along the branches of
+The ``types_keep`` flag is
+optional and can be used to specify a list of node types (as specified in the SWC format) so that only points in the neuron with that
+SWC structure identifier will be sampled. By default (types_keep = None) all nodes are eligible to be sampled.
+
+*CAJAL* samples points in an evenly spaced way along the branches of
 the neuron, or if there are multiple components in the SWC file, in an evenly
 spaced way along the branches of each component. :func:`sample_swc.get_sample_pts` will return
-"None" and raise a warning if there are more components in the graph than
-points to sample, as it is not clear how to choose the points in an evenly
-spaced way.
+"None" and raise a warning if there are more components in the SWC file than
+points to sample.
 
-One can then convert this to a Euclidean distance matrix with :func:`scipy.spatial.distance.pdist` or write it to a \*.csv file to be read later, as described in :ref:`Basic Data and File Formats`.
+One can then convert this to a Euclidean distance matrix with :func:`scipy.spatial.distance.pdist`:
 
-We walk through an example. Suppose the user has a folder
-:code:`/CAJAL/data/swc_files` containing a number of swc files. The function
-:func:`sample_swc.compute_and_save_sample_pts_parallel` will go through each swc file in
+.. code-block:: python
+		
+		from scipy.spatial.distance import pdist
+		dist_mat = pdist(pt_cloud)
+
+Alternatively, we can write it to a \*.csv file to be read later:
+
+.. code-block:: python
+
+		import numpy as np
+		np.savetxt("mycloud.csv", pt_cloud, delimiter=",", fmt="%.16f")
+
+The function :func:`run_gw.compute_intracell_distances_one` can be used to read a point cloud stored as a
+\*.csv file into memory and compute the intracellular distance matrix.
+
+.. autofunction:: run_gw.compute_intracell_distances_one
+
+Sampling points from multiple SWC Files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+*CAJAL* also provides a wrapper around the above functions to process multiple SWC files at a time. We walk through an example using the example SWC files provided with *CAJAL*. The function
+:func:`sample_swc.compute_and_save_sample_pts_parallel` goes through each SWC file in
 the input directory and randomly sample a given number of points from each
-neuron - in this case, 50 points from each. :code:`num_cores` is best set to the number
-of cores on your machine. 
+neuron.
+
+.. autofunction:: compute_and_save_sample_pts_parallel
+
+For example, if we want to sample 50 points from each neuron in the folder :code:`/CAJAL/data/swc_files` using 8 cores (:code:`num_cores` is best set to the number
+of cores on your machine), we would use the command: 
 
 .. code-block:: python
 		
@@ -158,30 +110,30 @@ of cores on your machine.
 		sample_swc.compute_and_save_sample_pts_parallel(
 		    swc_infolder, sampled_csv_folder, goal_num_pts=50, num_cores=8)
 
-Next, the user should compute the pairwise Euclidean distances between the
+We can then compute the pairwise Euclidean distances between the
 sampled points of each SWC file. The function
-:func:`compute_intracell_distances_all` returns a list of distance matrices,
-one for each \*.csv file in the given folder, linearized as arrays.
+:func:`compute_intracell_distances_all` is the batch version of :func:`run_gw.compute_intracell_distances_one`,
+operating on a directory of point cloud \*.csv files and returning a list of
+intracellular distance matrices.
+
+.. autofunction:: run_gw.compute_intracell_distances_all
+
+It returns a list of intracellular distance matrices,
+one for each \*.csv file in the given folder, linearized as arrays. In our example, we would run:
 
 .. code-block:: python
 
 		from CAJAL import run_gw
 		dist_mat_list = run_gw.compute_intracell_distances_all(data_dir=sampled_csv_folder)
 
-Computing geodesic intracell distance matrices
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		
-The user can also represent a neuron in terms of the geodesic distances between
-points through the graph coded by the SWC file.
-For full documentation, see `Geodesic Intracell Distances from SWC files`.
+Computing geodesic intracellular distances
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+We have described how to compute intracellular Euclidean distances for neuronal tracing data in SWC files using :code:`compute_and_save_sample_pts_parallel` and
+:code:`get_intracell_distances_all`. To compute intracellular geodesic distances we would instead use :func:`compute_and_save_geodesic_parallel`.
 
-To load an \*.swc file into memory and compute its intracell geodesic distance matrix, use :func:`sample_swc.get_geodesic`.
+.. autofunction:: compute_and_save_geodesic_parallel
 
-The functions :code:`compute_and_save_sample_pts_parallel` and
-:code:`get_intracell_distances_all` are only appropriate when the user wants to
-represent a cell by its Euclidean distance matrix, as they forget the
-topology. To convert a folder of SWC files to a folder of intracell geodesic
-distance matrices, the user can run
+For example, in our ablve example we could use:
 
 .. code-block:: python
 
@@ -200,8 +152,8 @@ expected to be either
 - a vertex, written as `v float1 float2 float3`
 - a face, written as `f linenum1 linenum2 linenum3`
 
-Examples of \*.obj files compatible with CAJAL can be found in the CAJAL Github
-repository in CAJAL/data/obj_files.
+Examples of \*.obj files compatible with *CAJAL* can be found in the *CAJAL* Github
+repository in ``CAJAL/data/obj_files``.
 
 It is expected that a \*.obj file may contain several distinct connected
 components. By default, these will be separated into individual cells.
@@ -209,8 +161,8 @@ components. By default, these will be separated into individual cells.
 However, the user may find themselves in a situation where each \*.obj file is
 supposed to represent a single cell, but due to some measurement error, the
 mesh given in the \*.obj file has multiple connected components - think of a
-scan of a neuron where there are missing segments in a dendrite. In this case
-CAJAL provides functionality to create a new mesh where all components will be
+scan of a neuron where there are missing segments. In this case
+*CAJAL* provides functionality to create a new mesh where all components will be
 joined together by new faces so that one can sensibly compute a geodesic
 distance between points in the mesh. (If the user wants to compute the
 Euclidean distance between points, such repairs are unnecessary, as Euclidean
