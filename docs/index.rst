@@ -1,15 +1,15 @@
-.. cajal documentation master file, created by
+.. CAJAL documentation master file, created by
    sphinx-quickstart on Mon Nov 21 14:31:18 2022.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Cajal : a cell morphology analysis package
-==========================================
+*CAJAL*: a python library for multimodal cell morphology analyses
+================================================================
 
-Cajal is a suite of tools to study cell morphology and its relationship with other data.
+*CAJAL* is a suite of tools to study cell morphology and its relationship with other single-cell data.
 
-Cajal uses the Python Optimal Transport library (POT) to compute the Gromov-Wasserstein distance between two cells. The Gromov-Wasserstein distance is a similarity score which is small
-if the cells are geometrically similar in the sense that one cell can be deformed into another without too much stretching or bending. Computing the Gromov-Wasserstein distance between cells does not require the user to fit the cells into a given model of what a cell looks like - for example, to compare two neurons, one does not have to supply the length of the axon, the branching degree of the dendrites, or the number of branches. Thus, Cajal can be used to study cells whose morphology is highly complex and defies straightforward categorization.
+*CAJAL* uses the Python Optimal Transport library (POT) to compute the Gromov-Wasserstein distance between every pair cells. The Gromov-Wasserstein distance is small
+if the cells are geometrically similar in the sense that the shape of one cell can be deformed into another without too much stretching or bending. Computing the Gromov-Wasserstein distance between cells does not rely on any models for the morphology of the cells. For example, to compare two neurons, one does not have to supply the length of the axon, the branching degree of the dendrites, or the number of branches. Thus, *CAJAL* can be used to study heterogeneous mixtures of cells, including cells whose morphology is highly complex and defies straightforward categorization.
 
 .. toctree::
    :maxdepth: 2
