@@ -260,6 +260,8 @@ but it makes it easier to parallelize and not fill the memory)
 Segmentation files 
 -------------------
 
+
+
 Overview of image segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 `Image segmentation <https://en.wikipedia.org/wiki/Image_segmentation>`_ is the
@@ -274,9 +276,18 @@ example the `ImageJ/Fiji Morphological Segmentation plugin
 image segmentation, the linked YouTube video is only 6 minutes long and is a
 helpful introduction.) CAJAL provides tools to sample from the cell boundaries
 of segmented image files, such as the image provided at the
-`5:20 mark of the above video <https://youtu.be/gF4nhq7I2Eo?t=320>`_. CAJAL is
-**not** a tool for morphological image segmentation. However, we provide a
-brief sample script here to show how a user might prepare data for use with CAJAL.
+`5:20 mark of the above video <https://youtu.be/gF4nhq7I2Eo?t=320>`_.
+
+
+.. warning::
+
+   CAJAL is not a tool for image segmentation. The user is expected to segment
+   and clean their own images.
+
+
+However, we provide a
+brief sample script here to show how a user might prepare data for use with
+CAJAL.
 
 Suppose that the user has a collection of \*.tiff files such as the following
 (from CAJAL/data/tiff_images/epd210cmd1l3_1.tif)
@@ -350,7 +361,39 @@ This image is representative of the kind of image data CAJAL is meant to
 process: a 2D array of integers, where each cell, and the background, are
 represented by a connected block of integers with the same value. Two distinct
 cells should have different values. Each cell should have a different labelling
-value than the background.
+value than the background. Be warned that this is only a toy example - for
+example, in this image there are multiple overlapping cells that have been
+grouped into a single continuous "cell" block. Such overlapping cells should be
+discarded before analysis with CAJAL.
 
 Sampling from segmented images
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In this section, a "segmented image" refers to a numpy integer array Arr of shape
+(n, m) where Arr[i,j] represents the (i,j) pixel in an image. We say that a
+pixel (i,j) is labeled with an integer k if Arr[(i,j)] = k.  We say that a cell is
+labeled with the integer k if all pixels in that cell are labeled with the
+integer k.
+
+Each cell in a segmented image should be labeled with some integer. Two
+distinct cells should be labeled with different integers. All background pixels
+should be labelled with the same integer, which is different from the label of
+any cell.
+
+Given a numpy integer array :code:`imarray` of shape (n,m), we can write
+
+.. code-block:: python
+
+		bdaries = cell_boundaries(imarray, n_sample = 50, background= 0)
+
+to get a list of cell boundary sample points for each cell. Cells which meet
+the image boundary are discarded, as we currently do not have a reasonable
+theoretical approach for analyzing partial cell boundaries.
+
+This sample script shows how to batch sample from all \*.tiff files in a given
+directory, sample their points, and write the output to \*.csv files.
+
+.. code-block:: python
+
+		infolder = "/home/jovyan/CAJAL/CAJAL/
+		
