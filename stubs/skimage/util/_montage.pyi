@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def montage(arr_in, fill: str = ..., rescale_intensity: bool = ..., grid_shape: Incomplete | None = ..., padding_width: int = ..., multichannel: bool = ..., *, channel_axis: Incomplete | None = ...): ...

@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def apply_parallel(function, array, chunks: Incomplete | None = ..., depth: int = ..., mode: Incomplete | None = ..., extra_arguments=..., extra_keywords=..., *, dtype: Incomplete | None = ..., compute: Incomplete | None = ..., channel_axis: Incomplete | None = ..., multichannel: bool = ...): ...

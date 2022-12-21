@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def butterworth(image, cutoff_frequency_ratio: float = ..., high_pass: bool = ..., order: float = ..., channel_axis: Incomplete | None = ...): ...

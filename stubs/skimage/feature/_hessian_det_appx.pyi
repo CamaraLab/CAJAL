@@ -1,0 +1,3 @@
+from typing import Any
+
+def _hessian_matrix_det(*args, **kwargs) -> Any: ...

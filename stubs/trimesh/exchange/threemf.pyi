@@ -1,0 +1,6 @@
+from .. import graph as graph, util as util
+from ..constants import log as log
+from ..exceptions import ExceptionModule as ExceptionModule
+
+def load_3MF(file_obj, postprocess: bool = ..., **kwargs): ...
+def export_3MF(mesh, batch_size: int = ..., compression=..., compresslevel: int = ...): ...

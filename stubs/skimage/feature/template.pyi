@@ -1,0 +1,3 @@
+from .._shared.utils import check_nD as check_nD
+
+def match_template(image, template, pad_input: bool = ..., mode: str = ..., constant_values: int = ...): ...

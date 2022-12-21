@@ -1,0 +1,6 @@
+from .. import util as util
+from ..points import PointCloud as PointCloud
+from _typeshed import Incomplete
+
+def load_xyz(file_obj, delimiter: Incomplete | None = ..., **kwargs): ...
+def export_xyz(cloud, write_colors: bool = ..., delimiter: Incomplete | None = ...): ...
