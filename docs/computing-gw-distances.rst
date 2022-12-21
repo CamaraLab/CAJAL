@@ -2,7 +2,7 @@ Computing GW Distances
 ======================
 
 Once the user prepares the list of intracell distance matrices, they can use
-the function :func:`compute_and_save_GW_dist_mat` to
+the function :func:`run_gw.compute_and_save_GW_dist_mat` to
 compute the Gromov-Wasserstein distance between all matrices in the given list
 and write the result to a single file in a given output directory. This output
 file is the linearization of the
@@ -31,7 +31,7 @@ saved to the given directory as "abc_gw_matching.npz"
 
 
 The user can then read these files back into memory with the function
-:func:`load_intracell_distances`:
+:func:`run_gw.load_intracell_distances`:
 		  
 .. code-block:: python
 
