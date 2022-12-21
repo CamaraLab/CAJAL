@@ -366,8 +366,8 @@ example, in this image there are multiple overlapping cells that have been
 grouped into a single continuous "cell" block. Such overlapping cells should be
 discarded before analysis with CAJAL.
 
-Sampling from segmented images
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Sampling from segmented images (overview)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In this section, a "segmented image" refers to a numpy integer array Arr of shape
 (n, m) where Arr[i,j] represents the (i,j) pixel in an image. We say that a
@@ -380,20 +380,31 @@ distinct cells should be labeled with different integers. All background pixels
 should be labelled with the same integer, which is different from the label of
 any cell.
 
-Given a numpy integer array :code:`imarray` of shape (n,m), we can write
+Given a numpy integer array :code:`imarray` of shape (n,m), we can use the
+:func:`sample_seg.cell_boundaries` function to get a list of cell boundary
+sample points for each cell.
 
 .. code-block:: python
 
 		bdaries = cell_boundaries(imarray, n_sample = 50, background= 0)
 
-to get a list of cell boundary sample points for each cell. Cells which meet
-the image boundary are discarded, as we currently do not have a reasonable
-theoretical approach for analyzing partial cell boundaries.
+Cells which meet the image boundary are discarded, as we currently do not have
+a reasonable theoretical approach for analyzing partial cell boundaries.
 
 This sample script shows how to batch sample from all \*.tiff files in a given
 directory, sample their points, and write the output to \*.csv files.
 
 .. code-block:: python
 
-		infolder = "/home/jovyan/CAJAL/CAJAL/
-		
+		infolder ="/home/patn/CAJAL/CAJAL/data/tiff_images_cleaned/"
+		outfolder="/home/patn/CAJAL/CAJAL/data/sampled_pts/tiff_sampled_50/"
+		file_names = os.listdir("/home/patn/CAJAL/CAJAL/data/tiff_images_cleaned/")
+		for image_file_name in file_names:
+		    imarray = tifffile.imread(os.path.join(infolder,image_file_name))
+		    cell_bdary_sample_list = sample_seg.cell_boundaries(imarray, 50)
+		    i=0
+		    for cell_bdary in cell_bdary_sample_list:
+		        output_name = image_file_name.replace(".tiff","").replace(".tif","") + "_" + str(i)+ ".csv"
+		        output_name=os.path.join(outfolder, output_name)
+		        np.savetxt(output_name,cell_bdary, delimiter=",")		
+		        i+=1

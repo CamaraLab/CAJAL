@@ -25,7 +25,7 @@ if the cells are geometrically similar in the sense that one cell can be deforme
 
    sample_swc
    sample_mesh
-
+   sample_seg
 
 .. This is a comment.
    \\:hidden:
