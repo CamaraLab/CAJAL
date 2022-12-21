@@ -4,7 +4,9 @@ import os
 import ot
 import itertools as it
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
+import ctypes
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
 from multiprocessing import Pool
@@ -95,12 +97,12 @@ def compute_intracell_distances_one(
 
 def compute_intracell_distances_all(
         data_dir: str,
-        data_prefix: str =None,
+        data_prefix: Optional[str] =None,
         data_suffix: str ="csv",
         #distances_dir=None,
         metric: str ="euclidean",
         return_mp: bool =True,
-        header: bool =None):
+        header: Optional[int | List[int]] = None):
     """
     Compute the pairwise distances in the point cloud stored in each file.
     Return list of distance matrices.
@@ -110,7 +112,7 @@ def compute_intracell_distances_all(
         * data_prefix (string): only read files from data_dir starting with this string. None (default) uses all files
         * metric (string): distance metric passed into pdist()
         * return_mp (boolean): only used of distances_dir is None. If True, return multiprocessing array, if False return numpy array
-        * header (boolean): passed into read_csv, whether data file has a header line
+        * header: If the \*.csv file has a row header labelling the columns, use this field to label it, see :func:`pandas.read_csv` for details. 
     
     Returns:
         List of distance matrices. (In the future, will be a list of distance matrices or None, in the case where the distances_dir flag is enabled.)
@@ -226,23 +228,28 @@ def compute_GW_distance_matrix_preload_global(dist_mat_list_, save_mat=False, nu
     return dist_results
 
 
-def compute_and_save_GW_dist_mat(dist_mat_list_, file_prefix, gw_results_dir,
-                                 save_mat=False, num_cores=12, chunk_size=100):
+def compute_and_save_GW_dist_mat(
+        dist_mat_list_local : List[npt.NDArray| ctypes.Array],
+        file_prefix : str,
+        gw_results_dir : str,
+        save_mat:bool =False,
+        num_cores: int =12,
+        chunk_size: int =100):
     """
     
     Compute the GW distance between each pair of distance matrices in vector form,
     and write the resulting matrix of GW distances to a file.
 
     Args:
-        dist_mat_list_ (list): list of multiprocessing or numpy arrays containing intracell \
+        * dist_mat_list_local (list): list of multiprocessing or numpy arrays containing intracell \
     distance matrix for each cell
-        file_prefix (string): name of output file to write GW distance matrix to
-        gw_results_dir (string): path to directory to write output file to
-        save_mat (boolean): if True, returns coupling matrix (matching) between points
+        * file_prefix (string): name of output file to write GW distance matrix to
+        * gw_results_dir (string): path to directory to write output file to
+        * save_mat (boolean): if True, returns coupling matrix (matching) between points.\
                             if False, only returns GW distance
-        num_cores (int): number of parallel processes to run GW in
-        chunk_size (int): chunk size for the iterator of all pairs of cells
-            larger size is faster but takes more memory, see multiprocessing pool.imap() for details
+        * num_cores (int): number of parallel processes to run GW in
+        * chunk_size (int): chunk size for the iterator of all pairs of cells. \
+                 Larger size is faster but takes more memory, see :meth:`multiprocessing.pool.Pool.imap` for details
 
     Returns:
         None (writes distance matrix of GW distances to file)
@@ -251,7 +258,7 @@ def compute_and_save_GW_dist_mat(dist_mat_list_, file_prefix, gw_results_dir,
     if not os.path.exists(gw_results_dir):
         os.makedirs(gw_results_dir)
 
-    dist_results = compute_GW_distance_matrix_preload_global(dist_mat_list_, save_mat=save_mat,
+    dist_results = compute_GW_distance_matrix_preload_global(dist_mat_list_local, save_mat=save_mat,
                                                   num_cores=num_cores, chunk_size=chunk_size)
 
     # Save results - suffix name of output files is currently hardcoded
