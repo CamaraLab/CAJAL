@@ -1,0 +1,6 @@
+import numpy as np
+from pandas._typing import NumpyIndexT as NumpyIndexT
+from pandas.core.dtypes.common import is_list_like as is_list_like
+
+def cartesian_product(X) -> list[np.ndarray]: ...
+def tile_compat(arr: NumpyIndexT, num: int) -> NumpyIndexT: ...

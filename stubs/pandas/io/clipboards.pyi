@@ -1,0 +1,6 @@
+from pandas import get_option as get_option, option_context as option_context
+from pandas.core.dtypes.generic import ABCDataFrame as ABCDataFrame
+from pandas.util._exceptions import find_stack_level as find_stack_level
+
+def read_clipboard(sep: str = ..., **kwargs): ...
+def to_clipboard(obj, excel: Union[bool, None] = ..., sep: Union[str, None] = ..., **kwargs) -> None: ...
