@@ -108,14 +108,23 @@ def compute_intracell_distances_all(
     Return list of distance matrices.
     
     Args:
-        * data_dir (string): file path to directory containing all point cloud files (currently assumes a header line)
-        * data_prefix (string): only read files from data_dir starting with this string. None (default) uses all files
+        * data_dir (string): file path to directory containing all \
+                point cloud files (currently assumes a header line)
+        * data_prefix (string): only read files from data_dir \
+              starting with this string. None (default) uses \
+              all files
         * metric (string): distance metric passed into pdist()
-        * return_mp (boolean): only used of distances_dir is None. If True, return multiprocessing array, if False return numpy array
-        * header: If the \*.csv file has a row header labelling the columns, use this field to label it, see :func:`pandas.read_csv` for details. 
+        * return_mp (boolean): only used of distances_dir is None.\
+              If True, return multiprocessing array,\
+              if False return numpy array
+        * header: If the \*.csv file has a row header labelling the\
+              columns, use this field to label it, see\
+              :func:`pandas.read_csv` for details. 
     
     Returns:
-        List of distance matrices. (In the future, will be a list of distance matrices or None, in the case where the distances_dir flag is enabled.)
+        List of distance matrices. (In the future, will be a list \
+            of distance matrices or None, in the case where \
+            the distances_dir flag is enabled.)
 
     """
 
@@ -137,25 +146,39 @@ def compute_intracell_distances_all(
     return return_list
 
 
-def load_intracell_distances(distances_dir, data_prefix=None, return_mp=True):
-    """
-    Load distance matrices from directory into list of arrays
-    that can be shared with the multiprocessing pool.
+# def load_intracell_distances(distances_dir : str,
+#                                 data_prefix: str =None):
+#     """
+#     Load distance matrices from directory into list of numpy arrays.
     
-    Args: 
-        distances_dir (string): input directory where distance files are saved
-        data_prefix (string): only read files from distances_dir starting with this string
-        return_mp (boolean): if True, return multiprocessing array, if False return numpy array
+#     Args: 
+#         distances_dir (string): input directory where distance files are saved
+#         data_prefix (string): only read files from distances_dir starting with this string
+#     Returns:
+#         list of numpy arrays containing distance matrix for each cell
+#     """
+
+#     files_list = list_sort_files(distances_dir, data_prefix)
+#     return [load_dist_mat(pj(distances_dir, dist_file))
+#             for dist_file in files_list]
+
+# def load_intracell_distances_mp(distances_dir, data_prefix=None):
+#     """
+#     Load distance matrices from directory into list of arrays.
     
-    Returns:
-        list of multiprocessing arrays containing distance matrix for each cell
-    """
-    files_list = list_sort_files(distances_dir, data_prefix)
-    return [load_dist_mat(pj(distances_dir, dist_file), return_mp=return_mp)
-            for dist_file in files_list]
+#     Args: 
+#         distances_dir (string): input directory where distance files are saved
+#         data_prefix (string): only read files from distances_dir starting with this string
+#         return_mp (boolean): if True, return multiprocessing array, if False return numpy array
+    
+#     Returns:
+#         list of multiprocessing arrays containing distance matrix for each cell
+#     """
+#     files_list = list_sort_files(distances_dir, data_prefix)
+#     return [load_dist_mat(pj(distances_dir, dist_file), return_mp=return_mp)
+#             for dist_file in files_list]
 
-
-def calculate_gw_preload_global(arguments):
+def _calculate_gw_preload_global(arguments):
     """
     Compute GW distance between two distance matrices.
     Meant to be called within a multiprocessing pool where dist_mat_list exists globally
@@ -185,86 +208,98 @@ def calculate_gw_preload_global(arguments):
         return log['gw_dist']
 
 
-def init_fn(dist_mat_list_, save_mat):
+def _init_fn(dist_mat_list_arg, save_mat):
     """
     Initialization function sets dist_mat_list to be global in multiprocessing pool.
     Also sets other arguments because I couldn't figure out how to lazily modify an iterator
     """
     global dist_mat_list, return_mat
-    dist_mat_list = dist_mat_list_
+    dist_mat_list = dist_mat_list_arg
     return_mat = save_mat
 
 
-def compute_GW_distance_matrix_preload_global(dist_mat_list_, save_mat=False, num_cores=12, chunk_size=100):
+def compute_GW_distance_matrix(
+        dist_mat_list_arg,
+        save_mat=False,
+        num_cores=12,
+        chunk_size=100):
     """
     Compute the GW distance between every pair of matrices in a given list of intracell \
     distance matrices
         
     Args:
-        * dist_mat_list_ (list): list of multiprocessing or numpy arrays containing distance matrix for each cell
+        * dist_mat_list_arg (list): list of multiprocessing or numpy arrays containing distance\
+              matrix for each cell
         * save_mat (boolean): if True, returns coupling matrix (matching) between points
                             if False, only returns GW distance
         * num_cores (int): number of parallel processes to run GW in
         * chunk_size (int): chunk size for the iterator of all pairs of cells
-            larger size is faster but takes more memory, see multiprocessing pool.imap() for details
-    
+            larger size is faster but takes more memory, see\
+            :meth:`multiprocessing.pool.Pool.imap` for details.
+
     Returns:
-        A GW distance matrix of the GW distances between all the intracell distance matrices in \
-    dist_mat_list_.
+        A matrix of the GW distances between all the intracell distance matrices in \
+    dist_mat_list_arg.
     """
-    arguments = it.combinations(range(len(dist_mat_list_)), 2)
+    arguments = it.combinations(range(len(dist_mat_list_arg)), 2)
 
     if num_cores > 1:
         # Start up multiprocessing w/ list of distance matrices in global environment
-        with Pool(processes=num_cores, initializer=init_fn,
+        with Pool(processes=num_cores, initializer=_init_fn,
                   initargs=(dist_mat_list_, save_mat)) as pool:
-            dist_results = list(pool.imap(calculate_gw_preload_global, arguments, chunksize=chunk_size))
+            dist_results = list(pool.imap(_calculate_gw_preload_global,
+                                          arguments,
+                                          chunksize=chunk_size))
     else:
         # Set dist_mat_list in global environment so can call the same functions
         global dist_mat_list, return_mat
-        dist_mat_list = dist_mat_list_
+        dist_mat_list = dist_mat_list_arg
         return_mat = save_mat
-        dist_results = list(map(calculate_gw_preload_global, arguments))
+        dist_results = list(map(_calculate_gw_preload_global, arguments))
     return dist_results
 
 
-def compute_and_save_GW_dist_mat(
-        dist_mat_list_local : List[npt.NDArray| ctypes.Array],
-        file_prefix : str,
-        gw_results_dir : str,
-        save_mat:bool =False,
-        num_cores: int =12,
-        chunk_size: int =100):
-    """
+# def compute_and_save_GW_dist_mat(
+#         dist_mat_list_local : List[npt.NDArray| ctypes.Array],
+#         file_prefix : str,
+#         gw_results_dir : str,
+#         save_mat:bool =False,
+#         num_cores: int =12,
+#         chunk_size: int =100):
+#     """
     
-    Compute the GW distance between each pair of distance matrices in vector form,
-    and write the resulting matrix of GW distances to a file.
+#     Compute the GW distance between each pair of distance matrices in vector form,
+#     and write the resulting matrix of GW distances to a file.
 
-    Args:
-        * dist_mat_list_local (list): list of multiprocessing or numpy arrays containing intracell \
-    distance matrix for each cell
-        * file_prefix (string): name of output file to write GW distance matrix to
-        * gw_results_dir (string): path to directory to write output file to
-        * save_mat (boolean): if True, returns coupling matrix (matching) between points.\
-                            if False, only returns GW distance
-        * num_cores (int): number of parallel processes to run GW in
-        * chunk_size (int): chunk size for the iterator of all pairs of cells. \
-                 Larger size is faster but takes more memory, see :meth:`multiprocessing.pool.Pool.imap` for details
+#     Args:
+#         * dist_mat_list_local (list): list of multiprocessing or numpy arrays containing intracell \
+#     distance matrix for each cell
+#         * file_prefix (string): name of output file to write GW distance matrix to
+#         * gw_results_dir (string): path to directory to write output file to
+#         * save_mat (boolean): if True, returns coupling matrix (matching) between points.\
+#                             if False, only returns GW distance
+#         * num_cores (int): number of parallel processes to run GW in
+#         * chunk_size (int): chunk size for the iterator of all pairs of cells. \
+#                  Larger size is faster but takes more memory, see \
+#                  :meth:`multiprocessing.pool.Pool.imap` for details
 
-    Returns:
-        None (writes distance matrix of GW distances to file)
-    """
-    # Create output directory
-    if not os.path.exists(gw_results_dir):
-        os.makedirs(gw_results_dir)
+#     Returns:
+#         None (writes distance matrix of GW distances to file)
+#     """
+#     # Create output directory
+#     if not os.path.exists(gw_results_dir):
+#         os.makedirs(gw_results_dir)
 
-    dist_results = compute_GW_distance_matrix_preload_global(dist_mat_list_local, save_mat=save_mat,
-                                                  num_cores=num_cores, chunk_size=chunk_size)
+#     dist_results = compute_GW_distance_matrix_preload_global(
+#                       dist_mat_list_local,
+#                       save_mat=save_mat,
+#                       num_cores=num_cores,
+#                       chunk_size=chunk_size)
 
-    # Save results - suffix name of output files is currently hardcoded
-    if save_mat:
-        np.savetxt(pj(gw_results_dir, file_prefix + "_gw_dist_mat.txt"),
-                   np.array([res[0] for res in dist_results]), fmt='%.8f')
-        np.savez_compressed(pj(gw_results_dir, file_prefix + "_gw_matching.npz"), *[res[1] for res in dist_results])
-    else:
-        np.savetxt(pj(gw_results_dir, file_prefix + "_gw_dist_mat.txt"), np.array(dist_results), fmt='%.8f')
+#     # Save results - suffix name of output files is currently hardcoded
+#     if save_mat:
+#         np.savetxt(pj(gw_results_dir, file_prefix + "_gw_dist_mat.txt"),
+#                    np.array([res[0] for res in dist_results]), fmt='%.8f')
+#         np.savez_compressed(pj(gw_results_dir, file_prefix + "_gw_matching.npz"), *[res[1] for res in dist_results])
+#     else:
+#         np.savetxt(pj(gw_results_dir, file_prefix + "_gw_dist_mat.txt"), np.array(dist_results), fmt='%.8f')

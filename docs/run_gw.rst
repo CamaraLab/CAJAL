@@ -1,4 +1,4 @@
 Running Gromov-Wasserstein
 ==========================
 
-.. autofunction:: run_gw.compute_and_save_GW_dist_mat
+.. autofunction:: run_gw.compute_GW_distance_matrix

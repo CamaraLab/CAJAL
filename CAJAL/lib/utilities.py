@@ -2,6 +2,7 @@
 import os
 from multiprocessing import RawArray
 import numpy as np
+import numpy.typing as npt
 from scipy.spatial.distance import squareform
 
 
@@ -9,18 +10,17 @@ def pj(*paths):
     return os.path.abspath(os.path.join(*paths))
 
 
-def load_dist_mat(dist_file, return_mp=False):
+def load_dist_mat(dist_file: str ) -> npt.NDArray[np.float_]:
     """
-    Load distance matrix from a file, potentially as multiprocessing array
-    Distances are assumed to be in vector form (upper or lower tri of symmetric matrix)
-    as output by https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.squareform.html
+    Load distance matrix from a file.
+    Distances in the file are assumed to be in vector form (upper or lower tri of symmetric matrix)
+    as output by \
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.squareform.html
 
     Args:
         dist_file (string): path to file with distance matrix saved in vector format
-        return_mp (boolean): if True, return multiprocessing array, if False return numpy array
-
     Returns:
-        distance matrix
+        distance matrix as numpy array
     """
     try:
         dist_vec = np.loadtxt(dist_file)
@@ -28,12 +28,7 @@ def load_dist_mat(dist_file, return_mp=False):
         raise Exception("Distance files must be in vector form with one value per line")
     if len(dist_vec.shape) > 1 and dist_vec.shape[1] != 1:
         raise Exception("Distance files must be in vector form as output by squareform()")
-    dist_mat = squareform(dist_vec)
-    if return_mp:
-        dist_mat = read_mp_array(dist_mat)
-    return dist_mat
-
-
+    return squareform(dist_vec)
 
 def list_sort_files(data_dir, data_prefix=None, data_suffix=None):
     """
@@ -56,9 +51,7 @@ def list_sort_files(data_dir, data_prefix=None, data_suffix=None):
         files_list = [data_file for data_file in files_list if data_file.endswith(data_suffix)]
 
     files_list.sort()
-    return files_list
-        
-
+    return files_list       
 
 def read_mp_array(np_array):
     """

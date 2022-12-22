@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 *CAJAL*: a python library for multimodal cell morphology analyses
-================================================================
+=================================================================
 
 *CAJAL* is a suite of tools to study cell morphology and its relationship with other single-cell data.
 

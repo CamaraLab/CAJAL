@@ -1,9 +1,9 @@
 # Functions for sampling even points from an SWC reconstruction of a neuron
 import re
 import numpy as np
-# import numpy.typing as npt      
+import numpy.typing as npt      
 from CAJAL.lib.utilities import pj
-from scipy.spatial.distance import euclidean, squareform
+from scipy.spatial.distance import euclidean, squareform, pdist
 import networkx as nx
 import warnings
 from typing import List, Dict, Tuple, Optional, Iterable, Set
@@ -345,7 +345,8 @@ def sample_network_step(vertices : List[List[str]], vertex_coords : Dict[int,np.
     types_keep_strings : Optional[List[str]]= None
     # in case types_keep are numbers
     if types_keep is not None:
-        types_keep_strings = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) else [str(types_keep)]
+        types_keep_strings = [str(x) for x in types_keep] if isinstance(types_keep, Iterable) \
+            else [str(types_keep)]
 
     # loop through list of vertices, sampling points from edge of vertex to parent
     for v in vertices:
@@ -364,8 +365,10 @@ def sample_network_step(vertices : List[List[str]], vertex_coords : Dict[int,np.
         if (types_keep_strings is None or v[1] in types_keep_strings) and len(pts_dist) > 0:
             pts_dist = pts_dist - vertex_dist[pid]
             new_dist = seg_len - pts_dist[-1]
-            new_pts = [vertex_coords[pid] + (this_coord - vertex_coords[pid]) * x / seg_len for x in pts_dist]
-            new_pts_ids = [prev_pts[pid]] + [str(this_id) + "_" + str(x) for x in range(len(pts_dist))]
+            new_pts = [vertex_coords[pid] + (this_coord - vertex_coords[pid]) * x / seg_len \
+                       for x in pts_dist]
+            new_pts_ids = [prev_pts[pid]] + [str(this_id) + "_" + str(x) \
+                                             for x in range(len(pts_dist))]
             new_pts_len = [vertex_dist[pid] + euclidean(new_pts[0], vertex_coords[pid])] + \
                           [euclidean(new_pts[i], new_pts[i - 1]) for i in range(1, len(new_pts))]
             # Add new points to graph, with edge weighted by euclidean to parent
@@ -388,7 +391,7 @@ def get_sample_pts(file_name : str,
                    goal_num_pts : int =50,
                    min_step_change : float =1e-7,
                    max_iters : int =50,
-                   keep_disconnect : bool = True,
+                   keep_disconnect : bool = False,
                    verbose: bool =False
                    ) -> Optional[Tuple[np.ndarray,float,int]]:
     """
@@ -453,12 +456,16 @@ def compute_and_save_sample_pts(file_name: str, infolder : str, outfolder : str,
             * file_name (string): SWC file name (including .swc)
             * infolder (string): path to folder containing SWC file
             * outfolder (string): path to output folder to save CSVs
-            * types_keep (tuple,list): list of SWC neuron part types to sample points from. If types_keep is None, all points are sampled.
+            * types_keep (tuple,list): list of SWC neuron part types to sample points from.\
+                  If types_keep is None, all points are sampled.
             * goal_num_pts (integer): number of points to sample
-            * min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
+            * min_step_change (float): stops while loop from infinitely trying closer and\
+                closer step sizes
             * max_iters (integer): maximum number of iterations of while loop
-            * keep_disconnect (boolean): if True, will keep all branches from SWC. if False, will keep only those connected to soma
-            * verbose (boolean): if true, will print step size information for each search iteration
+            * keep_disconnect (boolean): if True, will keep all branches from SWC. \
+                     if False, will keep only those connected to soma
+            * verbose (boolean): if true, will print step size \
+                          information for each search iteration
 
         Returns:
             Boolean success of sampling points from this SWC file.
@@ -614,7 +621,8 @@ def compute_and_save_geodesic_parallel(infolder : str,
                     goal_num_pts : int =50, min_step_change : float =1e-7,
                     max_iters : int =50, num_cores: int =8) -> Iterable[bool]:
     """
-    Parallelize sampling and computing geodesic distance for the same number of points from all SWC files in a folder
+    Parallelize sampling and computing geodesic distance for the same number of points \
+    from all SWC files in a folder
 
     Args:
         infolder (string): path to folder containing SWC files
@@ -636,9 +644,79 @@ def compute_and_save_geodesic_parallel(infolder : str,
     """
     if not os.path.exists(outfolder):
         os.mkdir(outfolder)
-    arguments = [(file_name, infolder, outfolder, types_keep, goal_num_pts, min_step_change, max_iters, False)
+    arguments = [(file_name, infolder, outfolder, types_keep,\
+                  goal_num_pts, min_step_change, max_iters, False)
                  for file_name in os.listdir(infolder)]
     # start = time.time()
     with Pool(processes=num_cores) as pool:
         return(pool.starmap(compute_and_save_geodesic, arguments))
     # print(time.time() - start)
+
+def compute_intracell_parallel(
+        infolder : str,
+        metric : str,
+        types_keep : Optional[Iterable[int]]=None,
+        num_sample_pts : int = 50,
+        num_cores : int = 8,
+        keep_disconnect : bool = False
+     ) -> Dict[str,Optional[npt.NDArray[np.float_]]]:
+
+    file_names = os.listdir(infolder)
+
+    dist_mats : Dict[str,Optional[npt.NDArray[np.float_]]] = {}
+
+    def euclidean_case(file_name) -> None:
+        sample =\
+            get_sample_pts(
+                file_name,infolder,
+                types_keep, num_sample_pts,
+                keep_disconnect = keep_disconnect)
+        if sample is None:
+            dist_mats[file_name] = None
+        else:
+            dist_mats[file_name] = pdist(sample[0])
+        
+    def geodesic_case(file_name) -> None:
+        dist_mats[file_name] =\
+                  get_geodesic(file_name, infolder, types_keep, num_sample_pts)
+    
+    match metric:
+        case "euclidean":
+            with Pool(processes=num_cores) as pool:
+                pool.starmap(euclidean_case, file_names)
+        case "geodesic":
+            with Pool(processes=num_cores) as pool:
+                pool.starmap(geodesic_case, file_names)                
+                
+    return dist_mats
+                
+def compute_and_save_intracell_parallel(
+        infolder : str,
+        metric : str,
+        outfolder : str,
+        types_keep : Optional[Iterable[int]]=None,
+        sample_pts : int = 50,
+        num_cores : int = 8,
+        keep_disconnect : bool = False
+        ) -> List[str]:
+
+    output_matrix_dict = compute_intracell_parallel(
+        infolder,
+        metric,
+        types_keep,
+        sample_pts,
+        num_cores,
+        keep_disconnect)
+
+    failed_samples : List[str] = []
+
+    for file_name in output_matrix_dict:
+        d = output_matrix_dict[file_name]
+        if d is not None:
+            np.savetxt(
+                pj(outfolder, file_name[:-4] + "_dist.txt"),
+                d, fmt='%.8f')
+        else:
+            failed_samples.append(file_name)
+            
+    return failed_samples
