@@ -239,7 +239,7 @@ def compute_GW_distance_matrix(
 
     Returns:
         A matrix of the GW distances between all the intracell distance matrices in \
-    dist_mat_list_arg.
+        dist_mat_list_arg.
     """
     arguments = it.combinations(range(len(dist_mat_list_arg)), 2)
 
