@@ -32,8 +32,8 @@ def read_obj(file_path: str) -> Tuple[VertexArray,FaceArray]:
         file_path (string): Path to .obj file
 
     Returns:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
+        * vertices (numpy array): 3D coordinates for vertices
+        * faces (numpy array): row of vertices contained in each face
     """
     obj_file = open(file_path, "r")
     obj_split = csv.reader(obj_file, delimiter=" ")
@@ -51,13 +51,13 @@ def read_obj(file_path: str) -> Tuple[VertexArray,FaceArray]:
 def connect_mesh(vertices: VertexArray, faces: FaceArray) -> FaceArray:
     """
     Args:
-        vertices : VertexArray, the vertices of a mesh
-        faces : FaceArray, the faces of a mesh
+        * vertices : VertexArray, the vertices of a mesh
+        * faces : FaceArray, the faces of a mesh
 
     Returns:
-        numpy int array "new_faces" of shape (m+k,3) which extends the
-        original faces array; the mesh represented by (vertices, new_faces) is
-        connected. The 
+        numpy int array "new_faces" of shape (m+k,3) which extends the \
+        original faces array; the mesh represented by (vertices, new_faces) is \
+        connected. 
     """
     
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
@@ -118,11 +118,11 @@ def disconnect_mesh(vertices: VertexArray, faces: FaceArray) -> List[Tuple[Verte
     Returns the list of connected submeshes of the given mesh, as ordered pairs (vertices_i, faces_i).
     
     Args:
-        vertices (VertexArray) : vertices of the mesh
-        faces (FaceArray): faces of the mesh
+        * vertices (VertexArray) : vertices of the mesh
+        * faces (FaceArray): faces of the mesh
 
     Returns:
-        List of ordered pairs (vertices_i, faces_i) corresponding to the connected components of the original mesh
+        * List of ordered pairs (vertices_i, faces_i) corresponding to the connected components of the original mesh
     """
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
     graph = trimesh.graph.vertex_adjacency_graph(mesh)
@@ -150,11 +150,11 @@ def sample_vertices(vertices: VertexArray, n_sample : int) -> Optional[VertexArr
     can roughly approximate even sampling across the mesh
 
     Args:
-        vertices (numpy array): 3D coordinates for vertices
-        n_sample (integer): number of vertices to sample
+        * vertices (numpy array): 3D coordinates for vertices
+        * n_sample (integer): number of vertices to sample
 
     Returns:
-        None, if there are fewer vertices than points to sample.
+        None, if there are fewer vertices than points to sample. \
         Otherwise, a numpy array of sampled vertices, of shape (n_sample, 3).
     """
     
@@ -170,10 +170,10 @@ def return_sampled_vertices(vertices: VertexArray, faces : FaceArray,
     Returns list of sampled vertices from each component of mesh (i.e. multiple cells in an .obj file)
 
     Args:
-        vertices (VertexArray): vertices of a mesh
-        faces (FaceArray): faces of a mesh
-        n_sample (integer): number of vertices to sample
-        disconnect (boolean): If disconnect is True, the mesh will \
+       * vertices (VertexArray): vertices of a mesh
+       * faces (FaceArray): faces of a mesh
+       * n_sample (integer): number of vertices to sample
+       * disconnect (boolean): If disconnect is True, the mesh will \
             be decomposed into a list of connected meshes, \
             and the function will return a list of VertexArrays \
             of shape (n_sample,3), one for each component of the \
@@ -210,13 +210,13 @@ def sample_vertices_and_save(vertices : VertexArray, faces: FaceArray,
     where each row contains the xyz coordinates of a vertex.
 
     Args:
-        vertices : VertexArray, vertices of the mesh
-        faces : FaceArray, faces of the mesh
-        n_sample (integer): number of vertices to sample
-        outfile (string): file path to write vertices. If disconnect is True and there are multiple disconnected
+        * vertices : VertexArray, vertices of the mesh
+        * faces : FaceArray, faces of the mesh
+        * n_sample (integer): number of vertices to sample
+        * outfile (string): file path to write vertices. If disconnect is True and there are multiple disconnected
             components to the input mesh, multiple files are created with different index numbers. If outfile is given
             with string formatting {} characters, index is inserted there. Otherwise it is inserted before extension.
-        disconnect (boolean): If disconnect is True, the mesh will \
+        * disconnect (boolean): If disconnect is True, the mesh will \
             be decomposed into a list of connected meshes, \
             and the function will create one file for each connected \
             component of the mesh with more than n_sample vertices.
@@ -253,11 +253,11 @@ def save_sample_from_obj(file_name, infolder, outfolder, n_sample, disconnect=Tr
     reads from an input file before sampling. Consult the documentation for that function.
 
     Args:
-        file_name (string): .obj file name
-        infolder (string): folder containing .obj file
-        outfolder (string): folder to save sampled vertices csv
-        n_sample (integer): number of vertices to sample
-        disconnect (boolean): Whether to sample vertices from whole mesh, or separate into disconnected components
+        * file_name (string): .obj file name
+        * infolder (string): folder containing .obj file
+        * outfolder (string): folder to save sampled vertices csv
+        * n_sample (integer): number of vertices to sample
+        * disconnect (boolean): Whether to sample vertices from whole mesh, or separate into connected components
 
     Returns:
         None (writes to file)
@@ -277,11 +277,11 @@ def obj_sample_parallel(infolder: str, outfolder: str,
     and writes the resulting samples to a \*.csv file in directory "outfolder."
         
     Args:
-        infolder(string): path to directory containing .obj files
-        outfolder (string): path to directory to write distance matrices
-        n_sample (integer): number of vertices to sample from each mesh
-        disconnect (boolean): Whether to sample vertices from whole mesh, or separate into disconnected components
-        num_cores (integer): number of processes to use for parallelization
+        * infolder(string): path to directory containing .obj files
+        * outfolder (string): path to directory to write distance matrices
+        * n_sample (integer): number of vertices to sample from each mesh
+        * disconnect (boolean): Whether to sample vertices from whole mesh, or separate into connected components
+        * num_cores (integer): number of processes to use for parallelization
     
     Returns:
         None (writes files to outfolder)
@@ -311,9 +311,9 @@ def get_geodesic_heat_one_mesh(vertices : VertexArray,
     https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/
 
     Args:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
-        n_sample (integer): number of vertices to sample
+        * vertices (numpy array): 3D coordinates for vertices
+        * faces (numpy array): row of vertices contained in each face
+        * n_sample (integer): number of vertices to sample
 
     Returns:
         heat geodesic distance in vector form, of shape
@@ -344,9 +344,9 @@ def get_geodesic_networkx_one_mesh(
     "None" if there are fewer than n_sample vertices in the mesh.
 
     Args:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
-        n_sample (integer): number of vertices to sample
+        * vertices (numpy array): 3D coordinates for vertices
+        * faces (numpy array): row of vertices contained in each face
+        * n_sample (integer): number of vertices to sample
 
     Result:
         graph geodesic distance in vector form
@@ -377,30 +377,29 @@ def return_geodesic(vertices : VertexArray,
                     faces: FaceArray,
                     n_sample : int,
                     method: str = "networkx" ,
-                    connect: bool =False) -> List[Optional[npt.NDArray[np.float_]]]:
+                    connect: bool = False) -> List[Optional[npt.NDArray[np.float_]]]:
     """
     Returns a list of intracell geodesic distance matrices, one for each component of the given mesh
     (i.e. multiple cells in an .obj file)
 
     Args:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
-        n_sample (integer): number of vertices to sample
-        method (string): one of 'networxk' or 'heat', how to compute geodesic distance
-            networkx is slower but more exact for non-watertight methods, heat is a faster approximation
-        connect (boolean):
-            If connect is True, then new faces will be added to the mesh until it is connected,
-            and we compute a single geodesic intracell distance matrix for this connected mesh.
-
-            If connect is False, then we compute a geodesic intracell distance matrix for each
-            component of the mesh.
-
-            whether to check for disconnected meshes and connect them simply by adding faces
-            If True, output will always be one distance matrix
+        * vertices (numpy array): 3D coordinates for vertices
+        * faces (numpy array): row of vertices contained in each face
+        * n_sample (integer): number of vertices to sample
+        * method (string): one of 'networxk' or 'heat', how to compute geodesic distance \
+            networkx is slower but more exact for non-watertight \
+            methods, heat is a faster approximation.
+        * connect (boolean): If connect is True, then new faces will \
+            be added to the mesh until it is connected, and we \
+            compute a single geodesic intracell distance matrix for \
+            this connected mesh. In this case, the output list is of length one. \
+            If connect is False, then we compute a geodesic intracell \
+            distance matrix for each component of the mesh.
 
     Result:
-        List of geodesic distance matrices, each linearized into vector form.
-        If connect is True, this list has one element.
+        List of geodesic distance matrices, each linearized \
+        into vector form. If connect is True, this list \
+        has one element.
 
     """
     if connect:
@@ -436,15 +435,25 @@ def compute_and_save_geodesic(vertices: VertexArray,
     Compute and save the geodesic distance vector for each component of mesh (i.e. multple cells in an .obj file)
 
     Args:
-        vertices (numpy array): 3D coordinates for vertices
-        faces (numpy array): row of vertices contained in each face
-        n_sample (integer): number of vertices to sample
-        outfile (string): file path to write to. If connect is False and there are multiple disconnected components
-            to the input mesh, multiple files are created with different index numbers. If outfile is given with
-            string formatting {} characters, index is inserted there. Otherwise it is inserted before extension.
-        method (string): one of 'networxk' or 'heat', how to compute geodesic distance
-            networkx is slower but more exact for non-watertight methods, heat is a faster approximation
-        connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
+        * vertices (numpy array): 3D coordinates for vertices
+        * faces (numpy array): row of vertices contained in each face
+        * n_sample (integer): number of vertices to sample
+        * outfile (string): file path to write to. If connect is \
+            False and there are multiple connected components \
+            to the input mesh, multiple files are created with \
+            different index numbers. If outfile is given with \
+            string formatting {} characters, index is inserted \
+            there. Otherwise it is inserted before extension.
+        * method (string): one of 'networxk' or 'heat', how to \
+          compute geodesic distance. 'networkx' is slower, but \
+          more exact for non-watertight methods, heat is a faster \
+          approximation.
+        * connect (boolean): If connect is True, then new faces will \
+            be added to the mesh until it is connected, and we \
+            compute a single geodesic intracell distance matrix for \
+            this connected mesh. In this case, only one file is generated.  \
+            If connect is False, then we compute a geodesic intracell \
+            distance matrix for each component of the mesh.
 
     Result:
         None (writes to file)
@@ -489,13 +498,13 @@ def save_geodesic_from_obj(file_name: str,
     Computes geodesic distance matrices for mesh from an .obj file.
 
     Args:
-        file_name (string): name of single .obj file
-        infolder (string): path to directory containing .obj files
-        outfolder (string): path to directory to write distance matrices
-        n_sample (integer): number of vertices to sample from each mesh
-        method (string): one of 'networxk' or 'heat', how to compute geodesic distance
+        * file_name (string): name of single .obj file
+        * infolder (string): path to directory containing .obj files
+        * outfolder (string): path to directory to write distance matrices
+        * n_sample (integer): number of vertices to sample from each mesh
+        * method (string): one of 'networxk' or 'heat', how to compute geodesic distance
                 networkx is slower but more exact for non-watertight methods, heat is a faster approximation
-        connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
+        * connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
 
     Returns:
         None (writes files to outfolder)
@@ -518,13 +527,13 @@ def compute_and_save_geodesic_from_obj_parallel(infolder: str,
     Computes geodesic distance in parallel processes for all meshes in .obj files in a directory
 
     Args:
-        infolder(string): path to directory containing .obj files
-        outfolder (string): path to directory to write distance matrices
-        n_sample (integer): number of vertices to sample from each mesh
-        method (string): one of 'networxk' or 'heat', how to compute geodesic distance
+        * infolder(string): path to directory containing .obj files
+        * outfolder (string): path to directory to write distance matrices
+        * n_sample (integer): number of vertices to sample from each mesh
+        * method (string): one of 'networxk' or 'heat', how to compute geodesic distance
                 networkx is slower but more exact for non-watertight methods, heat is a faster approximation
-        connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
-        num_cores (integer): number of processes to use for parallelization
+        * connect (boolean): whether to check for disconnected meshes and connect them simply by adding faces
+        * num_cores (integer): number of processes to use for parallelization
 
     Returns:
         None (writes files to outfolder)
