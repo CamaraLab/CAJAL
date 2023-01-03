@@ -89,50 +89,30 @@ The function :func:`run_gw.compute_intracell_distances_one` can be used to read 
 Sampling points from multiple SWC Files
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 *CAJAL* also provides a wrapper around the above functions to process multiple SWC files at a time. We walk through an example using the example SWC files provided with *CAJAL*. The function
-:func:`sample_swc.compute_and_save_sample_pts_parallel` goes through each SWC file in
-the input directory and randomly sample a given number of points from each
-neuron.
-
+:func:`sample_swc.compute_intracell_parallel` goes through each SWC file in the input directory, randomly samples a given number of points from each neuron, and computes an intracell distance matrix based on the sample.
 
 For example, if we want to sample 50 points from each neuron in the folder :code:`/CAJAL/data/swc_files` using 8 cores (:code:`num_cores` is best set to the number
-of cores on your machine), we would use the command: 
+of cores on your machine), and compute the Euclidean intracell distance matrices we would use the command:
+
+.. code-block:: python
+		
+		from CAJAL import sample_swc
+		swc_infolder = "/CAJAL/data/swc_files"
+		sample_swc.compute_intracell_parallel(
+		    swc_infolder, "euclidean", types_keep=None,sample_pts=50, num_cores=8)
 
 .. code-block:: python
 		
 		from CAJAL import sample_swc
 		swc_infolder = "/CAJAL/data/swc_files"
 		sampled_csv_folder = "/CAJAL/data/sampled_pts/swc_sampled_50"
-		sample_swc.compute_and_save_sample_pts_parallel(
-		    swc_infolder, sampled_csv_folder, goal_num_pts=50, num_cores=8)
+		sample_swc.compute_and_save_intracell_parallel(
+		    swc_infolder, "euclidean", sampled_csv_folder, sample_pts=50, num_cores=8)
 
-We can then compute the pairwise Euclidean distances between the
-sampled points of each SWC file. The function
-:func:`run_gw.compute_intracell_distances_all` is the batch version of :func:`run_gw.compute_intracell_distances_one`,
-operating on a directory of point cloud \*.csv files and returning a list of
-intracellular distance matrices.
 
-It returns a list of intracellular distance matrices,
-one for each \*.csv file in the given folder, linearized as arrays. In our example, we would run:
-
-.. code-block:: python
-
-		from CAJAL import run_gw
-		dist_mat_list = run_gw.compute_intracell_distances_all(data_dir=sampled_csv_folder)
-
-Computing geodesic intracellular distances
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-We have described how to compute intracellular Euclidean distances for neuronal tracing data in SWC files using :code:`compute_and_save_sample_pts_parallel` and
-:code:`get_intracell_distances_all`. To compute intracellular geodesic distances we would instead use :func:`compute_and_save_geodesic_parallel`.
-
-For example, in our above example we could use:
-
-.. code-block:: python
-
-		infolder = "/CAJAL/data/swc_files"
-		outfolder = "/CAJAL/data/sampled_pts/swc_geodesic_50"
-		sample_swc.compute_and_save_geodesic_parallel(infolder, outfolder,
-                                  goal_num_pts=50, num_cores=8)
-
+		    
+The second argument can be either "euclidean" or "geodesic" as preferred. The function returns a list of the file names in the directory for which an intracell distance matrix could not be produced.
+		    
 3D meshes
 ---------
 
