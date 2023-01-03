@@ -686,34 +686,34 @@ def compute_intracell_parallel(
         num_cores : int = 8,
         keep_disconnect : bool = False
      ) -> Dict[str,Optional[npt.NDArray[np.float_]]]:
-
     """
     For each swc file in infolder, sample sample_pts many points from the
     neuron, evenly spaced, and compute the Euclidean or geodesic intracell
     matrix depending on the value of the argument "metric".
 
     Arguments:
-    * infolder: Directory of input \*.swc files.
-    * metric: Either "euclidean" or "geodesic"
-    * types_keep: optional parameter, a list of node types to sample from
-    * num_cores: the intracell distance matrices will be computed in parallel processes,
-      num_cores is the number of processes to run simultaneously. Recommended to set
-      equal to the number of cores on your machine.
-    * keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected
-      to the soma. If False, all nodes are sampled from. This flag is only relevant to the
-      Euclidean distance metric, as the geodesic distance between points in different components
-      is undefined.
+    
+        * infolder: Directory of input \*.swc files.
+        * metric: Either "euclidean" or "geodesic"
+        * types_keep: optional parameter, a list of node types to sample from
+        * num_cores: the intracell distance matrices will be computed in parallel processes,\    
+          num_cores is the number of processes to run simultaneously. Recommended to set\
+          equal to the number of cores on your machine.
+        * keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
+          to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
+          Euclidean distance metric, as the geodesic distance between points in different components\
+          is undefined.
 
     Returns:
-        A dictionary `dist_mats`
-        mapping file names (strings) to their intracell distance matrices. If the
-        intracell distance matrix for file_name could not be computed, then
-        `dist_mats[file_name]` is `None`.        
-
+    
+        A dictionary `dist_mats`\
+        mapping file names (strings) to their intracell distance matrices. If the\
+        intracell distance matrix for file_name could not be computed, then\
+        `dist_mats[file_name]` is `None`.
+     
     """
 
     file_names = os.listdir(infolder)
-
     dist_mats : Dict[str,Optional[npt.NDArray[np.float_]]] = {}
 
     match metric:
