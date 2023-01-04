@@ -55,7 +55,7 @@ consisting of points equally spaced along the neuronal reconstruction in the fil
 		from CAJAL import sample_swc
 		pt_cloud = sample_swc.get_sample_pts(
 		                          file_name="a10_full_Chat-IRES-Cre-neo_Ai14-280699.05.02.01_570681325_m.swc",
-					  infolder="/CAJAL/data/swc_files",
+					  infolder="/home/jovyan/CAJAL/data/swc_files",
 					  types_keep=None,
 					  goal_num_pts = 50)[0]
 
@@ -91,21 +91,21 @@ Sampling points from multiple SWC Files
 *CAJAL* also provides a wrapper around the above functions to process multiple SWC files at a time. We walk through an example using the example SWC files provided with *CAJAL*. The function
 :func:`sample_swc.compute_intracell_parallel` goes through each SWC file in the input directory, randomly samples a given number of points from each neuron, and computes an intracell distance matrix based on the sample.
 
-For example, if we want to sample 50 points from each neuron in the folder :code:`/CAJAL/data/swc_files` using 8 cores (:code:`num_cores` is best set to the number
+For example, if we want to sample 50 points from each neuron in the folder :code:`/home/jovyan/CAJAL/data/swc_files` using 8 cores (:code:`num_cores` is best set to the number
 of cores on your machine), and compute the Euclidean intracell distance matrices we would use the command:
 
 .. code-block:: python
 		
 		from CAJAL import sample_swc
-		swc_infolder = "/CAJAL/data/swc_files"
+		swc_infolder = "/home/jovyan/CAJAL/data/swc_files"
 		sample_swc.compute_intracell_parallel(
 		    swc_infolder, "euclidean", types_keep=None,sample_pts=50, num_cores=8)
 
 .. code-block:: python
 		
 		from CAJAL import sample_swc
-		swc_infolder = "/CAJAL/data/swc_files"
-		sampled_csv_folder = "/CAJAL/data/sampled_pts/swc_sampled_50"
+		swc_infolder = "/home/jovyan/CAJAL/data/swc_files"
+		sampled_csv_folder = "/home/jovyan/CAJAL/data/sampled_pts/swc_sampled_50"
 		sample_swc.compute_and_save_intracell_parallel(
 		    swc_infolder, "euclidean", sampled_csv_folder, sample_pts=50, num_cores=8)
 
@@ -151,8 +151,8 @@ file, they can be kept in memory as numpy arrays.)
 .. code-block:: python
 
 		from CAJAL.lib import sample_mesh
-		infolder = "/CAJAL/data/obj_files"
-		outfolder = "/CAJAL/data/sampled_pts/obj_sampled_50"
+		infolder = "/home/jovyan/CAJAL/data/obj_files"
+		outfolder = "/home/jovyan/CAJAL/data/sampled_pts/obj_sampled_50"
 		sample_mesh.obj_sample_parallel(infolder, outfolder, n_sample=50,
 		disconnect=True, num_cores=8)
 
@@ -173,8 +173,8 @@ but it makes it easier to parallelize and not fill the memory)
 .. code-block:: python
 
 		sample_mesh.compute_and_save_geodesic_from_obj_parallel(
-		            infolder="/CAJAL/data/obj_files",
-			    outfolder="CAJAL/data/sampled_pts/obj_geodesic_50",
+		            infolder="/home/jovyan/CAJAL/data/obj_files",
+			    outfolder="/home/jovyan/CAJAL/data/sampled_pts/obj_geodesic_50",
 			    n_sample=50,
 			    method="heat",
 			    connect=False,
@@ -314,20 +314,14 @@ sample points for each cell.
 Cells which meet the image boundary are discarded, as we currently do not have
 a reasonable theoretical approach for analyzing partial cell boundaries.
 
-This sample script shows how to batch sample from all \*.tiff files in a given
-directory, sample their points, and write the output to \*.csv files.
+For convenience we provide a wrapper function :func:`sample_seg.batch_intracell_distances` which takes as an argument an input directory full of (cleaned!) \*.tiff/\*.tif files and an output directory. For each \*.tiff file in the input directory, :func:`sample_seg.batch_intracell_distances` breaks the image down into its separate cells, samples a given number of points between each one, and writes the resulting resulting intracell distance matrix for each cell to its own text file in the output directory.
 
 .. code-block:: python
 
-		infolder ="/home/patn/CAJAL/CAJAL/data/tiff_images_cleaned/"
-		outfolder="/home/patn/CAJAL/CAJAL/data/sampled_pts/tiff_sampled_50/"
-		file_names = os.listdir("/home/patn/CAJAL/CAJAL/data/tiff_images_cleaned/")
-		for image_file_name in file_names:
-		    imarray = tifffile.imread(os.path.join(infolder,image_file_name))
-		    cell_bdary_sample_list = sample_seg.cell_boundaries(imarray, 50)
-		    i=0
-		    for cell_bdary in cell_bdary_sample_list:
-		        output_name = image_file_name.replace(".tiff","").replace(".tif","") + "_" + str(i)+ ".csv"
-		        output_name=os.path.join(outfolder, output_name)
-		        np.savetxt(output_name,cell_bdary, delimiter=",")		
-		        i+=1
+		infolder ="/home/jovyan/CAJAL/CAJAL/data/tiff_images_cleaned/"
+		outfolder="/home/jovyan/CAJAL/CAJAL/data/tiff_sampled_50/"
+		sample_seg.batch_intracell_distances(infolder, outfolder, 50)
+
+
+
+
