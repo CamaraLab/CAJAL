@@ -138,6 +138,10 @@ QuantizedGromovWasserstein/
 
 # Linux backup files
 *~
+.bash_history
+
+#Not sure what kind of files
+.\#*
 
 # Emacs backup files
 \#*\#

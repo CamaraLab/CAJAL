@@ -277,7 +277,7 @@ def _sample_n_pts(vertices : List[List[str]], vertex_coords : Dict[int,np.ndarra
        * goal_num_pts (integer): number of points to sample
        * min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
        * max_iters (integer): maximum number of iterations of while loop
-       * verbose (boolean): if true, will print step size information for each search iteration
+       * verbose (boolean): If true, will print step size information for each search iteration.
 
     Returns:
        * sampled_pts: array of xyz coordinates of sampled points
@@ -411,9 +411,9 @@ def get_sample_pts(file_name : str,
         * min_step_change: stops while loop from infinitely trying closer and \
           closer step sizes
         * max_iters: maximum number of iterations of while loop
-        * keep_disconnect: if True, will keep all branches from SWC.\
+        * keep_disconnect: If True, will keep all branches from SWC.\
               If False, will keep only connected to soma
-        * verbose: if True, will print step size information for each search iteration
+        * verbose: If True, will print step size information for each search iteration
 
     Returns:
         None, if either of these occur:
@@ -469,7 +469,7 @@ def _compute_and_save_sample_pts(file_name: str, infolder : str, outfolder : str
             * max_iters (integer): maximum number of iterations of while loop
             * keep_disconnect (boolean): if True, will keep all branches from SWC. \
                      if False, will keep only those connected to soma
-            * verbose (boolean): if true, will print step size \
+            * verbose (boolean): If true, will print step size \
                           information for each search iteration
 
         Returns:
@@ -505,7 +505,7 @@ def get_geodesic(file_name:str, infolder:str, types_keep:Optional[Iterable[int]]
         * goal_num_pts (integer): number of points to sample.
         * min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
         * max_iters (integer): maximum number of iterations of while loop
-        * verbose (boolean): if true, will print step size information for each search iteration
+        * verbose (boolean): If true, will print step size information for each search iteration
 
     Returns:
 
@@ -568,7 +568,7 @@ def get_geodesic(file_name:str, infolder:str, types_keep:Optional[Iterable[int]]
 #         * min_step_change (float): stops while loop from infinitely \
 #              trying closer and closer step sizes    
 #         * max_iters (integer): maximum number of iterations of while loop    
-#         * verbose (boolean): if true, will print step size information for each search iteration
+#         * verbose (boolean): If true, will print step size information for each search iteration
 
 #     Returns:
 #         Boolean success of sampling points from this SWC file.
@@ -602,7 +602,7 @@ def compute_and_save_sample_pts_parallel(infolder : str, outfolder : str,
               and closer step sizes
         * max_iters (integer): maximum number of iterations of while loop
         * num_cores (integer): number of processes to use for parallelization
-        * keep_disconnect (boolean): if True, will keep all branches from SWC.\
+        * keep_disconnect (boolean): If True, will keep all branches from SWC.\
               If False, will keep only connected to soma
 
     Returns:
@@ -757,7 +757,6 @@ def compute_and_save_intracell_parallel(
     will be created in the output folder. Distance matrices are stored as text files
     where each line contains a single floating point number; this sequence of floats is a
     linearization of the entries lying above the diagonal in the distance matrix.
-    
     
     Returns:
        a list of file names for which the sampling process failed and returned "None".

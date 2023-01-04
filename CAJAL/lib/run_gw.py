@@ -230,11 +230,11 @@ def compute_GW_distance_matrix(
     Args:
         * dist_mat_list_arg (list): list of multiprocessing or numpy arrays containing distance\
               matrix for each cell
-        * save_mat (boolean): if True, returns coupling matrix (matching) between points
+        * save_mat (boolean): if True, returns coupling matrix (matching) between points. \
                             if False, only returns GW distance
         * num_cores (int): number of parallel processes to run GW in
-        * chunk_size (int): chunk size for the iterator of all pairs of cells
-            larger size is faster but takes more memory, see\
+        * chunk_size (int): chunk size for the iterator of all pairs of cells. \
+            Larger size is faster but takes more memory, see \
             :meth:`multiprocessing.pool.Pool.imap` for details.
 
     Returns:

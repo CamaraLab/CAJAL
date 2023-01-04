@@ -5,6 +5,7 @@ import os
 from skimage import measure
 import tifffile
 import warnings
+from scipy.spatial.distance import pdist
 from typing import List
 
 from CAJAL.lib.utilities import pj
@@ -56,16 +57,21 @@ def cell_boundaries(imarray : npt.NDArray[np.int_],
     skipping cells that touch the border of the image
 
     Args:
-        * imarray (numpy array): 2D segmented image where the pixels belonging to different cells have different values
+        * imarray (numpy array): 2D segmented image where the pixels belonging to\
+          different cells have different values
         * n_sample (integer): number of pixel coordinates to sample from boundary of each cell
         * background (integer): value of background pixels, this will not be saved as a boundary
-        * discard_cells_with_holes (bool): if discard_cells_with_holes is true, we discard any cells with more than one
-          boundary (e.g., an annulus) with a warning. Else, the behavior is determined by only_longest.
-        * only_longest (bool): if discard_cells_with_holes is true, only_longest is irrelevant.
-          Otherwise, this determines whether we sample points from only the longest boundary
-          (presumably the exterior) or from all boundaries, exterior and interior.
+        * discard_cells_with_holes (bool): \
+          if discard_cells_with_holes is true, we discard any cells \
+          with more than one boundary (e.g., an annulus) with a \
+          warning. Else, the behavior is determined by only_longest.
+        * only_longest (bool): if discard_cells_with_holes is true, \
+          only_longest is irrelevant. Otherwise, this determines whether \
+          we sample points from only the longest boundary (presumably \
+          the exterior) or from all boundaries, exterior and interior.
     Result:
-       list of float numpy arrays of shape (n_sample, 2) containing points sampled from the contours
+       list of float numpy arrays of shape (n_sample, 2) \
+       containing points sampled from the contours.
     """
     
     cell_ids = set(np.unique(imarray))
@@ -92,12 +98,14 @@ def cell_boundaries(imarray : npt.NDArray[np.int_],
         else:
             boundary_pts = np.concatenate(boundary_pts_list)
         if boundary_pts.shape[0] < n_sample:
-            warnings.warn("Fewer than " + str(n_sample) + " pixels around boundary of cell " + str(cell))
-        outlist.append(boundary_pts[np.linspace(0, boundary_pts.shape[0]-1, n_sample).astype("uint32")])
+            warnings.warn("Fewer than " + str(n_sample) + \
+                          " pixels around boundary of cell " + str(cell))
+        indices = np.linspace(0, boundary_pts.shape[0]-1, n_sample)
+        outlist.append(boundary_pts[indices.astype("uint32")])
     return outlist
 
 
-# def save_boundaries_tiff(image_file, infolder, outfolder, n_sample, background=0):
+# def _save_boundaries_tiff(image_file, infolder, outfolder, n_sample, background=0):
 #     """
 #     Read in segmented image (assumed to be .tif), save n pixel coordinates sampled from the boundary of each cell
 #     in a segmented image, skipping cells that touch the border of the image
@@ -117,7 +125,6 @@ def cell_boundaries(imarray : npt.NDArray[np.int_],
 #         os.mkdir(outfolder)
 #     imarray = tifffile.imread(pj(infolder, image_file))
 #     save_cell_boundaries(imarray, pj(outfolder, image_file[:-4] + ".csv"), n_sample, background)
-
 
 # def save_boundaries_all(infolder, outfolder, n_sample, background=0):
 #     """
@@ -139,3 +146,29 @@ def cell_boundaries(imarray : npt.NDArray[np.int_],
 #     file_names = os.listdir(infolder)
 #     for image_file in file_names:
 #         save_boundaries_tiff(image_file, infolder, outfolder, n_sample, background)
+
+def batch_intracell_distances(infolder: str,
+                              outfolder: str,
+                              n_sample: int,
+                              background: int =0,
+                              discard_cells_with_holes : bool = False,
+                              only_longest : bool = False
+                              ) -> None:
+    if not os.path.exists(outfolder):
+        os.mkdir(outfolder)
+    file_names = os.listdir(infolder)
+    for image_file_name in file_names:
+        root, ext = os.path.splitext(image_file_name)
+        if ext in [".tif", ".tiff", ".TIF", ".TIFF"]:
+            imarray : npt.NDArray[np.int_]
+            imarray = tifffile.imread(os.path.join(infolder,image_file_name)) # type: ignore
+            cell_bdary_sample_list = cell_boundaries(imarray,
+                n_sample, background,
+                discard_cells_with_holes,only_longest)
+            i=0
+            for cell_bdary in cell_bdary_sample_list:
+                output_name = os.path.join(
+                    outfolder, root + "_" + str(i)+ ".txt")
+                np.savetxt(output_name, pdist(cell_bdary), fmt='%.8f')
+                i+=1
+

@@ -164,42 +164,42 @@ def sample_vertices(vertices: VertexArray, n_sample : int) -> Optional[VertexArr
     return vertices[np.linspace(0, vertices.shape[0]-1, n_sample).astype("uint32"), :]
 
 
-def return_sampled_vertices(vertices: VertexArray, faces : FaceArray,
-                            n_sample: int, disconnect : bool =True) -> List[Optional[VertexArray]]:
-    """
-    Returns list of sampled vertices from each component of mesh (i.e. multiple cells in an .obj file)
+# def return_sampled_vertices(vertices: VertexArray, faces : FaceArray,
+#                             n_sample: int, disconnect : bool =True) -> List[Optional[VertexArray]]:
+#     """
+#     Returns list of sampled vertices from each component of mesh (i.e. multiple cells in an .obj file)
 
-    Args:
-       * vertices (VertexArray): vertices of a mesh
-       * faces (FaceArray): faces of a mesh
-       * n_sample (integer): number of vertices to sample
-       * disconnect (boolean): If disconnect is True, the mesh will \
-            be decomposed into a list of connected meshes, \
-            and the function will return a list of VertexArrays \
-            of shape (n_sample,3), one for each component of the \
-            mesh, or "None" if the component has fewer than \
-            n_sample vertices.\
-            If disconnect is False, we sample n_sample vertices \
-            throughout the mesh, without regard to \
-            whether it is connected, and return a list of VertexArrays of length 1.
+#     Args:
+#        * vertices (VertexArray): vertices of a mesh
+#        * faces (FaceArray): faces of a mesh
+#        * n_sample (integer): number of vertices to sample
+#        * disconnect (boolean): If disconnect is True, the mesh will \
+#             be decomposed into a list of connected meshes, \
+#             and the function will return a list of VertexArrays \
+#             of shape (n_sample,3), one for each component of the \
+#             mesh, or "None" if the component has fewer than \
+#             n_sample vertices.\
+#             If disconnect is False, we sample n_sample vertices \
+#             throughout the mesh, without regard to \
+#             whether it is connected, and return a list of VertexArrays of length 1.
             
-    Returns:
-        list of VertexArrays of sampled vertices of size n_sample. \
-        A list entry will be "None" if there are fewer \
-         vertices than n_sample in that component. \
+#     Returns:
+#         list of VertexArrays of sampled vertices of size n_sample. \
+#         A list entry will be "None" if there are fewer \
+#          vertices than n_sample in that component. \
          
-    """
+#     """
     
-    if not disconnect:
-        new_vertices = sample_vertices(vertices, n_sample)
-        return [new_vertices]
-    else:
-        disconn_meshes = disconnect_mesh(vertices, faces)
-        sample_list = []
-        for mesh in disconn_meshes:
-            new_vertices = sample_vertices(mesh[0], n_sample)
-            sample_list.append(new_vertices)
-        return sample_list
+#     if not disconnect:
+#         new_vertices = sample_vertices(vertices, n_sample)
+#         return [new_vertices]
+#     else:
+#         disconn_meshes = disconnect_mesh(vertices, faces)
+#         sample_list = []
+#         for mesh in disconn_meshes:
+#             new_vertices = sample_vertices(mesh[0], n_sample)
+#             sample_list.append(new_vertices)
+#         return sample_list
 
 
 def sample_vertices_and_save(vertices : VertexArray, faces: FaceArray,
@@ -244,7 +244,7 @@ def sample_vertices_and_save(vertices : VertexArray, faces: FaceArray,
                     np.savetxt(file_name + "." + extension, new_vertices, delimiter=",", fmt="%.16f")
 
                     
-def save_sample_from_obj(file_name, infolder, outfolder, n_sample, disconnect=True):
+def _save_sample_from_obj(file_name, infolder, outfolder, n_sample, disconnect=True):
     """
     Read a mesh from a given \*.obj file, sample n_sample vertices from
     each connected component, and write the results to \*.csv files.
@@ -261,8 +261,8 @@ def save_sample_from_obj(file_name, infolder, outfolder, n_sample, disconnect=Tr
 
     Returns:
         None (writes to file)
-
     """
+    
     vertices, faces = read_obj(pj(infolder, file_name))
     sample_vertices_and_save(vertices, faces, n_sample, pj(outfolder, file_name.replace(".obj", ".csv")), disconnect)
 
@@ -286,12 +286,13 @@ def obj_sample_parallel(infolder: str, outfolder: str,
     Returns:
         None (writes files to outfolder)
     """
+    
     if not os.path.exists(outfolder):
         os.mkdir(outfolder)
     arguments = [(file_name, infolder, outfolder, n_sample, disconnect)
                  for file_name in os.listdir(infolder)]
     with Pool(processes=num_cores) as pool:
-        pool.starmap(save_sample_from_obj, arguments)
+        pool.starmap(_save_sample_from_obj, arguments)
 
 
 def get_geodesic_heat_one_mesh(vertices : VertexArray,
