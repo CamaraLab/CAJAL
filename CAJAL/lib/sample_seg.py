@@ -6,7 +6,7 @@ from skimage import measure
 import tifffile
 import warnings
 from scipy.spatial.distance import pdist
-from typing import List
+from typing import List, Iterator, Tuple
 
 from CAJAL.lib.utilities import pj
 
@@ -101,9 +101,81 @@ def cell_boundaries(imarray : npt.NDArray[np.int_],
             warnings.warn("Fewer than " + str(n_sample) + \
                           " pixels around boundary of cell " + str(cell))
         indices = np.linspace(0, boundary_pts.shape[0]-1, n_sample)
+        # yield(boundary_pts[indices.astype("uint32")])
         outlist.append(boundary_pts[indices.astype("uint32")])
     return outlist
 
+# def cell_boundaries_all(
+#         infolder : str,
+#         n_sample : int,
+#         background : int = 0,
+#         discard_cells_with_holes : bool = False,
+#         only_longest : bool = False) -> Iterator[Tuple[str,npt.NDArray[np.float_]]]:
+
+#     all_file_names = os.listdir(infolder)
+#     file_names =\
+#         [file_name for file_name in all_file_names
+#          if os.path.splitext(file_name)[1]
+#                   in [".tif", ".tiff", ".TIF", ".TIFF"]]
+
+#     for file_name in file_names:
+#         imarray : npt.NDArray[np.int_]
+#         imarray = tifffile.imread(os.path.join(infolder,file_name)) # type: ignore
+#         cell_bdary_sample_list = cell_boundaries(
+#             imarray,
+#             n_sample,
+#             background,
+#             discard_cells_with_holes,
+#             only_longest)
+#         i=0
+#         root, ext = os.path.splitext(file_name)
+#         for cell_bdary in cell_bdary_sample_list:
+#             yield (root + "_" + str(i), cell_bdary)
+#             i += 1
+
+#     return None
+
+def compute_and_save_intracell_all(
+        infolder : str,
+        outfolder: str,
+        n_sample: int,
+        background: int = 0,
+        discard_cells_with_holes : bool = False,
+        only_longest : bool = False,
+        num_cores: int = 8) -> None:
+
+    file_names =\
+        [file_name for file_name in os.listdir(infolder)
+         if os.path.splitext(file_name)[1]
+                  in [".tif", ".tiff", ".TIF", ".TIFF"]]
+
+    cell_lists : Iterator[List[npt.NDArray[np.float_]]]
+    cell_lists = map(
+        lambda file_name :
+            cell_boundaries(
+                tifffile.imread(os.path.join(infolder,file_name)), #type: ignore
+                n_sample,
+                background,
+                discard_cells_with_holes,
+                only_longest),
+        file_names)
+    
+    # cell_bdary_samples = cell_boundaries_all(
+    #     infolder,
+    #     n_sample,
+    #     background,
+    #     discard_cells_with_holes,
+    #     only_longest)
+
+    for p in zip(file_names,cell_lists):
+        name, cell_list = p
+        i = 0
+        for cell_bdary in cell_list:
+            output_name = os.path.join(
+                outfolder,
+                os.path.splitext(name)[0] + "_"+ str(i)+ ".txt")
+            np.savetxt(output_name, pdist(cell_bdary), fmt='%.8f')
+            i += 1
 
 # def _save_boundaries_tiff(image_file, infolder, outfolder, n_sample, background=0):
 #     """
@@ -147,28 +219,54 @@ def cell_boundaries(imarray : npt.NDArray[np.int_],
 #     for image_file in file_names:
 #         save_boundaries_tiff(image_file, infolder, outfolder, n_sample, background)
 
-def batch_intracell_distances(infolder: str,
-                              outfolder: str,
-                              n_sample: int,
-                              background: int =0,
-                              discard_cells_with_holes : bool = False,
-                              only_longest : bool = False
-                              ) -> None:
-    if not os.path.exists(outfolder):
-        os.mkdir(outfolder)
-    file_names = os.listdir(infolder)
-    for image_file_name in file_names:
-        root, ext = os.path.splitext(image_file_name)
-        if ext in [".tif", ".tiff", ".TIF", ".TIFF"]:
-            imarray : npt.NDArray[np.int_]
-            imarray = tifffile.imread(os.path.join(infolder,image_file_name)) # type: ignore
-            cell_bdary_sample_list = cell_boundaries(imarray,
-                n_sample, background,
-                discard_cells_with_holes,only_longest)
-            i=0
-            for cell_bdary in cell_bdary_sample_list:
-                output_name = os.path.join(
-                    outfolder, root + "_" + str(i)+ ".txt")
-                np.savetxt(output_name, pdist(cell_bdary), fmt='%.8f')
-                i+=1
+# def compute_and_save_intracell_all(
+#         infolder: str,
+#         outfolder: str,
+#         n_sample: int,
+#         background: int =0,
+#         discard_cells_with_holes : bool = False,
+#         only_longest : bool = False) -> None:
+#     if not os.path.exists(outfolder):
+#         os.mkdir(outfolder)
+    
+#     for image_file_name in file_names:
+#         root, ext = os.path.splitext(image_file_name)
+#         if ext in [".tif", ".tiff", ".TIF", ".TIFF"]:
+#             imarray : npt.NDArray[np.int_]
+#             imarray = tifffile.imread(os.path.join(infolder,image_file_name)) # type: ignore
+#             cell_bdary_sample_list = cell_boundaries(imarray,
+#                 n_sample, background,
+#                 discard_cells_with_holes,only_longest)
+#             i=0
+#             for cell_bdary in cell_bdary_sample_list:
+#                 output_name = os.path.join(
+#                     outfolder, root + "_" + str(i)+ ".txt")
+#                 np.savetxt(output_name, pdist(cell_bdary), fmt='%.8f')
+#                 i+=1
+
+
+# def compute_and_save_intracell_all(
+#         infolder: str,
+#         outfolder: str,
+#         n_sample: int,
+#         background: int =0,
+#         discard_cells_with_holes : bool = False,
+#         only_longest : bool = False) -> None:
+#     if not os.path.exists(outfolder):
+#         os.mkdir(outfolder)
+#     file_names = os.listdir(infolder)
+#     for image_file_name in file_names:
+#         root, ext = os.path.splitext(image_file_name)
+#         if ext in [".tif", ".tiff", ".TIF", ".TIFF"]:
+#             imarray : npt.NDArray[np.int_]
+#             imarray = tifffile.imread(os.path.join(infolder,image_file_name)) # type: ignore
+#             cell_bdary_sample_list = cell_boundaries(imarray,
+#                 n_sample, background,
+#                 discard_cells_with_holes,only_longest)
+#             i=0
+#             for cell_bdary in cell_bdary_sample_list:
+#                 output_name = os.path.join(
+#                     outfolder, root + "_" + str(i)+ ".txt")
+#                 np.savetxt(output_name, pdist(cell_bdary), fmt='%.8f')
+#                 i+=1
 

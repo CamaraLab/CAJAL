@@ -22,10 +22,14 @@ Euclidean vs. geodesic distances
    through the surface of the cell.
 
 The choice between using Euclidean or geodesic distance will affect what kinds
-of deformations *CAJAL* regards as relevant when comparing the shape of two cells. Using Euclidean distance to meassure intracellular distances 
-leads to morphological distances that are insensitive to translations, rotations, or mirroring of a cell. However,
-bending or flexing a cell will change the morphological distance between that cell and other cells. On the other hand, using geodesic
-intracellular distances leads to morphological distances that are insensitive to translations, rotations, mirroring, bending, and flexing of the cells. 
+of deformations *CAJAL* regards as relevant when comparing the shape of two
+cells.  Using Euclidean distance to meassure intracellular distances leads to
+morphological distances that are insensitive to translations, rotations, or
+mirroring of a cell. However, bending or flexing a cell will change the
+morphological distance between that cell and other cells.  On the other hand,
+using geodesic intracellular distances leads to morphological distances that
+are insensitive to translations, rotations, mirroring, bending, and flexing of
+the cells.
 
 To illustrate the distinction, suppose we have two pieces of string, A
 and B. Both A and B are twelve inches long. A is laid out in a straight line,
@@ -42,76 +46,47 @@ Neuronal Tracing Data
 CAJAL supports neuronal tracing data in the SWC spec as specified `here
 <http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html>`_.
 
-Sampling points from a SWC File
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-The function :func:`sample_swc.get_sample_pts` can be used to read an SWC file
-and sample its contents. 
-
-For example, the following function call will return a point cloud
-consisting of points equally spaced along the neuronal reconstruction in the file `a10_full_Chat-IRES-Cre-neo_Ai14-280699.05.02.01_570681325_m.swc <https://github.com/CamaraLab/CAJAL/blob/main/CAJAL/data/swc_files/a10_full_Chat-IRES-Cre-neo_Ai14-280699.05.02.01_570681325_m.swc>`_. 
-
-.. code-block:: python
-		
-		from CAJAL import sample_swc
-		pt_cloud = sample_swc.get_sample_pts(
-		                          file_name="a10_full_Chat-IRES-Cre-neo_Ai14-280699.05.02.01_570681325_m.swc",
-					  infolder="/home/jovyan/CAJAL/data/swc_files",
-					  types_keep=None,
-					  goal_num_pts = 50)[0]
-
-The ``types_keep`` flag is
-optional and can be used to specify a list of node types (as specified in the SWC format) so that only points in the neuron with that
-SWC structure identifier will be sampled. By default (types_keep = None) all nodes are eligible to be sampled.
-
-*CAJAL* samples points in an evenly spaced way along the branches of
-the neuron, or if there are multiple components in the SWC file, in an evenly
-spaced way along the branches of each component. :func:`sample_swc.get_sample_pts` will return
-"None" and raise a warning if there are more components in the SWC file than
-points to sample.
-
-One can then convert this to a Euclidean distance matrix with :func:`scipy.spatial.distance.pdist`:
-
-.. code-block:: python
-		
-		from scipy.spatial.distance import pdist
-		dist_mat = pdist(pt_cloud)
-
-Alternatively, we can write it to a \*.csv file to be read later:
+The function `sample_swc.compute_and_save_intracell_all` operates on
+directories of \*.swc files and populates a second directory with intracell
+distance matrices, one for each cell in the source directory.
 
 .. code-block:: python
 
-		import numpy as np
-		np.savetxt("mycloud.csv", pt_cloud, delimiter=",", fmt="%.16f")
+		failed_cells = sample_swc.compute_and_save_intracell_all(
+                    infolder = "/home/jovyan/CAJAL/CAJAL/data/swc_files",
+		    metric = "geodesic",
+		    outfolder = "/home/jovyan/CAJAL/CAJAL/data/intracell_dist_mats/swc_geodesic_50",
+		    types_keep = None,
+		    sample_pts = 50,
+		    num_cores = 8,
+		    keep_disconnect =False
+		    )
 
-The function :func:`run_gw.compute_intracell_distances_one` can be used to read a point cloud stored as a
-\*.csv file into memory and compute the intracellular distance matrix.
+Here, `infolder` is a directory full of \*.swc files and `outfolder` is an
+empty directory where the intracell distance matrices will be written. The
+argument `metric` can be either "euclidean" or "geodesic". `types_keep` is an
+optional argument, one can supply a list of integers corresponding to node
+types to sample from as in the SWC spec. (If `types_keep` is `None`, all types
+will be sampled from.)  Thus, if `types_keep = [0,1,2,3,4]`, only the standard
+parts identified in the SWC spec will be sampled (undefined, soma, axon, basal
+dendrite, apical dendrite), and custom parts will be ignored. The soma will
+always be included as a type to sample from, regardless of whether the user
+includes it in this list.
 
-Sampling points from multiple SWC Files
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-*CAJAL* also provides a wrapper around the above functions to process multiple SWC files at a time. We walk through an example using the example SWC files provided with *CAJAL*. The function
-:func:`sample_swc.compute_intracell_parallel` goes through each SWC file in the input directory, randomly samples a given number of points from each neuron, and computes an intracell distance matrix based on the sample.
+`sample_pts` is the number of points from each cell that will be sampled. We
+recommend between 50-100. Past 100 points, the increase in resolution is not
+associated with a significant increase in statistical predictive power.
 
-For example, if we want to sample 50 points from each neuron in the folder :code:`/home/jovyan/CAJAL/data/swc_files` using 8 cores (:code:`num_cores` is best set to the number
-of cores on your machine), and compute the Euclidean intracell distance matrices we would use the command:
+`num_cores` is the number of processes that will be launched in parallel, we recommend setting this to the number of cores on your machine.
 
-.. code-block:: python
-		
-		from CAJAL import sample_swc
-		swc_infolder = "/home/jovyan/CAJAL/data/swc_files"
-		sample_swc.compute_intracell_parallel(
-		    swc_infolder, "euclidean", types_keep=None,sample_pts=50, num_cores=8)
+If `keep_disconnect` is False, only branches of the neuron connected to the
+soma will be sampled.  Otherwise if `keep_disconnected` is True, the function
+will sample from all branches, including free-floating ones.
 
-.. code-block:: python
-		
-		from CAJAL import sample_swc
-		swc_infolder = "/home/jovyan/CAJAL/data/swc_files"
-		sampled_csv_folder = "/home/jovyan/CAJAL/data/sampled_pts/swc_sampled_50"
-		sample_swc.compute_and_save_intracell_parallel(
-		    swc_infolder, "euclidean", sampled_csv_folder, sample_pts=50, num_cores=8)
+The function returns a list `failed_cells` of names of cells for which sampling
+was unsuccessful. If the sampling is successful, the results are silently
+written to a file.
 
-
-		    
-The second argument can be either "euclidean" or "geodesic" as preferred. The function returns a list of the file names in the directory for which an intracell distance matrix could not be produced.
 		    
 3D meshes
 ---------
@@ -139,51 +114,48 @@ distance between points in the mesh. (If the user wants to compute the
 Euclidean distance between points, such repairs are unnecessary, as Euclidean
 distance is insensitive to connectivity.)
 
-Sampling from meshes
-^^^^^^^^^^^^^^^^^^^^
-
-The function :func:`sample_mesh.obj_sample_parallel` will go through all \*.obj files in
-the given directory and sample a point cloud with n_sample points from each
-component of each \*.obj file, and save these point clouds as \*.csv files in
-the given output directory. (It is not necessary to write the point clouds to a
-file, they can be kept in memory as numpy arrays.)
-
-.. code-block:: python
-
-		from CAJAL.lib import sample_mesh
-		infolder = "/home/jovyan/CAJAL/data/obj_files"
-		outfolder = "/home/jovyan/CAJAL/data/sampled_pts/obj_sampled_50"
-		sample_mesh.obj_sample_parallel(infolder, outfolder, n_sample=50,
-		disconnect=True, num_cores=8)
-
-The user can then compute a Euclidean intracell distance matrix for each
-connected component, and compute the GW distances between all component
-cells.
-
-Geodesic distances from meshes
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
 CAJAL provides one batch-processing function which
 goes through all \*.obj files in a given directory, separates them into
-connected components, computes geodesic intracell distance matrices for each
+connected components, computes intracell distance matrices for each
 component, and writes all these square matrices as files to a standard
 output. (Bundling file I/O and math together in one function is less modular
 but it makes it easier to parallelize and not fill the memory)
 
 .. code-block:: python
 
-		sample_mesh.compute_and_save_geodesic_from_obj_parallel(
+		failed_samples = sample_mesh.compute_and_save_intracell_all(
 		            infolder="/home/jovyan/CAJAL/data/obj_files",
 			    outfolder="/home/jovyan/CAJAL/data/sampled_pts/obj_geodesic_50",
 			    n_sample=50,
+			    metric = "segment",
+			    segment = True
 			    method="heat",
 			    connect=False,
 			    num_cores=8)
 
+The arguments `infolder, outfolder, n_sample, metric` are as in :ref:`Neuronal Tracing Data`, except that `infolder` is a folder containing \*.obj files rather than \*.swc files.
+
+If the Boolean flag `segment` is True, the function will break down each \*.obj
+file into its connected components and treat them as individual, isolated
+cells.  If `segment` is False, the function will treat each \*.obj file as a
+single cell.  If the user chooses the "geodesic" metric and the contents of an
+\*.obj file are not connected, CAJAL will automatically attempt to "repair" the
+cell by modifying it to adjoin new paths between connected components, so that
+a geodesic distance between points can be defined.
+
+.. warning::
+
+   Modifying the data by adjoining new triangles to the mesh is changing its
+   topology. The user should keep this in mind while interpreting the data.
+   The functionality of "repairing" the cell is premised on the
+   assumption that the \*.obj file represents one single geometric object and
+   that it fails to be connected for trivial reasons, e. g. a scan of a neuron
+   that has missing segments along the dendrites due to measurement error.  If
+   an \*.obj file genuinely contains multiple distinct components then the
+   geodesic distances resulting from this process will not be meaningful.
+
 Segmentation files 
 -------------------
-
-
 
 Overview of image segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -303,24 +275,41 @@ distinct cells should be labeled with different integers. All background pixels
 should be labelled with the same integer, which is different from the label of
 any cell.
 
-Given a numpy integer array :code:`imarray` of shape (n,m), we can use the
-:func:`sample_seg.cell_boundaries` function to get a list of cell boundary
-sample points for each cell.
-
-.. code-block:: python
-
-		bdaries = cell_boundaries(imarray, n_sample = 50, background= 0)
-
 Cells which meet the image boundary are discarded, as we currently do not have
 a reasonable theoretical approach for analyzing partial cell boundaries.
 
-For convenience we provide a wrapper function :func:`sample_seg.batch_intracell_distances` which takes as an argument an input directory full of (cleaned!) \*.tiff/\*.tif files and an output directory. For each \*.tiff file in the input directory, :func:`sample_seg.batch_intracell_distances` breaks the image down into its separate cells, samples a given number of points between each one, and writes the resulting resulting intracell distance matrix for each cell to its own text file in the output directory.
+CAJAL samples from \*.tiff / \*.tif files via the function
+:func:`sample_seg.compute_and_save_intracell_all` which takes as an argument an
+input directory full of (cleaned!) \*.tiff/\*.tif files and an output
+directory. For each \*.tiff file in the input directory,
+:func:`sample_seg.compute_and_save_intracell_all` breaks the image down into
+its separate cells, samples a given number of points between each one, and
+writes the resulting resulting intracell distance matrix for each cell to its
+own text file in the output directory.
 
 .. code-block:: python
 
 		infolder ="/home/jovyan/CAJAL/CAJAL/data/tiff_images_cleaned/"
 		outfolder="/home/jovyan/CAJAL/CAJAL/data/tiff_sampled_50/"
-		sample_seg.batch_intracell_distances(infolder, outfolder, 50)
+		sample_seg.compute_and_save_intracell_all(
+		       infolder,
+		       outfolder,
+		       n_sample = 50,
+		       background = 0,
+		       discard_cells_with_holes = False,
+		       only_longest = False,
+		       num_cores = 8)
+
+`infolder`, `outfolder`, and `n_sample` are as in the previous two
+sections. `background` is the index for the background color; it is zero by
+default.  If the flag `discard_cells_with_holes` is set to True, the function
+will ignore any cells which have multiple boundaries, which helps to filter out
+clusters of overlapping cells. The flag `only_longest` is only relevant if
+`discard_cells_with_holes` is False. In this case if `only_longest` is True,
+then the function only samples from the longest boundary of the cell, instead
+of across all boundaries.
+
+
 
 
 
