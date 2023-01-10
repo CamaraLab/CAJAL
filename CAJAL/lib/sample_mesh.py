@@ -1,4 +1,5 @@
 # Functions for sampling points from a triangular mesh
+from __future__ import annotations
 import os
 import csv
 import numpy as np
@@ -10,32 +11,33 @@ from scipy.spatial.distance import squareform, cdist, euclidean, pdist
 import trimesh
 import itertools as it
 import warnings
-from typing import Tuple, List, Set, Dict, Optional, Iterator, Iterable
+from typing import Tuple, List, Set, Dict, Optional, Iterator, Iterable, TypeAlias
 from multiprocessing import Pool
 from pathos.pools import ProcessPool
-
 from CAJAL.lib.utilities import pj
 
 # We represent a mesh as a pair (vertices, faces) : Tuple[VertexArray,FaceArray].
 # A VertexArray is a numpy array of shape (n, 3), where n is the number of vertices in the mesh.
 # Each row of a VertexArray is an XYZ coordinate triple for a point in the mesh.
-VertexArray = npt.NDArray[np.float_]
+VertexArray : TypeAlias = npt.NDArray[np.float_]
 # A FaceArray is a numpy array of shape (m, 3) where m is the number of faces in the mesh.
 # Each row of a FaceArray is a list of three natural numbers, corresponding to indices
 # in the corresponding VertexArray,
 # representing triangular faces joining those three points.
-FaceArray = npt.NDArray[np.int_]
+FaceArray : TypeAlias = npt.NDArray[np.int_]
 
 def read_obj(file_path: str) -> Tuple[VertexArray,FaceArray]:
     """
-    Reads in the vertices and triangular faces of a .obj file
+    Reads in the vertices and triangular faces of a .obj file.
 
-    Args:
-        file_path (string): Path to .obj file
+    :param file_path: Path to .obj file
+    
+    :return: Ordered pair `(vertices, faces)`, where:
 
-    Returns:
-        * vertices (numpy array): 3D coordinates for vertices
-        * faces (numpy array): row of vertices contained in each face
+        * `vertices` is an array of 3D floating-point coordinates of shape `(n,3)`, \
+             where `n` is the number of vertices in the mesh
+        * `faces` is an array of shape `(m,3)`, where `m` is the number of \
+           faces; the `k`-th row gives the indices for the vertices in the `k`-th face.
     """
     obj_file = open(file_path, "r")
     obj_split = csv.reader(obj_file, delimiter=" ")

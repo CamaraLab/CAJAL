@@ -5,6 +5,14 @@ Once the user prepares the list of intracell distance matrices, they can use
 the function :func:`run_gw.compute_GW_distance_matrix` to
 compute the Gromov-Wasserstein distance between all matrices in the given list.
 
+In this section, we assume that the user has already computed intracellular
+distance matrices for their cells.
+
+
+
+Once the user prepares the list of intracell distance matrices, they can use the function run_gw.compute_GW_distance_matrix() to compute the Gromov-Wasserstein distance between all matrices in the given list.
+
+
 The GW distance is calculated using the same function whether the distance
 matrices represent the Euclidean or geodesic metric.
 

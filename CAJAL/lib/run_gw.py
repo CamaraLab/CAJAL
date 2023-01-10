@@ -10,7 +10,7 @@ import ctypes
 from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
 from multiprocessing import Pool
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from CAJAL.lib.utilities import pj, load_dist_mat, list_sort_files, read_mp_array
 
@@ -27,40 +27,40 @@ TODO:
 '''
 
 
-def compute_intracell_distances_one(
-        data_file: str,
-        metric: str ="euclidean",
-        return_mp: bool =True,
-        header: Optional[int | List[int]] = None):
-    """
-    Compute the pairwise distances in the point cloud stored in a \*.csv file.
-    Return distance matrix as numpy array or mp (multiprocessing) array
+# def compute_intracell_distances_one(
+#         data_file: str,
+#         metric: str ="euclidean",
+#         return_mp: bool =True,
+#         header: Optional[int | List[int]] = None) ->  npt.NDArray[np.float_] :
+#     """
+#     Compute the pairwise distances in the point cloud stored in a \*.csv file.
+#     Return distance matrix as numpy array
 
-    Args:
-        * data_file (string): file path to point cloud file (currently assumes a header line)
-        * metric (string): distance metric passed into pdist()
-        * return_mp (boolean): if True, return multiprocessing array, if False return numpy array
-        * header: If the \*.csv file has a row header labelling the columns, use this field to label it, see :func:`pandas.read_csv` for details.
+#     :param data_file: file path to point cloud file (currently assumes a header line)
+#         * metric (string): distance metric passed into pdist()
+#         * return_mp (boolean): if True, return multiprocessing array, if False return numpy array
+#         * header: If the \*.csv file has a row header labelling the columns,
+#              use this field to label it, see :func:`pandas.read_csv` for details.
 
-    Returns:
-        A multiprocessing array, if return_mp == True; else a numpy array.
-    """
+#     Returns:
+#         A multiprocessing array, if return_mp == True; else a numpy array.
+#     """
     
-    coords = pd.read_csv(data_file, header=header)
-    dist_mat = pdist(coords, metric=metric)
+#     coords = pd.read_csv(data_file, header=header)
+#     dist_mat = pdist(coords, metric=metric)
 
-    # Return either as numpy array or mp (multiprocessing) array
-    try: 
-        return_dist = squareform(dist_mat)
-    except Exception as err:
-        print(err)
-        print("Scipy raised an error while computing intracell distances in ", data_file)
-        print("Check that this file is correctly formatted.")
-        raise
+#     # Return either as numpy array or mp (multiprocessing) array
+#     try: 
+#         return_dist = squareform(dist_mat)
+#     except Exception as err:
+#         print(err)
+#         print("Scipy raised an error while computing intracell distances in ", data_file)
+#         print("Check that this file is correctly formatted.")
+#         raise
         
-    if return_mp:
-        return_dist = read_mp_array(return_dist)
-    return return_dist
+#     if return_mp:
+#         return_dist = read_mp_array(return_dist)
+#     return return_dist
 
 # def save_distances_one(data_file, distances_dir=None, file_prefix="",
 #                        metric="euclidean", header=None):
@@ -95,55 +95,55 @@ def compute_intracell_distances_one(
 #     return outfile
 
 
-def compute_intracell_distances_all(
-        data_dir: str,
-        data_prefix: Optional[str] =None,
-        data_suffix: str ="csv",
-        #distances_dir=None,
-        metric: str ="euclidean",
-        return_mp: bool =True,
-        header: Optional[int | List[int]] = None):
-    """
-    Compute the pairwise distances in the point cloud stored in each file.
-    Return list of distance matrices.
+# def compute_intracell_distances_all(
+#         data_dir: str,
+#         data_prefix: Optional[str] =None,
+#         data_suffix: str ="csv",
+#         #distances_dir=None,
+#         metric: str ="euclidean",
+#         return_mp: bool =True,
+#         header: Optional[int | List[int]] = None):
+#     """
+#     Compute the pairwise distances in the point cloud stored in each file.
+#     Return list of distance matrices.
     
-    Args:
-        * data_dir (string): file path to directory containing all \
-                point cloud files (currently assumes a header line)
-        * data_prefix (string): only read files from data_dir \
-              starting with this string. None (default) uses \
-              all files
-        * metric (string): distance metric passed into pdist()
-        * return_mp (boolean): only used of distances_dir is None.\
-              If True, return multiprocessing array,\
-              if False return numpy array
-        * header: If the \*.csv file has a row header labelling the\
-              columns, use this field to label it, see\
-              :func:`pandas.read_csv` for details. 
+#     Args:
+#         * data_dir (string): file path to directory containing all \
+#                 point cloud files (currently assumes a header line)
+#         * data_prefix (string): only read files from data_dir \
+#               starting with this string. None (default) uses \
+#               all files
+#         * metric (string): distance metric passed into pdist()
+#         * return_mp (boolean): only used of distances_dir is None.\
+#               If True, return multiprocessing array,\
+#               if False return numpy array
+#         * header: If the \*.csv file has a row header labelling the\
+#               columns, use this field to label it, see\
+#               :func:`pandas.read_csv` for details. 
     
-    Returns:
-        List of distance matrices. (In the future, will be a list \
-            of distance matrices or None, in the case where \
-            the distances_dir flag is enabled.)
+#     Returns:
+#         List of distance matrices. (In the future, will be a list \
+#             of distance matrices or None, in the case where \
+#             the distances_dir flag is enabled.)
 
-    """
+#     """
 
-    # if distances_dir is not None and not os.path.exists(distances_dir):
-    #     os.makedirs(distances_dir)
+#     # if distances_dir is not None and not os.path.exists(distances_dir):
+#     #     os.makedirs(distances_dir)
 
-    # (TODO : Add support for a flag "distances_dir" which will enable the user
-    #  to write the list of distance matrices in addition to / rather than returning it.)
+#     # (TODO : Add support for a flag "distances_dir" which will enable the user
+#     #  to write the list of distance matrices in addition to / rather than returning it.)
     
-    files_list = list_sort_files(data_dir, data_prefix, data_suffix=data_suffix)
+#     files_list = list_sort_files(data_dir, data_prefix, data_suffix=data_suffix)
     
-    # Compute pairwise distance between points in each file
-    return_list = [compute_intracell_distances_one(pj(data_dir, data_file),
-                                               metric=metric, return_mp=return_mp, header=header)
-                   for data_file in files_list]
-    check_num_pts = all([len(x) == len(return_list[0]) for x in return_list])
-    if not check_num_pts:
-        raise Exception("Point cloud data files do not have same number of points")
-    return return_list
+#     # Compute pairwise distance between points in each file
+#     return_list = [compute_intracell_distances_one(pj(data_dir, data_file),
+#                                                metric=metric, return_mp=return_mp, header=header)
+#                    for data_file in files_list]
+#     check_num_pts = all([len(x) == len(return_list[0]) for x in return_list])
+#     if not check_num_pts:
+#         raise Exception("Point cloud data files do not have same number of points")
+#     return return_list
 
 
 # def load_intracell_distances(distances_dir : str,
@@ -178,19 +178,23 @@ def compute_intracell_distances_all(
 #     return [load_dist_mat(pj(distances_dir, dist_file), return_mp=return_mp)
 #             for dist_file in files_list]
 
-def _calculate_gw_preload_global(arguments):
+def _calculate_gw_preload_global(
+        index_pair : Tuple[int,int],
+        return_mat : bool) -> Tuple[float, Optional[npt.NDArray[np.float_]]]:
     """
-    Compute GW distance between two distance matrices.
+    Compute GW distance and the coupling matrix between two distance matrices.
     Meant to be called within a multiprocessing pool where dist_mat_list exists globally
     
-    Args:
-        arguments (list):
-            i1 (int): index in the dist_mat_list for the first distance matrix
+    :param index_pair: indices in the global list dist_mat_list for the first\
+         and second distance matrix, respectiveley
+    :param return_mat: if True, returns the coupling matrix between points
+            if False, only returns GW distance
+    
+        i1 (int): index in the dist_mat_list for the first distance matrix
             i2 (int): index in the dist_mat_list for the second distance matrix
-            return_mat (boolean): if True, returns coupling matrix between points
-                                if False, only returns GW distance
+            return_mat (boolean): 
     Returns:
-        int: GW distance
+        float: GW distance
     """
     # Get distance matrices from global list (this saves memory so it's not copied in each process)
     i1, i2 = arguments
@@ -205,7 +209,8 @@ def _calculate_gw_preload_global(arguments):
     if return_mat:
         return log['gw_dist'], gw
     else:
-        return log['gw_dist']
+        return log['gw_dist'], None
+                                                    
 
 
 def _init_fn(dist_mat_list_arg, save_mat):
@@ -219,46 +224,60 @@ def _init_fn(dist_mat_list_arg, save_mat):
 
 
 def compute_GW_distance_matrix(
-        dist_mat_list_arg,
-        save_mat=False,
-        num_cores=12,
-        chunk_size=100):
+        dist_mat_list_arg : List[npt.NDArray[np.float_]],
+        save_mat : bool =False,
+        num_cores : int=12,
+        chunk_size : int =100)-> Tuple[npt.NDArray[np.float_],
+                                       Optional[List[npt.NDArray[np.float_]]]]:
+                                                
+                                                    
     """
-    Compute the GW distance between every pair of matrices in a given list of intracell \
+    Compute the GW distance between each pair of matrices in a given list of intracell \
     distance matrices
         
-    Args:
-        * dist_mat_list_arg (list): list of multiprocessing or numpy arrays containing distance\
+    :param dist_mat_list_arg: list of multiprocessing or numpy arrays containing distance\
               matrix for each cell
-        * save_mat (boolean): if True, returns coupling matrix (matching) between points. \
+    :param save_mat: if True, returns coupling matrix (matching) between points. \
                             if False, only returns GW distance
-        * num_cores (int): number of parallel processes to run GW in
-        * chunk_size (int): chunk size for the iterator of all pairs of cells. \
+    :param num_cores: number of parallel processes to run GW in
+    :param chunk_size: chunk size for the iterator of all pairs of cells. \
             Larger size is faster but takes more memory, see \
             :meth:`multiprocessing.pool.Pool.imap` for details.
 
-    Returns:
+    :return:
         A matrix of the GW distances between all the intracell distance matrices in \
         dist_mat_list_arg.
     """
     arguments = it.combinations(range(len(dist_mat_list_arg)), 2)
+                                                    
 
-    if num_cores > 1:
+    # if num_cores > 1:
         # Start up multiprocessing w/ list of distance matrices in global environment
-        with Pool(processes=num_cores, initializer=_init_fn,
-                  initargs=(dist_mat_list_, save_mat)) as pool:
-            dist_results = list(pool.imap(_calculate_gw_preload_global,
-                                          arguments,
-                                          chunksize=chunk_size))
+    with Pool(processes=num_cores,
+              initializer=_init_fn,
+              initargs=(dist_mat_list_, save_mat)) as pool:
+        dist_results = list(pool.imap(
+            _calculate_gw_preload_global,
+            arguments,
+            chunksize=chunk_size))
+                                                    
+    e = zip(*dist_results)
+    GW_dist_mat = list(next(e))
+    if save_mat:
+        GW_coupling_mats = list(next(e))
     else:
-        # Set dist_mat_list in global environment so can call the same functions
-        global dist_mat_list, return_mat
-        dist_mat_list = dist_mat_list_arg
-        return_mat = save_mat
-        dist_results = list(map(_calculate_gw_preload_global, arguments))
-    return dist_results
+        GW_coupling_mats = None
+    return (GW_dist_mat, GW_coupling_mats)
 
+                                    
 
+    
+    # else:
+    #     # Set dist_mat_list in global environment so can call the same functions
+    #     global dist_mat_list, return_mat
+    #     dist_mat_list = dist_mat_list_arg
+    #     return_mat = save_mat
+    #     dist_results = list(map(_calculate_gw_preload_global, arguments))
 # def compute_and_save_GW_dist_mat(
 #         dist_mat_list_local : List[npt.NDArray| ctypes.Array],
 #         file_prefix : str,

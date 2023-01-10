@@ -6,8 +6,9 @@
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-import sys
+from __future__ import annotations
 
+import sys
 
 project = 'cajal'
 # This looks weird to me but it renders correctly in the HTML.
@@ -27,6 +28,10 @@ extensions = ['myst_parser',
               'sphinx.ext.autosectionlabel',
               'sphinx.ext.intersphinx'
               ]
+autodoc_typehints = 'both'
+autodoc_type_aliases = { 'VertexArray' : 'sample_mesh.VertexArray',
+                         'FaceArray' : 'sample_mesh.FaceArray'
+                        }
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
@@ -49,3 +54,6 @@ intersphinx_mapping = { 'scipy' : ('https://docs.scipy.org/doc/scipy/reference/'
                         'python' : ('https://docs.python.org/3.10/', None),
                         'pandas' : ('https://pandas.pydata.org/docs/', None)
                        }
+
+# Type Aliases
+

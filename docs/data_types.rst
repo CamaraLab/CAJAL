@@ -20,11 +20,6 @@ Here the format string fmt="%.16f" means that we retain 16 values after the deci
 		
 You can read this back with :func:`numpy.loadtxt` or :func:`pandas.read_csv`.
 
-By an "intracell distance matrix", we mean a numpy floating point array
-representing a matrix in "vector form" (see
-:func:`scipy.spatial.distance.pdist` and footnote 2 of 
-:func:`scipy.spatial.distance.squareform`)
-
 A point cloud can be converted to a Euclidean distance matrix using
 :func:`scipy.spatial.distance.pdist`.
 
@@ -36,10 +31,8 @@ A point cloud can be converted to a Euclidean distance matrix using
 The function :func:`run_gw.compute_intracell_distances_one` reads a point cloud
 \*.csv file into memory and returns an intracell distance matrix.
 
-.. autofunction:: run_gw.compute_intracell_distances_one
 
 The function :func:`run_gw.compute_intracell_distances_all` is the batch version,
 operating on a directory of point cloud \*.csv files and returning a list of
 intracell distance matrices.
 
-.. autofunction:: run_gw.compute_intracell_distances_all

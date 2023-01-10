@@ -132,13 +132,13 @@ def _prep_coord_dict(vertices : List[List[str]],
        vertices_keep is the smallest sub-forest of vertices satisfying the following:
        - every node in the soma is in vertices_keep
        - if a node v is acceptable and v's parent is in vertices_keep, v is in vertices_keep
-       - (if keep_disconnected == True) if a node v is acceptable and v has no parent, v is in vertices_keep
+       - (if keep_disconnected == True) if a node v is acceptable and v has no parent, v is\
+         in vertices_keep
        vertices_keep always contains the first vertex of vertices,
        and all vertices which belong to the soma.
     
-    Args:
-        vertices (list): list of vertex rows from an SWC file
-        types_keep (tuple,list): list of SWC neuron part types to sample points from.
+    :param vertices: list of vertex rows from an SWC file
+    :param types_keep: list of SWC neuron part types to sample points from.
                      By default, uses all points.
         keep_disconnect (boolean): If False, will only keep branches connected to the soma.
             If True, will keep all branches, including free-floating ones
@@ -408,21 +408,19 @@ def get_sample_pts(file_name : str,
     Given an SWC file, samples a given number of points from the body of the neuron and
     returns a point cloud of xyz coordinates.
 
-    Args:
-        * file_name: SWC file name (including ".swc" or ".SWC" extension)
-        * infolder: path to folder containing SWC file
-        * types_keep: list of SWC neuron part types to sample points from.\
+    :param file_name: SWC file name (including ".swc" or ".SWC" extension)
+    :param infolder: path to folder containing SWC file
+    :param types_keep: list of SWC neuron part types to sample points from.\
           If types_keep is None, then all part types are sampled.
-        * goal_num_pts: number of points to sample.
-        * min_step_change: stops while loop from infinitely trying closer and \
+    :param goal_num_pts: number of points to sample.
+    :param min_step_change: stops while loop from infinitely trying closer and \
           closer step sizes
-        * max_iters: maximum number of iterations of while loop
-        * keep_disconnect: If True, will keep all branches from SWC.\
+    :param max_iters: maximum number of iterations of while loop
+    :param keep_disconnect: If True, will keep all branches from SWC.\
               If False, will keep only connected to soma
-        * verbose: If True, will print step size information for each search iteration
+    :param verbose: If True, will print step size information for each search iteration
 
-    Returns:
-        None, if either of these occur:
+    :return: :py:const:`None` , if either of these occur:
     
         * The file does not end with ".swc" or ".SWC".
         * There are more connected components in the sample than goal_num_pts.
@@ -507,18 +505,16 @@ def get_geodesic(file_name:str,
     Sample points from a given SWC file, compute the geodesic distance (networkx graph distance) \
     between points, and return the matrix of pairwise geodesic distances between points in the cell.
 
-    Args:
-        * file_name (string): SWC file name (including ".swc" or ".SWC")
-        * infolder (string): path to folder containing SWC file
-        * types_keep (tuple,list): list of SWC neuron part types to sample points from. \
+    :param file_name: SWC file name (including ".swc" or ".SWC")
+    :param infolder: path to folder containing SWC file
+    :param types_keep: list of SWC neuron part types to sample points from. \
              By default, all points are kept. 
-        * goal_num_pts (integer): number of points to sample.
-        * min_step_change (float): stops while loop from infinitely trying closer and closer step sizes
-        * max_iters (integer): maximum number of iterations of while loop
-        * verbose (boolean): If true, will print step size information for each search iteration
+    :param goal_num_pts: number of points to sample.
+    :param min_step_change: stops while loop from infinitely trying closer and closer step sizes
+    :param max_iters: maximum number of iterations of while loop
+    :param verbose: If true, will print step size information for each search iteration
+    :return: None, if either of these occur:
 
-    Returns:
-        None, if either of these occur:
         * The file does not end with ".swc" or ".SWC".
         * There are more connected components in the sample than goal_num_pts.
 
@@ -567,21 +563,20 @@ def compute_and_save_geodesic(file_name : str, infolder:str, outfolder:str,
 
     The distances are floating point real numbers specified to 8 places past the decimal.
     
-    Args:
-        * file_name (string): SWC file name (including .swc)
-        * infolder (string): path to folder containing SWC file
-        * outfolder (string): path to output folder to save distance vectors
-        * types_keep (tuple,list): list of SWC neuron part types to sample points from. \
+    :param file_name: SWC file name (including .swc)
+    :param infolder: (string): path to folder containing SWC file
+    :param outfolder: path to output folder to save distance vectors
+    :param types_keep: list of SWC neuron part types to sample points from. \
              By default, uses all.
-        * goal_num_pts (integer): number of points to sample    
-        * min_step_change (float): stops while loop from infinitely \
-             trying closer and closer step sizes    
-        * max_iters (integer): maximum number of iterations of while loop    
-        * verbose (boolean): If true, will print step size information for each search iteration
+    :param goal_num_pts: number of points to sample    
+    :param min_step_change: stops while loop from infinitely \
+       trying closer and closer step sizes    
+    :param max_iters: maximum number of iterations of while loop    
+    :param verbose: If true, will print step size information for each search iteration
 
-    Returns:
-        Boolean success of sampling points from this SWC file.
+    :return: Boolean success of sampling points from this SWC file.
     """
+    
     geo_dist_mat = get_geodesic(
         file_name,
         infolder,
@@ -700,26 +695,22 @@ def compute_intracell_parallel(
         keep_disconnect : bool = False
      ) -> Dict[str,Optional[npt.NDArray[np.float_]]]:
     """
-    For each swc file in infolder, sample sample_pts many points from the
+    For each swc file in `infolder`, sample `sample_pts` many points from the
     neuron, evenly spaced, and compute the Euclidean or geodesic intracell
-    matrix depending on the value of the argument "metric".
+    matrix depending on the value of the argument `metric`.
 
-    Arguments:
-    
-        * infolder: Directory of input \*.swc files.
-        * metric: Either "euclidean" or "geodesic"
-        * types_keep: optional parameter, a list of node types to sample from
-        * num_cores: the intracell distance matrices will be computed in parallel processes,\    
+    :param infolder:Directory of input \*.swc files.
+    :param metric: Either "euclidean" or "geodesic"
+    :param types_keep: optional parameter, a list of node types to sample from
+    :param num_cores: the intracell distance matrices will be computed in parallel processes,\    
           num_cores is the number of processes to run simultaneously. Recommended to set\
           equal to the number of cores on your machine.
-        * keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
+    :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
           to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
           Euclidean distance metric, as the geodesic distance between points in different components\
           is undefined.
 
-    Returns:
-    
-        A dictionary `dist_mats`\
+    :return: A dictionary `dist_mats`\
         mapping file names (strings) to their intracell distance matrices. If the\
         intracell distance matrix for file_name could not be computed, then\
         `dist_mats[file_name]` is `None`.
@@ -760,33 +751,32 @@ def compute_and_save_intracell_all(
     """
     For each swc file in infolder, sample sample_pts many points from the
     neuron, evenly spaced, and compute the Euclidean or geodesic intracell
-    matrix depending on the value of the argument "metric". Write the \
+    matrix depending on the value of the argument `metric`. Write the \
     resulting intracell distance matrices to the given output directory.
 
     For each file "abc.swc" in the input directory `infolder`, a file `abc_dist.txt`
     will be created in the output folder. Distance matrices are stored as text files
     where each line contains a single floating point number; this sequence of floats is a
     linearization of the entries lying (strictly) above the diagonal in \
-    the distance matrix.
+    the distance matrix. Thus, if `sample_pts` = 50, then the output file \
+    `abc_dist.txt` will contain 1225 lines of text, one for every pair of \
+    natural numbers (i,j) with 0 <= i, j <= 50 and i < j.
 
-    Arguments:
-    
-        * infolder: Directory of input \*.swc files.
-        * metric: Either "euclidean" or "geodesic"
-        * outfolder: directory to write the intracell distance matrices. \
+    :param infolder: Directory of input \*.swc files.
+    :param metric: Either "euclidean" or "geodesic"
+    :param outfolder: directory to write the intracell distance matrices. \
               If "outfolder" is not an existing directory, it will be created\
-              at the time the function is called.    
-        * types_keep: optional parameter, a list of node types to sample from. \
-        * num_cores: the intracell distance matrices will be computed in parallel processes,\    
+              at the time the function is called.
+    :param types_keep: optional parameter, a list of node types to sample from. 
+    :param num_cores: the intracell distance matrices will be computed in parallel processes,\    
           num_cores is the number of processes to run simultaneously. Recommended to set\
           equal to the number of cores on your machine.
-        * keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
+    :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
           to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
           Euclidean distance metric, as the geodesic distance between points in different components\
           is undefined.
 
-    Returns:
-       a list of file names for which the sampling process failed.
+    :return: a list of file names for which the sampling process failed.
 
     """
 

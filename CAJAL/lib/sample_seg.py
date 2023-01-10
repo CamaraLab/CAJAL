@@ -16,8 +16,10 @@ from CAJAL.lib.utilities import pj
 #     skipping cells that touch the border of the image
 
 #     Args:
-#         imarray (numpy array): 2D segmented image where the pixels belonging to different cells have different values
-#         outfile (string): file path to save cell boundaries - output files will be named with _cellN.csv where N is
+#         imarray (numpy array): 2D segmented image where the pixels belonging to \
+#         different cells have different values
+#         outfile (string): file path to save cell boundaries - output files will be named\
+#          with _cellN.csv where N is
 #             the pixel value denoting that cell in the segmented image
 #         n_sample (integer): number of pixel coordinates to sample from boundary of each cell
 #         background (integer, float): value of background pixels, this will not be saved as a boundary
@@ -56,20 +58,19 @@ def cell_boundaries(imarray : npt.NDArray[np.int_],
     Sample n coordinates from the boundary of each cell in a segmented image,
     skipping cells that touch the border of the image
 
-    Args:
-        * imarray (numpy array): 2D segmented image where the pixels belonging to\
+    :param imarray: 2D segmented image where the pixels belonging to\
           different cells have different values
-        * n_sample (integer): number of pixel coordinates to sample from boundary of each cell
-        * background (integer): value of background pixels, this will not be saved as a boundary
-        * discard_cells_with_holes (bool): \
+    :param n_sample: number of pixel coordinates to sample from boundary of each cell
+    :param background: value of background pixels, this will not be saved as a boundary
+    :param discard_cells_with_holes: \
           if discard_cells_with_holes is true, we discard any cells \
           with more than one boundary (e.g., an annulus) with a \
           warning. Else, the behavior is determined by only_longest.
-        * only_longest (bool): if discard_cells_with_holes is true, \
+    :param only_longest: if discard_cells_with_holes is true, \
           only_longest is irrelevant. Otherwise, this determines whether \
           we sample points from only the longest boundary (presumably \
           the exterior) or from all boundaries, exterior and interior.
-    Result:
+    :return:
        list of float numpy arrays of shape (n_sample, 2) \
        containing points sampled from the contours.
     """
@@ -143,7 +144,29 @@ def compute_and_save_intracell_all(
         discard_cells_with_holes : bool = False,
         only_longest : bool = False,
         num_cores: int = 8) -> None:
+    """
+    Read in each segmented image in a folder (assumed to be .tif), \
+    save n pixel coordinates sampled from the boundary
+    of each cell in the segmented image, \
+    skipping cells that touch the border of the image.
 
+    :param infolder: path to folder containing .tif files.
+    :param outfolder: path to folder to save cell boundaries.
+    :param n_sample: number of pixel coordinates to sample from boundary of each cell
+    :param discard_cells_with_holes: \
+        if discard_cells_with_holes is true, we discard any cells \
+        with more than one boundary (e.g., an annulus) with a \
+        warning. Else, the behavior is determined by only_longest.
+    :param background: value which characterizes the color of the background pixels, \
+         this will not be saved as a boundary
+    :param only_longest: if discard_cells_with_holes is true, \
+         only_longest is irrelevant. Otherwise, this determines whether \
+         we sample points from only the longest boundary (presumably \
+         the exterior) or from all boundaries, exterior and interior.
+
+    :param num_cores: How many threads to run while sampling.
+
+    """
     file_names =\
         [file_name for file_name in os.listdir(infolder)
          if os.path.splitext(file_name)[1]

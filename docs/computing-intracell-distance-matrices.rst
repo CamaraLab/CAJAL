@@ -46,7 +46,7 @@ Neuronal Tracing Data
 CAJAL supports neuronal tracing data in the SWC spec as specified `here
 <http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html>`_.
 
-The function `sample_swc.compute_and_save_intracell_all` operates on
+The function :func:`sample_swc.compute_and_save_intracell_all` operates on
 directories of \*.swc files and populates a second directory with intracell
 distance matrices, one for each cell in the source directory.
 
@@ -79,9 +79,11 @@ associated with a significant increase in statistical predictive power.
 
 `num_cores` is the number of processes that will be launched in parallel, we recommend setting this to the number of cores on your machine.
 
-If `keep_disconnect` is False, only branches of the neuron connected to the
-soma will be sampled.  Otherwise if `keep_disconnected` is True, the function
-will sample from all branches, including free-floating ones.
+The flag `keep_disconnect` is only relevant when the user selects the
+Euclidean distance matrix. In this case, if `keep_disconnect` is False, only branches of the
+neuron connected to the soma will be sampled.  Otherwise if `keep_disconnected`
+is True, the function will sample from all branches, including free-floating
+ones.
 
 The function returns a list `failed_cells` of names of cells for which sampling
 was unsuccessful. If the sampling is successful, the results are silently
