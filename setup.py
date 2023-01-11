@@ -16,6 +16,7 @@ setup(
         "numpy",
         "pandas",
         "Cython",
+        "pathos",
         "pot~=0.7.0",
         "potpourri3d",
         "python-louvain",
