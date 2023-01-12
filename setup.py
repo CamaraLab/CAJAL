@@ -6,7 +6,7 @@ setup(
     url="https://github.com/CamaraLab/CAJAL",
     author="Pablo Camara",
     author_email='pcamara@pennmedicine.upenn.edu',
-    license='GPLv3',
+    license='MIT',
     packages=["CAJAL", "CAJAL.lib"],
     install_requires=[
         "igraph",
