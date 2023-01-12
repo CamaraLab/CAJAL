@@ -1,8 +1,8 @@
 # Functions for sampling even points from an SWC reconstruction of a neuron
 import re
 import numpy as np
-import numpy.typing as npt      
-from CAJAL.lib.utilities import pj
+import numpy.typing as npt
+from CAJAL.lib.utilities import pj   
 from scipy.spatial.distance import euclidean, squareform, pdist
 import networkx as nx
 import warnings
@@ -14,21 +14,21 @@ import os
 # TODO - stylistic change. Once we are ready to increase the minimum supported
 # version of Python to >= 3.9, these should be changed from uppercase Tuple,
 # Dict, List to lowercase tuple, dict, list etc.
-# StructureID = int
-# CoordTriple = Tuple[float,float,float]
-# NeuronNode = Tuple[StructureID,CoordTriple]
-# NodeIndex = int
-# # A ComponentTree is a directed graph formatted as a dictionary, where each node
-# # contains the key of its parent.
-# # Our convention will be that the component_tree[0] is always the root.
-# ComponentTree = Dict[NodeIndex, Tuple[NeuronNode,NodeIndex]] 
-# SWCData = List[ComponentTree]
+StructureID = int
+CoordTriple = Tuple[float,float,float]
+NeuronNode = Tuple[StructureID,CoordTriple]
+NodeIndex = int
+# A ComponentTree is a directed graph formatted as a dictionary, where each node
+# contains the key of its parent.
+# Our convention will be that the component_tree[0] is always the root.
+ComponentTree = Dict[NodeIndex, Tuple[NeuronNode,NodeIndex]]
+SWCData = List[ComponentTree]
 
 # Under development
 # def read_SWCData(file_path : str, keep_disconnect) -> SWCData:
 #     """
 #     Reads an SWC file and returns a representation of the data as a list \
-#     of the connected components of the neuron.    
+#     of the connected components of the neuron.
 
 #     The SWC file should conform to the documentation here: \
 #     www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
@@ -127,7 +127,8 @@ def _prep_coord_dict(vertices : List[List[str]],
     
     1. It filters the list "vertices" to return a sublist "vertices_keep".
 
-       Call a node v "acceptable" if types_keep is None, or the type of v is in types_keep, or t=="1"
+       Call a node v "acceptable" if types_keep is None, or the type of v\
+          is in types_keep, or t=="1"
     
        vertices_keep is the smallest sub-forest of vertices satisfying the following:
        - every node in the soma is in vertices_keep
@@ -262,11 +263,14 @@ def _sample_pts_step(vertices : List[List[str]], vertex_coords: Dict[int,np.ndar
     return sampled_pts_list, num_roots
 
 
-def _sample_n_pts(vertices : List[List[str]], vertex_coords : Dict[int,np.ndarray],
-                 total_length : float, types_keep : Optional[Iterable[int]] = None,
-                 goal_num_pts : int =50, min_step_change : float =1e-7,
-                 max_iters : int =50,
-                 verbose : bool =False) -> Optional[Tuple[np.ndarray,float,int]]:
+def _sample_n_pts(vertices : List[List[str]],
+                  vertex_coords : Dict[int,np.ndarray],
+                  total_length : float,
+                  types_keep : Optional[Iterable[int]] = None,
+                  goal_num_pts : int =50,
+                  min_step_change : float =1e-7,
+                  max_iters : int =50,
+                  verbose : bool =False) -> Optional[Tuple[np.ndarray,float,int]]:
     """
     Use binary search to find step size between points that will sample the required number of points
 
@@ -828,15 +832,15 @@ def compute_and_save_intracell_all(
     failed_cells : List[str] = []
 
     def _write_output(t : Tuple[str,Optional[npt.NDArray[np.float_]]]) -> Optional[str]:
-     name, arr = t
-     if arr is None:
-         return name
-     else:
-         output_name = os.path.join(
-             outfolder,
-             os.path.splitext(name)[0] + ".txt")
-         np.savetxt(output_name,arr,fmt='%.8f')
-         return None
+      name, arr = t
+      if arr is None:
+            return name
+        else:
+            output_name = os.path.join(
+                outfolder,
+                os.path.splitext(name)[0] + ".txt")
+            np.savetxt(output_name,arr,fmt='%.8f')
+            return None
 
     name_mat_pairs = zip(filenames, dist_mats, strict=True)
                 

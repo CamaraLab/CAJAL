@@ -250,7 +250,6 @@ def compute_GW_distance_matrix(
     """
     arguments = it.combinations(range(len(dist_mat_list_arg)), 2)
                                                     
-
     # if num_cores > 1:
         # Start up multiprocessing w/ list of distance matrices in global environment
     with Pool(processes=num_cores,
