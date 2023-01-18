@@ -4,7 +4,9 @@ from multiprocessing import RawArray
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import squareform
-
+from tinydb import TinyDB
+import itertools as it
+from typing import Tuple, List, Iterator, Optional
 
 def pj(*paths):
     return os.path.abspath(os.path.join(*paths))
@@ -62,3 +64,20 @@ def read_mp_array(np_array):
     np_wrapper = np.frombuffer(mp_array, dtype=np.float64).reshape(np_array.shape)
     np.copyto(np_wrapper, np_array)
     return mp_array
+
+def write_tinydb_block(
+        output_db : TinyDB,
+        dist_mats : Iterator[Tuple[str, Optional[npt.NDArray[np.float_]]]],
+        batch_size : int = 1000
+) -> List[str]:
+
+    failed_cells : List[str] = []
+    while(next_batch := list(it.islice(dist_mats, batch_size))):
+        good_cells : List[Tuple[str,List[float]]] = []
+        for name, cell in next_batch:
+            if cell is None:
+                failed_cells.append(name)
+            else:
+                good_cells.append((name, cell.tolist()))
+        output_db.insert_multiple({ 'name' : name, 'cell' : cell} for name, cell in good_cells)
+    return failed_cells

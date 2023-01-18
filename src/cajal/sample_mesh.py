@@ -1,4 +1,6 @@
-# Functions for sampling points from a triangular mesh
+"""
+Functions for sampling points from a triangular mesh
+"""
 from __future__ import annotations
 import os
 import csv
@@ -11,10 +13,11 @@ from scipy.spatial.distance import squareform, cdist, euclidean, pdist
 import trimesh
 import itertools as it
 import warnings
-from typing import Tuple, List, Set, Dict, Optional, Iterator, Iterable, TypeAlias
+from typing import Tuple, List, Set, Dict, Optional, Iterator, Iterable, TypeAlias, Callable
 from multiprocessing import Pool
 from pathos.pools import ProcessPool
-from CAJAL.lib.utilities import pj
+from tinydb import TinyDB
+from .utilities import pj, write_tinydb_block
 
 # We represent a mesh as a pair (vertices, faces) : Tuple[VertexArray,FaceArray].
 # A VertexArray is a numpy array of shape (n, 3), where n is the number of vertices in the mesh.
@@ -31,7 +34,7 @@ def read_obj(file_path: str) -> Tuple[VertexArray,FaceArray]:
     Reads in the vertices and triangular faces of a .obj file.
 
     :param file_path: Path to .obj file
-    
+
     :return: Ordered pair `(vertices, faces)`, where:
 
         * `vertices` is an array of 3D floating-point coordinates of shape `(n,3)`, \
@@ -46,7 +49,7 @@ def read_obj(file_path: str) -> Tuple[VertexArray,FaceArray]:
     for line in obj_split:
         if line[0] == "v":
             vertices.append([float(x) for x in line[1:]])
-        elif line[0] == "f": 
+        elif line[0] == "f":
             faces.append([float(x) for x in line[1:]])
         # Skipping over any vertex textures or normals
     obj_file.close()
@@ -61,15 +64,16 @@ def connect_mesh(vertices: VertexArray, faces: FaceArray) -> FaceArray:
     Returns:
         numpy int array "new_faces" of shape (m+k,3) which extends the \
         original faces array; the mesh represented by (vertices, new_faces) is \
-        connected. 
+        connected.
     """
-    
+
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
     # The nodes of "graph" are natural numbers which are array indices for the array "vertices".
     graph = trimesh.graph.vertex_adjacency_graph(mesh)
     # The elements of connected_components[k] are nodes from "graph", i.e.,
     # natural number array indices.
-    connected_components : List[Set[int]] = [i[1] for i in enumerate(nx.connected_components(graph))]
+    connected_components : List[Set[int]] = \
+        [i[1] for i in enumerate(nx.connected_components(graph))]
     if len(connected_components) == 1:
         return faces
 
@@ -85,7 +89,7 @@ def connect_mesh(vertices: VertexArray, faces: FaceArray) -> FaceArray:
     # edge between i and j, we add a new face to the mesh connecting components
     # i and j.  If there are k connected components of the mesh to begin with,
     # then a total of k-1 new faces will be added to the mesh
-    
+
     # We build a a minimum spanning tree of edges I can add between components
 
     # connections will associate to each pair of components i, j a new face
@@ -109,7 +113,8 @@ def connect_mesh(vertices: VertexArray, faces: FaceArray) -> FaceArray:
             # dist_ij[i, j] is the distance between the i-th node of component ref_ids
             # and the j-th node of query_ids.
             dist_ij = cdist(vertices[ref_ids], vertices[query_ids])
-            nearest : Tuple[int,int] = np.unravel_index(dist_ij.argmin(), dist_ij.shape) # type: ignore[assignment]
+            nearest : Tuple[int,int]
+            nearest = np.unravel_index(dist_ij.argmin(), dist_ij.shape) # type: ignore[assignment]
             next_nearest = np.argpartition(dist_ij[nearest[0]],1)[1]
             face : Tuple[int,int,int] = \
                 (ref_ids[nearest[0]], query_ids[nearest[1]], query_ids[next_nearest])
@@ -117,7 +122,7 @@ def connect_mesh(vertices: VertexArray, faces: FaceArray) -> FaceArray:
             connections[(i, j)] = face
             spt_graph.add_edge(i, j, weight=dist_ij[nearest])
     new_faces : List[Tuple[int,int,int]] = []
-    for u, v, w in nx.minimum_spanning_edges(spt_graph):
+    for u, v, _ in nx.minimum_spanning_edges(spt_graph):
         new_faces.append(connections[(min(u, v), max(u, v))])
     return np.vstack([faces, np.array(new_faces)])
 
@@ -126,7 +131,7 @@ def disconnect_mesh(vertices: VertexArray, faces: FaceArray) -> List[Tuple[Verte
     """
     Returns the list of connected submeshes of the given mesh, as\
      ordered pairs (vertices_i, faces_i).
-    
+
     Args:
         * vertices (VertexArray) : vertices of the mesh
         * faces (FaceArray): faces of the mesh
@@ -160,17 +165,16 @@ def cell_generator(
         directory_name : str,
         segment: bool
         ) -> Iterator[Tuple[str,VertexArray,FaceArray]]:
-    """
+    r"""
     Arguments:
         * directory_name: The directory where the *.obj files are stored
         * segment: if segment is True, each cell will be segmented into its \
              set of connected components before being returned. If segment \
              is False, the contents of the \*.obj file will be returned as-is.
-    
+
     Returns:
         * An iterator over all cells in the directory, where a "cell"\
             is a triple (cell_name, vertices, faces). 
-    
     """
 
     file_names = [file_name for file_name in os.listdir(directory_name)
@@ -213,8 +217,8 @@ def sample_vertices(vertices: VertexArray, n_sample : int) -> Optional[VertexArr
 #        vertices: VertexArray, faces : FaceArray,
 #        n_sample: int, disconnect : bool =True) -> List[Optional[VertexArray]]:
 #     """
-#     Returns list of sampled vertices from each component of mesh (i.e. multiple cells in an .obj file)
-
+#     Returns list of sampled vertices from each component of mesh \
+#            (i.e. multiple cells in an .obj file)
 #     Args:
 #        * vertices (VertexArray): vertices of a mesh
 #        * faces (FaceArray): faces of a mesh
@@ -325,18 +329,18 @@ def sample_vertices(vertices: VertexArray, n_sample : int) -> Optional[VertexArr
 #     Decomposes each mesh into its connected components.
 #     For each component, samples n_sample points from each component (in parallel),
 #     and writes the resulting samples to a \*.csv file in directory "outfolder."
-        
+
 #     Args:
 #         * infolder(string): path to directory containing .obj files
 #         * outfolder (string): path to directory to write distance matrices
 #         * n_sample (integer): number of vertices to sample from each mesh
 #         * disconnect (boolean): Whether to sample vertices from whole mesh, or separate into connected components
 #         * num_cores (integer): number of processes to use for parallelization
-    
+
 #     Returns:
 #         None (writes files to outfolder)
 #     """
-    
+
 #     if not os.path.exists(outfolder):
 #         os.mkdir(outfolder)
 #     arguments = [(file_name, infolder, outfolder, n_sample, disconnect)
@@ -349,7 +353,7 @@ def get_geodesic_heat_one_mesh(vertices : VertexArray,
                                faces : FaceArray,
                                n_sample: int
                                ) -> Optional[npt.NDArray[np.float_]]:
-    """
+    r"""
     Given a mesh, this function randomly samples n_sample points from the mesh,
     computes the pairwise geodesic distances between the sampled points using the heat method,
     and returns the square matrix of pairwise geodesic distances, linearized into a vector,
@@ -436,7 +440,6 @@ def get_geodesic(
             return get_geodesic_heat_one_mesh(vertices, faces, n_sample)
         case _:
             raise Exception("Invalid method, must be one of 'networkx' or 'heat'")
-    
 
 # def return_geodesic(vertices : VertexArray,
 #                     faces: FaceArray,
@@ -579,11 +582,11 @@ def get_geodesic(
 #     vertices, faces = read_obj(pj(infolder, file_name))
 #     if connect:
 #         outfile = pj(outfolder, file_name.replace(".obj", "_dist.txt"))
-#     else:
-#         outfile = pj(outfolder, file_name.replace(".obj", "{}_dist.txt")) # string formatting for indices
+#     else:     # string formatting for indices
+#
+#         outfile = pj(outfolder, file_name.replace(".obj", "{}_dist.txt")) 
 #     compute_and_save_geodesic(vertices, faces, n_sample, outfile, method, connect)
-   
-    
+
 # def compute_and_save_geodesic_from_obj_parallel(infolder: str,
 #                                     outfolder: str,
 #                                     n_sample: int,
@@ -616,27 +619,22 @@ def get_geodesic(
 #     with Pool(processes=num_cores) as pool:
 #         pool.starmap(save_geodesic_from_obj, arguments)
 
+
+
 def _connect_helper(t : Tuple[str,VertexArray,FaceArray]
                     ) -> Tuple[str,VertexArray,FaceArray]:
 
     name, vertices, faces = t
     return (t[0], t[1], connect_mesh(t[1],t[2]))
 
-def compute_and_save_intracell_all(
+def compute_intracell_all(
         infolder: str,
-        outfolder: str,
-        n_sample : int,
+        n_sample : int,        
         metric: str,
+        pool : ProcessPool,
         segment : bool = True,
-        method: str = "networkx",
-        # force_connect: bool = "False"
-        num_cores: int = 8) -> List[str]:
-
-    if not os.path.exists(outfolder):
-        os.mkdir(outfolder)
-
-    pool = ProcessPool(nodes=num_cores)
-    dist_mats : Iterable[Tuple[str,Optional[npt.NDArray[np.float_]]]]
+        method: str = "networkx"
+    ) -> Iterator[Tuple[str,Optional[npt.NDArray[np.float_]]]]:
 
     if metric == "geodesic" and not segment:
         cell_gen = pool.imap(
@@ -648,40 +646,80 @@ def compute_and_save_intracell_all(
 
     if metric == "geodesic":
         chunksize = 1 if method == "networkx" else 20
-        dist_mats = \
-              pool.imap( 
-                lambda t : (t[0],get_geodesic(t[1],t[2],n_sample,method)),
+        compute_geodesic : Callable[[Tuple[str,VertexArray,FaceArray]],\
+                                    Tuple[str,Optional[npt.NDArray[np.float_]]]]
+        compute_geodesic = lambda t :(t[0],get_geodesic(t[1],t[2],n_sample,method))
+        return(pool.imap( 
+                compute_geodesic,
                 cell_gen,
-                chunksize=chunksize)
-    elif metric == "euclidean":
+                chunksize=chunksize))
+
+    # metric is not "geodesic".
+    if metric == "euclidean":
         pt_clouds = \
             pool.imap(
                 lambda t : (t[0], sample_vertices(t[1],n_sample)),
                 cell_gen,
                 chunksize=1000)
-        dist_mats =\
-            pool.imap(
+        return(pool.imap(
                 lambda t : (t[0], None if t[1] is None else pdist(t[1])),
                 pt_clouds,
-                chunksize=1000)
-    else:
-        raise Exception("Metric should be either 'geodesic' or 'euclidean'")
+                chunksize=1000))
+    raise Exception("Metric should be either 'geodesic' or 'euclidean'")
 
+def compute_and_save_intracell_all(
+        infolder: str,
+        db_name: str,
+        metric: str,
+        n_sample : int = 50,
+        num_cores: int = 8,
+        segment : bool = True,
+        method: str = "heat"
+) -> List[str]:
+    r"""
+    Go through every Wavefront \*.obj file in the given input directory `infolder`\
+    and compute intracell\
+    distances according to the given metric. Write the results to output directory "db_name.json".
 
-    def _write_output(t : Tuple[str,Optional[npt.NDArray[np.float_]]]) -> Optional[str]:
-        name, arr = t
-        if arr is None:
-            return name
-        else:
-            output_name = os.path.join(outfolder, name + ".txt")
-            np.savetxt(output_name,arr,fmt='%.8f')
-            return None
-        
-    failed_cell_names = pool.map(_write_output, dist_mats,chunksize=100)
+    :param infolder: Folder full of \*.obj files.
+    :param db_name: Output will be written to a file called "db_name.json".
+    :param n_sample: How many points to sample from each cell.
+    :param metric: Either "euclidean" or "geodesic" as preferred by the user.
+    :param segment: If segment is True, each \*.obj file\
+    will be segmented into its set of connected components before being returned, that is,\
+    so an \*.obj file with multiple connected components will be understood to contain multiple\
+    distinct cells. If segment is False, each \*.obj file will be understood to contain a single\
+    cell, and points will be sampled accordingly. If segment is False and the user \
+    chooses "geodesic", in the event that an \*.obj file contains multiple connected components,\
+    the function will attempt to 'repair' the \*.obj file by adjoining new faces to the complex\
+    so that a sensible notion of geodesic distance can be computed between two points. The user\
+    is warned that this imputing of data carries the same consequences with regard\
+    to scientific interpretation of the results as any other kind of data imputation \
+    for incomplete data sets.
+    :param method: one of 'networxk' or 'heat', how to compute geodesic distance.\
+               The "networkx" method is more precise, and takes between 5 - 15 seconds for\
+               a cell with 50 sample points. The "heat" method is a faster but rougher \
+               approximation, and takes between 0.05 - 0.15 seconds for a cell with\
+               50 sample points. This flag is not relevant if the user is sampling\
+               Euclidean distances.
+    :param num_cores: Number of independent processes which will be created. Recommended\
+    to set this equal tot he number of cores on your machine.
+    :return: A list of strings for cell names such that sampling failed because the cells have \
+    fewer than n_sample points.
+    """
+
+    output_db = TinyDB(db_name + ".json")
+    pool = ProcessPool(nodes=num_cores)
+    dist_mats = compute_intracell_all(
+        infolder,
+        n_sample,
+        metric,
+        pool,
+        segment,
+        method)
+    batch_size = 1000
+    failed_cells = write_tinydb_block(output_db, dist_mats, batch_size)
     pool.close()
     pool.join()
-    failed_cells = [name for name in failed_cell_names if name is not None]
     pool.clear()
     return failed_cells
-
-    

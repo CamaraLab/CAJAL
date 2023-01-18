@@ -6,8 +6,9 @@ from scipy.sparse.csgraph import dijkstra
 import itertools as it
 import networkx as nx
 import matplotlib.pyplot as plt
-from CAJAL.lib.utilities import pj, load_dist_mat
-
+from .utilities import pj, load_dist_mat
+# import utilities - this works
+# from utilities import pj, load_dist_mat
 
 def get_spt(dist_mat):
     """

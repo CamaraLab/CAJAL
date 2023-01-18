@@ -1,7 +1,7 @@
 import os
 import time
 
-from CAJAL.lib import run_gw
+from . import run_gw
 
 
 def run_euclidean(data_dir, gw_results_dir, data_prefix, num_cores, file_prefix):

@@ -13,22 +13,14 @@ version = "0.1.0"
 description="A library for multi-modal cell morphology analyses using Gromov-Wasserstein (GW) distance."
 readme="./README.md"
 requires-python=">=3.10"
-license="./LICENSE.md"
-authors= [
-	  { name="Pablo Cámara",
-	    email='pcamara@pennmedicine.upenn.edu' } ]
+
+authors= [ { name="Pablo CÃ¡mara", email='pcamara@pennmedicine.upenn.edu' } ]
 classifiers=[
 	'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3',
         'Framework :: Jupyter',
         'Topic :: Scientific/Engineering :: Bio-Informatics'
     ]
-urls= {
-       git-repo="https://github.com/CamaraLab/CAJAL", 
-       readthedocs="https://cajal.readthedocs.io/en/latest/",
-       biorxiv="https://www.biorxiv.org/content/10.1101/2022.05.19.492525v2"
-       }
-
 
 dependencies = [
 	"igraph",
@@ -37,7 +29,7 @@ dependencies = [
         "networkx~=2.8.8",
         "numpy",
         "pandas",
-	"cython >= 0.23"
+	"cython >= 0.23",
         "pathos",
         "pot~=0.7.0",
         "potpourri3d",
@@ -49,7 +41,13 @@ dependencies = [
         "umap-learn~=0.5.3" # Depends on numba which requires python < 3.11 as of 11/29/2022
 	]
 
+[project.license]
+file="./LICENSE.md"
 
+[project.urls]
+git-repo="https://github.com/CamaraLab/CAJAL"
+readthedocs="https://cajal.readthedocs.io/en/latest/"
+biorxiv="https://www.biorxiv.org/content/10.1101/2022.05.19.492525v2"
 
 
 

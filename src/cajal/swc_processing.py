@@ -6,7 +6,7 @@ import copy
 import numpy as np
 import warnings
 
-from CAJAL.lib.utilities import pj
+from .utilities import pj
 
 
 def set_index(swc, new_index=1):
