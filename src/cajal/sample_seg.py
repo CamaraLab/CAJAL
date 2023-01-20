@@ -180,7 +180,6 @@ def compute_and_save_intracell_all(
     :return: None (writes to file)
     """
     
-
     output_db = TinyDB(db_name + ".json")
     pool = ProcessPool(nodes=num_cores)
     name_dist_mat_pairs = _compute_intracell_all(
