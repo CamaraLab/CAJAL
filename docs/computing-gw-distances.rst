@@ -2,14 +2,11 @@ Computing GW Distances
 ======================
 
 Once the user prepares the list of intracell distance matrices, they can use
-the function :func:`run_gw.compute_GW_distance_matrix` to
+the function :func:`run_gw.compute_gw_distance_matrix` to
 compute the Gromov-Wasserstein distance between all matrices in the given list.
 
 In this section, we assume that the user has already computed intracellular
 distance matrices for their cells.
-
-Once the user prepares the list of intracell distance matrices, they can use the function run_gw.compute_GW_distance_matrix() to compute the Gromov-Wasserstein distance between all matrices in the given list.
-
 
 The GW distance is calculated using the same function whether the distance
 matrices represent the Euclidean or geodesic metric.
@@ -18,7 +15,7 @@ In this example, we suppose that the user has
 
 .. code-block:: python
 
-		run_gw.compute_and_save_GW_dist_mat(
+		run_gw.compute_gw_distance_matrix(
 		    dist_mat_list,
 		    file_prefix="a10_full_geodesic",
 		    "/CAJAL/data/gw_results",
@@ -68,7 +65,7 @@ In this example, we suppose that the user has
     :code:`data_prefix`. If :code:`data_prefix` is given, the function will only read
      files whose name begins with that string.
 
-		
+	
 ..
    This is identical to the process in Neuronal Tracing Data. Here,
    we load the saved intracell distance data back into memory, compute the GW

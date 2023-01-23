@@ -10,10 +10,8 @@ from typing import List, Iterator, Tuple, Callable
 import itertools as it
 from pathos.pools import ProcessPool
 from tinydb import TinyDB
-import ipdb
 
-
-from .utilities import pj, write_tinydb_block
+from cajal.utilities import pj, write_tinydb_block
 
 # def save_cell_boundaries(imarray, outfile, n_sample, background=0):
 #     """

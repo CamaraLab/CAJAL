@@ -17,7 +17,7 @@ from typing import Tuple, List, Set, Dict, Optional, Iterator, Iterable, TypeAli
 from multiprocessing import Pool
 from pathos.pools import ProcessPool
 from tinydb import TinyDB
-from .utilities import pj, write_tinydb_block
+from cajal.utilities import pj, write_tinydb_block
 
 # We represent a mesh as a pair (vertices, faces) : Tuple[VertexArray,FaceArray].
 # A VertexArray is a numpy array of shape (n, 3), where n is the number of vertices in the mesh.
@@ -679,10 +679,11 @@ def compute_and_save_intracell_all(
     r"""
     Go through every Wavefront \*.obj file in the given input directory `infolder`\
     and compute intracell\
-    distances according to the given metric. Write the results to output directory "db_name.json".
+    distances according to the given metric. Write the results to output \*.json file named
+    `db_name`.
 
     :param infolder: Folder full of \*.obj files.
-    :param db_name: Output will be written to a file called "db_name.json".
+    :param db_name: Output will be written to a \*.json file named `db_name`.
     :param n_sample: How many points to sample from each cell.
     :param metric: Either "euclidean" or "geodesic" as preferred by the user.
     :param segment: If segment is True, each \*.obj file\
@@ -708,7 +709,7 @@ def compute_and_save_intracell_all(
     fewer than n_sample points.
     """
 
-    output_db = TinyDB(db_name + ".json")
+    output_db = TinyDB(db_name)
     pool = ProcessPool(nodes=num_cores)
     dist_mats = compute_intracell_all(
         infolder,

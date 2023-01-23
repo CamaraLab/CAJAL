@@ -8,7 +8,7 @@ import itertools as it
 import time
 # import ctypes
 from typing import List, Optional, Tuple, Iterable, Iterator, Dict, TypedDict, TypeVar, Callable
-from multiprocessing import Pool
+# from multiprocessing import Pool
 from pathos.pools import ProcessPool
 from multiprocess.shared_memory import SharedMemory
 from multiprocess import set_start_method
@@ -20,8 +20,8 @@ import numpy.typing as npt
 # import pandas as pds
 # from scipy.spatial.distance import pdist
 from scipy.spatial.distance import squareform
-from tinydb import TinyDB, Query
-import pdb
+from tinydb import TinyDB
+
 
 # cajal dependencies
 # from .utilities import pj load_dist_mat, list_sort_files, read_mp_array
@@ -359,7 +359,7 @@ GW_Record_WO_CouplingMat = TypedDict('GW_Record_WO_CouplingMat',
 #     # We assume that the table is called "_default", which is the TinyDB default name for a database.
 #     intracell_table = intracell_db.table('_default', cache_size=2 * chunk_size)
 
-def compute_gw_distance_matrix_draft(
+def compute_gw_distance_matrix(
         intracell_db_loc : str,
         gw_db_loc : str,
         save_mat : bool =False,
@@ -368,11 +368,39 @@ def compute_gw_distance_matrix_draft(
         )-> None:
     r"""
     Compute the GW distance between every pair of cells in the database intracell_db_loc.
-    :param intracell_db_loc: A \*.json file which codes a document in the format associated with\
-    TinyDB. The \*.json file is assumed to have one table, called "_default". Each document in \
-    the table has two keys, called "name" and "cell", where name is a string and cell is a list of\
-    floats of length n * (n-1)/2 (the entries lying above the diagonal of the \
-    intracell distance matrix).
+
+    :param intracell_db_loc: A \*.json database of intracell distance matrices, structured \
+        according to the format used by TinyDB. \
+        The database should have a single top-level name-value pair, where the name is "_default" \
+        and the value is the table of the database. The table should be a dictionary whose \
+        keys are strings representing integers (in ascending order through the file) and \
+        whose entries are TinyDB documents. A document is a dictionary with two entries, "name" \
+        and "cell". "name" is a string, and "cell" is a list of n \* (n - 1) / 2 floating point \
+        real numbers, where the distance between objects :math:`x_i` and :math:`x_j` \
+        (for :math:`i<j` ) occurs in the list `cell` at index \
+        :math:`{n \choose 2} - {n - i \choose 2} + (j - i - 1)` (see \
+        :func:`scipy.spatial.distance.pdist` and footnote 2 of \
+        :func:`scipy.spatial.distance.squareform`), corresponding to the \
+        entries lying above the diagonal of the \
+        intracell distance matrix.
+    :param gw_db_loc: The path to a (not already existing) \*.json file where the computation \
+        results will be written. Documents in the output database will contain fields "name_1" \
+        (the name of the first cell), "name_2" (the name of the second cell), "gw_dist" \
+        (the Gromov-Wasserstein distance between the two cells as a floating point number), \
+        and (optionally) "coupling_mat", the coupling matrix recording the best fit between the \
+        two cells.
+    :param save_mat: If save_mat is true, for each pair of input cells, the output database \
+        will contain not just the GW distance between the two cells \
+        (a single floating-point real number) but an additional field "coupling_mat" \
+        giving the best-fit coupling matrix relating the two matrices. The user is warned that \
+        for two cells represented by 50 sample points, the coupling matrix will be ~28kb, \
+        and that the number of coupling matrices grows with n * (n-1)/2, where n is the number \
+        of cells to compare. On a test run of 150 cells this yields a 170MB output file.
+    :param num_cores: The number of independent parallel processes that will be launched. \
+        Recommended to set equal to the number of cores on your machine. \
+    :param chunk_size: Controls the size of cell batches passed to subprocesses, adjust \
+        as appropriate for desired memory usage.
+    
     """
     # intracell_db is an existing \*.json file
     intracell_db = TinyDB(intracell_db_loc)
@@ -388,8 +416,9 @@ def compute_gw_distance_matrix_draft(
         cell_id_list.append(cell.doc_id)
     assert(_is_sorted(cell_id_list))
     assert chunk_size > 0
-    set_start_method("spawn")
-    pool = ProcessPool(nodes=1)
+    set_start_method("spawn", force=True)
+    pool = ProcessPool(nodes=num_cores)
+    pool.restart()
 
     # Main outer loop:
     # Construct an iterator over all cells in the table.
@@ -419,7 +448,7 @@ def compute_gw_distance_matrix_draft(
             pass
         for inner_batch in batched_inner:
             inner_batch_tuples = list(map(_convert_document,inner_batch))
-            print(len(inner_batch_tuples))
+            # print(len(inner_batch_tuples))
             inner_local_array = np.empty(
                 shape=(len(inner_batch_tuples), side_length, side_length),
                 dtype=np.float64)
@@ -434,7 +463,10 @@ def compute_gw_distance_matrix_draft(
             array_index_pairs = filter(
                     filter_fun,
                     it.product(range(len(outer_batch_tuples)),range(len(inner_batch_tuples))))
-            array_index_pairs_batched = _batched(array_index_pairs,500)
+            if save_mat:
+                array_index_pairs_batched = _batched(array_index_pairs,int(num_cores*chunk_size/10))
+            else:
+                array_index_pairs_batched = _batched(array_index_pairs,num_cores*chunk_size)
             compute_gw_pool_local : Callable [[List[Tuple[int,int]]],
                                                 Tuple[List[Tuple[int,int]],
                                                       List[Tuple[float,
@@ -450,15 +482,16 @@ def compute_gw_distance_matrix_draft(
                     save_mat))
             out = pool.uimap(
                 compute_gw_pool_local,
-                array_index_pairs_batched,chunksize=2)
+                array_index_pairs_batched,chunksize=1)
 
             counter = 0
-            time2=time.time()
+            time0 = time.time()
             for index_list, batch_output in out:
-                print("Currently processing batch " + str(counter) + " of inner loop")
+                time1 = time.time()
+                print("Total time of this iteration:" + str(1000*(time1 - time0)))
+                print("Currently processing batch " + str(counter))
+                time0 = time.time()
                 if save_mat:
-                    time0 = time.time()
-                    print("Time to compute batch_output =" +str(1000*(time0-time2)))
                     insert_dict_list_w_coupling_mat : List[GW_Record_W_CouplingMat]
                     insert_dict_list_w_coupling_mat =\
                         [ { "name_1" : outer_batch_tuples[t[0][0]][1],
@@ -466,25 +499,21 @@ def compute_gw_distance_matrix_draft(
                             "coupling_mat" : t[1][1],
                             "gw_dist" : t[1][0] }
                           for t in zip(index_list, batch_output) ]
-                    time1 = time.time()
-                    print("Time to form insertion dictionary=" +str(1000*(time1-time0)))
                     gw_db.insert_multiple(insert_dict_list_w_coupling_mat)
                     time2 = time.time()
-                    print("Time to write dictionary to db=" +str(1000*(time2-time1)))
+                    print("Pairs in batch: " + str(len(insert_dict_list_w_coupling_mat)))
+                    print("Time spent writing to file: " + str(1000*(time2 - time0)))
                 else:           # save_mat is false
-                    time0 = time.time()
-                    print("Time to compute batch_output =" +str(1000*(time0-time2)))
                     insert_dict_list_wo_coupling_mat : List[GW_Record_WO_CouplingMat]
                     insert_dict_list_wo_coupling_mat =\
                         [ { "name_1" : outer_batch_tuples[t[0][0]][1],
                             "name_2" : inner_batch_tuples[t[0][1]][1],
                              "gw_dist" : t[1][0] }
                           for t in zip(index_list,batch_output) ]
-                    time1 = time.time()
-                    print("Time to form insertion dictionary=" +str(1000*(time1-time0)))
                     gw_db.insert_multiple(insert_dict_list_wo_coupling_mat)
                     time2 = time.time()
-                    print("Time to write dictionary to db=" +str(1000*(time2-time1)))
+                    print("Pairs in batch: " + str(len(insert_dict_list_wo_coupling_mat)))
+                    print("Time spent writing to file: " +str(1000*(time2-time0)))
                 counter += 1
             shm_icdm_2.close()
             shm_icdm_2.unlink()

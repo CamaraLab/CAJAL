@@ -8,11 +8,11 @@ from scipy.spatial.distance import euclidean, squareform, pdist
 import networkx as nx
 import warnings
 from typing import List, Dict, Tuple, Optional, Iterable, Iterator, Set, NewType, Callable
-from multiprocessing import Pool
+# from multiprocessing import Pool
 from pathos.pools import ProcessPool
 import os
 from tinydb import TinyDB
-from .utilities import pj, write_tinydb_block
+from cajal.utilities import pj, write_tinydb_block
 
 # TODO - stylistic change. Once we are ready to increase the minimum supported
 # version of Python to >= 3.9, these should be changed from uppercase Tuple,
@@ -808,7 +808,7 @@ def compute_intracell_parallel(
     :return: A dictionary `dist_mats`\
         mapping file names (strings) to their intracell distance matrices. If the\
         intracell distance matrix for file_name could not be computed, then\
-        `dist_mats[file_name]` is `
+        `dist_mats[file_name]` is 
     """
 
     file_names = os.listdir(infolder)
@@ -912,15 +912,15 @@ def compute_and_save_intracell_all(
 ) -> List[str]:
 
     r"""
-    For each swc file in infolder, sample n_sample many points from the
-    neuron, evenly spaced, and compute the Euclidean or geodesic intracell
+    For each swc file in infolder, sample n_sample many points from the\
+    neuron, evenly spaced, and compute the Euclidean or geodesic intracell\
     matrix depending on the value of the argument `metric`. Write the \
     resulting intracell distance matrices to a database file called `db_name.json`.
 
     :param infolder: Directory of input \*.swc files.
     :param metric: Either "euclidean" or "geodesic"
     :param db_name: .json file to write the intracell distance matrices to. \
-    It is assumed that db_name.json does not exist.
+        It is assumed that db_name.json does not exist.
     :param types_keep: optional parameter, a list of node types to sample from.
     :param n_sample: How many points to sample from each cell.
     :param num_cores: the intracell distance matrices will be computed in parallel processes,\
@@ -935,7 +935,7 @@ def compute_and_save_intracell_all(
     """
 
     pool = ProcessPool(nodes=num_cores)
-    output_db = TinyDB(db_name + ".json")
+    output_db = TinyDB(db_name)
     dist_mats = _compute_intracell_all(
         infolder,
         metric,

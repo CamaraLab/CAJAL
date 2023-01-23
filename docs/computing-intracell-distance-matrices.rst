@@ -47,37 +47,38 @@ CAJAL supports neuronal tracing data in the SWC spec as specified `here
 <http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html>`_.
 
 The function :func:`sample_swc.compute_and_save_intracell_all` operates on
-directories of \*.swc files and populates a second directory with intracell
+directories of \*.swc files and populates a \*.json database with intracell
 distance matrices, one for each cell in the source directory.
 
 .. code-block:: python
 
 		failed_cells = sample_swc.compute_and_save_intracell_all(
                     infolder = "/home/jovyan/CAJAL/CAJAL/data/swc_files",
+		    db_name= "/home/jovyan/CAJAL/CAJAL/data/swc_icd.json",
 		    metric = "geodesic",
-		    outfolder = "/home/jovyan/CAJAL/CAJAL/data/intracell_dist_mats/swc_geodesic_50",
-		    types_keep = None,
-		    sample_pts = 50,
+		    n_sample = 50,
 		    num_cores = 8,
+		    types_keep = None,
 		    keep_disconnect =False
 		    )
 
-Here, `infolder` is a directory full of \*.swc files and `outfolder` is an
-empty directory where the intracell distance matrices will be written. The
-argument `metric` can be either "euclidean" or "geodesic". `types_keep` is an
-optional argument, one can supply a list of integers corresponding to node
-types to sample from as in the SWC spec. (If `types_keep` is `None`, all types
-will be sampled from.)  Thus, if `types_keep = [0,1,2,3,4]`, only the standard
-parts identified in the SWC spec will be sampled (undefined, soma, axon, basal
-dendrite, apical dendrite), and custom parts will be ignored. The soma will
-always be included as a type to sample from, regardless of whether the user
-includes it in this list.
+Here, `infolder` is a directory full of \*.swc files and `db_name` is a (not
+already-existing) \*.json file where the intracell distance matrices will be
+written. The argument `metric` can be either "euclidean" or
+"geodesic". `types_keep` is an optional argument, one can supply a list of
+integers corresponding to node types to sample from as in the SWC spec. (If
+`types_keep` is `None`, all types will be sampled from.)  Thus, if `types_keep
+= [0,1,2,3,4]`, only the standard parts identified in the SWC spec will be
+sampled (undefined, soma, axon, basal dendrite, apical dendrite), and custom
+parts will be ignored. The soma will always be included as a type to sample
+from, regardless of whether the user includes it in this list.
 
-`sample_pts` is the number of points from each cell that will be sampled. We
+`n_sample` is the number of points from each cell that will be sampled. We
 recommend between 50-100. Past 100 points, the increase in resolution is not
 associated with a significant increase in statistical predictive power.
 
-`num_cores` is the number of processes that will be launched in parallel, we recommend setting this to the number of cores on your machine.
+`num_cores` is the number of processes that will be launched in parallel, we
+recommend setting this to the number of cores on your machine.
 
 The flag `keep_disconnect` is only relevant when the user selects the
 Euclidean distance matrix. In this case, if `keep_disconnect` is False, only branches of the
@@ -116,26 +117,28 @@ distance between points in the mesh. (If the user wants to compute the
 Euclidean distance between points, such repairs are unnecessary, as Euclidean
 distance is insensitive to connectivity.)
 
-CAJAL provides one batch-processing function which
-goes through all \*.obj files in a given directory, separates them into
-connected components, computes intracell distance matrices for each
-component, and writes all these square matrices as files to a standard
-output. (Bundling file I/O and math together in one function is less modular
-but it makes it easier to parallelize and not fill the memory)
+CAJAL provides one batch-processing function which goes through all \*.obj
+files in a given directory, separates them into connected components, computes
+intracell distance matrices for each component, and writes all these square
+matrices to a \*.json file. (Bundling file I/O and math together in one
+function is less modular but it makes it easier to parallelize and not fill the
+memory)
 
 .. code-block:: python
 
 		failed_samples = sample_mesh.compute_and_save_intracell_all(
 		            infolder="/home/jovyan/CAJAL/data/obj_files",
-			    outfolder="/home/jovyan/CAJAL/data/sampled_pts/obj_geodesic_50",
-			    n_sample=50,
+			    db_name="/home/jovyan/CAJAL/data/sampled_pts/obj_geodesic_50.json",
 			    metric = "segment",
-			    segment = True
-			    method="heat",
-			    connect=False,
-			    num_cores=8)
+			    n_sample=50,
+			    num_cores=8,
+			    segment = True,
+			    method="heat"
+			    )
 
-The arguments `infolder, outfolder, n_sample, metric` are as in :ref:`Neuronal Tracing Data`, except that `infolder` is a folder containing \*.obj files rather than \*.swc files.
+The arguments `infolder, db_name, n_sample, metric` are as in :ref:`Neuronal
+Tracing Data`, except that `infolder` is a folder containing \*.obj files
+rather than \*.swc files.
 
 If the Boolean flag `segment` is True, the function will break down each \*.obj
 file into its connected components and treat them as individual, isolated
@@ -175,12 +178,10 @@ helpful introduction.) CAJAL provides tools to sample from the cell boundaries
 of segmented image files, such as the image provided at the
 `5:20 mark of the above video <https://youtu.be/gF4nhq7I2Eo?t=320>`_.
 
-
 .. warning::
 
    CAJAL is not a tool for image segmentation. The user is expected to segment
    and clean their own images.
-
 
 However, we provide a
 brief sample script here to show how a user might prepare data for use with
@@ -286,23 +287,24 @@ input directory full of (cleaned!) \*.tiff/\*.tif files and an output
 directory. For each \*.tiff file in the input directory,
 :func:`sample_seg.compute_and_save_intracell_all` breaks the image down into
 its separate cells, samples a given number of points between each one, and
-writes the resulting resulting intracell distance matrix for each cell to its
-own text file in the output directory.
+writes the resulting resulting intracell distance matrix for each cell to a
+single collective database for all files in the directory.
 
 .. code-block:: python
 
 		infolder ="/home/jovyan/CAJAL/CAJAL/data/tiff_images_cleaned/"
-		outfolder="/home/jovyan/CAJAL/CAJAL/data/tiff_sampled_50/"
+		db_name="/home/jovyan/CAJAL/CAJAL/data/tiff_sampled_50.json"
 		sample_seg.compute_and_save_intracell_all(
 		       infolder,
-		       outfolder,
+		       db_name,
 		       n_sample = 50,
+		       num_cores = 8,
 		       background = 0,
 		       discard_cells_with_holes = False,
-		       only_longest = False,
-		       num_cores = 8)
+		       only_longest = False
+		       )
 
-`infolder`, `outfolder`, and `n_sample` are as in the previous two
+`infolder`, `db_name`, and `n_sample` are as in the previous two
 sections. `background` is the index for the background color; it is zero by
 default.  If the flag `discard_cells_with_holes` is set to True, the function
 will ignore any cells which have multiple boundaries, which helps to filter out
@@ -310,9 +312,3 @@ clusters of overlapping cells. The flag `only_longest` is only relevant if
 `discard_cells_with_holes` is False. In this case if `only_longest` is True,
 then the function only samples from the longest boundary of the cell, instead
 of across all boundaries.
-
-
-
-
-
-
