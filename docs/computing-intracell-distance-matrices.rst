@@ -312,3 +312,37 @@ clusters of overlapping cells. The flag `only_longest` is only relevant if
 `discard_cells_with_holes` is False. In this case if `only_longest` is True,
 then the function only samples from the longest boundary of the cell, instead
 of across all boundaries.
+
+Computing GW Distances
+======================
+
+Once the user prepares the list of intracell distance matrices, they can use
+the function :func:`run_gw.compute_gw_distance_matrix` to
+compute the Gromov-Wasserstein distance between all matrices in the given list.
+
+In this section, we assume that the user has already computed intracellular
+distance matrices for their cells.
+
+The GW distance is calculated using the same function whether the distance
+matrices represent the Euclidean or geodesic metric.
+
+.. code-block:: python
+
+		run_gw.compute_gw_distance_matrix(
+		    intracell_db_loc = "/home/jovyan/CAJAL/CAJAL/data/swc_icd.json",
+		    gw_db_loc = "/home/jovyan/CAJAL/CAJAL/data/gw_dists.json",
+		    save_mat = False,
+		    num_cores = 8,
+		    chunk_size = 1000
+		    )
+
+In this function call, `intracell_db_loc` points to an input \*.json database which has been populated by intracell distance matrices, and `gw_db_loc` points to an output \.json database which does not yet exist. The fact that `save_mat` is False tells CAJAL not to retain the coupling matrices which represent the best possible pairing between two cells. `num_cores` and `chunk_size` are parameters controlling the degree of parallelization.
+
+.. warning::
+
+   Setting save_mat to True will generate a large amount of data, quadratic in
+   the number of input cells.  For 150 cells with 50 sample points each, the
+   user may expect the database generated to be on the order of 180MB. CAJAL's
+   database backend does not support parallel writing operations and this is
+   likely to be a chokepoint for computation.
+   

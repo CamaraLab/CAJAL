@@ -1,6 +1,10 @@
 """
 Functions for sampling points from an SWC reconstruction of a neuron.
 """
+from __future__ import annotations
+from dataclasses import dataclass
+from enum import Enum
+import math
 import re
 import numpy as np
 import numpy.typing as npt
@@ -14,18 +18,675 @@ import os
 from tinydb import TinyDB
 from cajal.utilities import pj, write_tinydb_block
 
-# TODO - stylistic change. Once we are ready to increase the minimum supported
-# version of Python to >= 3.9, these should be changed from uppercase Tuple,
-# Dict, List to lowercase tuple, dict, list etc.
-StructureID = int
-CoordTriple = Tuple[float, float, float]
-NeuronNode = Tuple[StructureID, CoordTriple]
-NodeIndex = int
-# A ComponentTree is a directed graph formatted as a dictionary, where each node
-# contains the key of its parent.
-# Our convention will be that the component_tree[0] is always the root.
-ComponentTree = Dict[NodeIndex, Tuple[NeuronNode, NodeIndex]]
-SWCData = List[ComponentTree]
+# Warning: Of 509 neurons downloaded from the Allen Brain Initiative database,
+# about 5 had a height of at least 1000 nodes. Therefore on about 1% of test
+# cases, recursive graph traversal algorithms will fail. For this reason we
+# have tried to write our functions in an iterative style when possible.
+
+@dataclass
+class NeuronNode:
+    sample_number : int
+    structure_id : int
+    coord_triple : tuple[float,float,float]
+    radius : float
+    parent_sample_number : int
+
+@dataclass
+class NeuronTree:
+    root : NeuronNode
+    child_subgraphs : List[NeuronTree]
+
+# Convention: The first element of the SWC forest is always the branch containing the soma.
+SWCForest = List[NeuronTree]
+
+def _read_swc_node_dict(file_path : str) -> dict[int,NeuronNode]:
+    nodes : dict[int,NeuronNode] = {}
+    with open(file_path, "r") as f:
+        for line in f:
+            if line[0] == "#":
+                continue
+            row = re.split("\s|\t", line.strip())[0:7]
+            if len(row) < 7:
+                raise TypeError("Row" + line + "in file" + file_path +
+                                "has fewer than seven whitespace-separated strings.")
+            nodes[int(row[0])]=\
+                NeuronNode(
+                    sample_number = int(row[0]),
+                    structure_id = int(row[1]),
+                    coord_triple = (float(row[2]), float(row[3]), float(row[4])),
+                    radius = float(row[5]),
+                    parent_sample_number = int(row[6])
+                )
+    return nodes
+
+def _topological_sort_rec(
+        index: int,
+        nodes : dict[int,NeuronNode],
+        tree : dict[int, NeuronTree],
+        components: list[NeuronTree]) -> None:
+
+    if index in tree:
+        return
+    parent_sample_number = nodes[index].parent_sample_number
+    if parent_sample_number == -1:
+        components.append(NeuronTree(root=nodes[index],child_subgraphs=[]))
+        tree[index]=components[-1]
+        return
+    _topological_sort_rec(parent_sample_number,nodes,tree,components)
+    tree[parent_sample_number].child_subgraphs.append(
+        NeuronTree(root=nodes[index],child_subgraphs=[]))
+    tree[index]=tree[parent_sample_number].child_subgraphs[-1]
+    return
+    
+def _read_swc_typed(file_path : str) -> Tuple[SWCForest,Dict[int,NeuronTree]]:
+    """
+    Construct the graph (forest) associated to an SWC file, and return it together with a\
+    dictionary mapping sample numbers for nodes to their positions in the graph.
+    """
+    nodes = _read_swc_node_dict(file_path)
+    tree : Dict[int,NeuronTree] = {}
+    components : List[NeuronTree] = []
+    a_soma_node : Optional[int] = None
+    for index in nodes:
+        if nodes[index].structure_id == 1:
+            a_soma_node = index
+            break
+    if a_soma_node is None:
+        raise Exception("No soma nodes in SWC file.")
+    _topological_sort_rec(a_soma_node,nodes,tree,components)
+    
+    for index in nodes:
+        _topological_sort_rec(index,nodes,tree,components)
+    return components, tree
+
+def _is_soma_node(node : NeuronNode) -> bool:
+    return (node.structure_id == 1)
+    
+def _has_soma_node(tree : NeuronTree) -> bool:
+    return (_is_soma_node(tree.root) or any(map(_has_soma_node,tree.child_subgraphs)))
+
+def _validate_one_soma(forest : SWCForest) -> bool:
+    return(list(map(_has_soma_node, forest)).count(True) == 1)
+# all([list(map(has_soma_node, p[0])).count(True) == 1 for p in  all_neurons])
+# print(one_component_w_soma)
+
+def _filter_by_node_type(trees : SWCForest, keep_only : List[int]) -> SWCForest:
+    new_tree_list =\
+        [ (NeuronTree(root = tree.root,
+                      child_subgraphs = _filter_by_node_type(tree.child_subgraphs, keep_only))
+           if tree.root.structure_id in keep_only else None) for tree in trees]
+    return [tree for tree in new_tree_list if tree is not None]
+
+# This could be written recursively but some of the SWC files would cause a stack overflow.
+# This could potentially be solved by increasing the stack overflow limit in python but
+# this seems like a headache I prefer not to deal with right now.
+def _total_length(tree : NeuronTree) -> float:
+    """
+    Return the sum of lengths of all edges in the graph.
+    """
+    acc_length = 0.0
+    treelist = [tree]
+    while bool(treelist):
+        for tree0 in treelist:
+            for child_tree in tree0.child_subgraphs:
+                acc_length += math.dist(tree0.root.coord_triple,child_tree.root.coord_triple)
+        treelist = [child_tree for tree0 in treelist for child_tree in tree0.child_subgraphs]
+    return acc_length
+
+# This could be written recursively but some of the SWC files would cause a stack overflow.
+# This could potentially be solved by increasing the stack overflow limit in python but
+# this seems like a headache I prefer not to deal with right now.
+def _weighted_depth(tree : NeuronTree) -> float:
+    """
+    Return the weighted depth/ weighted height of the tree,
+    i.e., the maximal geodesic distance from the root to any other point.
+    """
+    treelist = [(tree,0.0)]
+    max_depth = 0.0
+    
+    while bool(treelist):
+        newlist : list[tuple[NeuronTree,float]] = []
+        for tree0, depth in treelist:
+            if depth > max_depth:
+                max_depth = depth
+            for child_tree in tree0.child_subgraphs:
+                newlist.append((child_tree,depth+math.dist(tree0.root.coord_triple,child_tree.root.coord_triple)))
+        treelist=newlist
+    return max_depth
+    
+# def _total_length(tree : NeuronTree) -> float:
+#     return sum(map(lambda child_tree :
+#                    math.dist(tree.root.coord_triple,child_tree.root.coord_triple) +
+#                    _total_length(child_tree), tree.child_subgraphs))
+
+def _discrete_depth(tree : NeuronTree) -> int:
+    """
+    Get the height of the tree in the graph-theoretic sense, i.e. the \
+    longest path from the root to any other node (where length is understood in \
+    the unweighted, integer-valued sense)
+    """
+    depth : int = 0
+    treelist = tree.child_subgraphs
+    while bool(treelist):
+        treelist = [child_tree for tree in treelist for child_tree in tree.child_subgraphs]
+        depth +=1
+    return depth
+
+def _count_nodes_helper(node_a : NeuronNode, node_b: NeuronNode,
+                        stepsize: float, offset : float) -> tuple[int,float]:
+    cumulative = math.dist(node_a.coord_triple, node_b.coord_triple)+offset
+    num_intermediary_nodes = math.floor(cumulative / stepsize)
+    leftover = cumulative - (num_intermediary_nodes * stepsize)
+    return num_intermediary_nodes, leftover
+
+def _count_nodes_at_given_stepsize(tree : NeuronTree, stepsize : float) -> int:
+    treelist = [(tree,0.0)]
+    acc : int = 0
+    while bool(treelist):
+        new_treelist : list[tuple[NeuronTree,float]] =[]
+        for tree0, offset in treelist:
+            for child_tree in tree0.child_subgraphs:
+                nodes, new_offset = _count_nodes_helper(tree0.root,child_tree.root,stepsize,offset)
+                acc += nodes
+                new_treelist.append((child_tree,new_offset))
+        treelist=new_treelist
+    return acc
+
+def _binary_stepwise_search(forest : SWCForest, num_samples : int) -> float:
+    max_depth = max([_weighted_depth(tree) for tree in forest])
+    max_reps = 50
+    counter = 0
+    step_size = max_depth
+    adjustment = step_size / 2
+    while(counter < max_reps):
+        num_nodes_this_step_size = sum(map(lambda tree : _count_nodes_at_given_stepsize(tree, step_size), forest))
+        if num_nodes_this_step_size < num_samples:
+            step_size -= adjustment
+        elif num_nodes_this_step_size > num_samples:
+            step_size += adjustment
+        else:
+            return step_size
+        adjustment /= 2
+    raise Exception("Binary search timed out.")
+
+def _branching_degree (forest : SWCForest) -> list[int]:
+    treelist = forest
+    branching_list : list[int] = []
+    while bool(treelist):
+        for tree in treelist:
+            branching_list.append(len(tree.child_subgraphs))
+        treelist = [child_tree for tree in treelist for child_tree in tree.child_subgraphs]
+    return branching_list
+
+def get_sample_pts_euclidean(
+        forest : SWCForest,
+        step_size : float) -> list[npt.NDArray[np.float_]]:
+    # Samples points uniformly throughout the forest, starting at the roots, at
+    # the given step size.
+    sample_pts_list : list[npt.NDArray[np.float_]] = []
+    for tree in forest:
+        sample_pts_list.append(np.array(tree.root.coord_triple,dtype='f'))
+    treelist = [(tree, 0.0) for tree in forest]
+    while bool(treelist):
+        new_treelist : list[tuple[NeuronTree,float]] = []
+        for tree, offset in treelist:
+            root_triple = np.array(tree.root.coord_triple,dtype='f')
+            for child_tree in tree.child_subgraphs:
+                child_triple = np.array(child_tree.root.coord_triple,dtype='f')
+                dist = euclidean(child_triple,root_triple)
+                assert(step_size >= offset)
+                spacing = np.arange(start=step_size - offset,
+                                    stop = dist,
+                                    step = step_size) / dist
+                for x in spacing:
+                    sample_pts_list.append((root_triple * x)+(child_triple *(1-x)))
+                d_plus_o = dist + offset
+                y = d_plus_o - (step_size * math.floor(d_plus_o / step_size))
+                assert(y >= 0)
+                assert(y < step_size)
+                new_treelist.append((child_tree, y))
+        treelist=new_treelist
+    return sample_pts_list
+
+@dataclass
+class WeightedTreeRoot:
+    subtrees : list[WeightedTreeChild]
+    depth : int = 0
+
+@dataclass
+class WeightedTreeChild :
+    subtrees : list[WeightedTreeChild]
+    depth : int
+    unique_id : int
+    parent : WeightedTree
+    dist : float
+
+WeightedTree = WeightedTreeRoot | WeightedTreeChild
+
+def WeightedTree_of(tree : NeuronTree) -> WeightedTreeRoot :
+    treelist = [tree]
+    subtree_list : list[tuple[float,WeightedTree]] = []
+    counter :int =0
+    depth :int = 0
+    wt = WeightedTreeRoot(subtrees=[])
+    correspondence_dict : dict[NeuronTree,WeightedTree] = { tree : wt }
+    while bool(treelist):
+        depth +=1
+        new_treelist : list[NeuronTree] = []
+        for tree in treelist:
+            wt_parent = correspondence_dict[tree]
+            root_triple = np.array(tree.root.coord_triple,dtype='f')
+            for child_tree in tree.child_subgraphs:
+                counter += 1
+                child_triple = np.array(child_tree.root.coord_triple,dtype='f')
+                dist = euclidean(child_triple,root_triple)
+                while len(child_tree.child_subgraphs) == 1:
+                    child_tree=child_tree.child_subgraphs[0]
+                    new_triple=np.array(child_tree.root.coord_triple,dtype='f')
+                    dist += euclidean(child_triple,new_triple)
+                    child_triple=new_triple
+                new_wt = WeightedTreeChild(
+                    subtrees=[],
+                    depth=depth,
+                    unique_id=counter,
+                    parent=wt_parent,
+                    dist=dist)
+                correspondence_dict[child_tree]=new_wt
+                new_treelist.append(child_tree)
+        treelist=new_treelist
+    return wt
+
+# def _count_nodes_helper_wt(
+#         stepsize: float,
+#         offset : float) -> tuple[int,float]:
+
+#     cumulative = math.dist(node_a.coord_triple, node_b.coord_triple)+offset
+#     num_intermediary_nodes = math.floor(cumulative / stepsize)
+#     leftover = cumulative - (num_intermediary_nodes * stepsize)
+#     return num_intermediary_nodes, leftover
+
+def _sample_at_given_stepsize_wt(
+        tree : WeightedTreeRoot,
+        stepsize : float) -> list[tuple[float,WeightedTree]]:
+    treelist = [(0.0,tree)]
+    master_list = [(0.0,tree)]
+    # acc : int = 0
+    while bool(treelist):
+        new_treelist : list[tuple[float,WeightedTree]] =[]
+        for offset, tree0 in treelist:
+            for child_tree in tree0.subtrees:
+                assert(child_tree.dist) is not None
+                cumulative = child_tree.dist+offset
+                num_intermediary_nodes = math.floor(cumulative/stepsize)
+                leftover=cumulative-(num_intermediary_nodes * stepsize)
+                # acc += num_intermediary_nodes
+                for k in range(num_intermediary_nodes):
+                    master_list.append((cumulative - stepsize * k,child_tree))
+                new_treelist.append((leftover,child_tree))
+        treelist=new_treelist
+    return master_list
+
+def _weighted_dist_from_root(wt : WeightedTree) -> float:
+    x =0
+    while true:
+        match wt with:
+        case WeightedTreeRoot:
+            return x
+        case WeightedTreeChild _ _ _ parent dist:
+            wt = parent
+            x += dist
+
+def geodesic_distance(
+        wt1 :WeightedTree, h1 : float,
+        wt2 : WeightedTree, h2: float) -> float:
+
+    # If p1 is the point we care about, and wt1 is the current node in the tree
+    # we are considering, then we understand dist1 to be the height of wt1 *above* p1;
+    # thus dist1 is initially *negative* (because wt1 is *below* p1 to start.)
+    # Then, the final correct answer will be the sum of *absolute values*
+    # abs(dist1) + abs(dist2).
+    
+    dist1 = -h1
+    dist2 = -h2
+    
+    match wt1 with:
+        case WeightedTreeRoot:
+            return (_weighted_dist_from_root(wt2) + abs(dist2))
+        case WeightedTreeChild _ depth1 unique_id1 wt1_parent wt1_dist:
+            match wt2 with:
+                case WeightedTreeRoot:
+                    return (_weighted_dist_from_root(wt1_parent) + )
+                case WeightedTreeChild _ depth2 unique_id2 wt2_parent wt2_dist:
+                    
+        
+        
+                
+                    
+    
+    if wt1.depth is None:
+       if wt2.depth is None:
+           
+        
+    if wt1.depth < wt2.depth:
+        wt3,h3=wt2,h2
+        wt2,h2=wt1,h1
+        wt1,h1=wt3,h3        
+    # WLOG wt1.depth >= wt2.depth
+    if wt1.depth > wt2.depth:
+        dist1= wt1.dist - h1
+        wt1=wt1.parent
+        while wt1.depth < wt2.depth:
+            dist1 += wt1.dist
+            wt1=wt1.parent
+        # Here, know that wt1.depth == wt2.depth.
+        if wt1.unique_id == wt2.unique_id:
+            return h2 + dist1
+        # wt1 and wt2 are at the same depth but lie on different branches.
+        dist1 += wt1.dist
+        wt1=wt1.parent
+        dist2 = wt2.dist-h2
+        wt2=wt2.parent
+        while wt1.unique_id != wt2.unique_id:
+            dist1+=wt1.dist
+            dist2+=wt2.dist
+            wt1 = wt1.parent
+            wt2 = wt2.parent
+        return dist1+dist2
+    # Otherwise, wt1.depth == wt2.depth
+    if wt1.unique_id == wt2.unique_id:
+        return abs(h1-h2)
+    # wt1.depth == wt2.depth, but wt1 and wt2 are distinct.
+    dist1 = wt1.dist-h1
+    wt1=wt1.parent
+    dist2 = wt2.dist-h2
+    wt2=wt2.parent
+    while wt1.unique_id != wt2.unique_id:
+        dist1+=wt1.dist
+        dist2+=wt2.dist
+        wt1 = wt1.parent
+        wt2 = wt2.parent
+    return dist1+dist2
+
+
+# def geodesic_distance(
+#         wt1 :WeightedTree, h1 : float,
+#         wt2 : WeightedTree, h2: float) -> float:
+#     match wt1 with:
+#         case WeightedTreeRoot:
+#             match wt2 with:
+#                 case WeightedTreeRoot:
+#                     return 0
+#                 case WeightedTreeChild _ _ _ parent dist:
+                    
+    
+#     if wt1.depth is None:
+#        if wt2.depth is None:
+           
+        
+#     if wt1.depth < wt2.depth:
+#         wt3,h3=wt2,h2
+#         wt2,h2=wt1,h1
+#         wt1,h1=wt3,h3        
+#     # WLOG wt1.depth >= wt2.depth
+#     if wt1.depth > wt2.depth:
+#         dist1= wt1.dist - h1
+#         wt1=wt1.parent
+#         while wt1.depth < wt2.depth:
+#             dist1 += wt1.dist
+#             wt1=wt1.parent
+#         # Here, know that wt1.depth == wt2.depth.
+#         if wt1.unique_id == wt2.unique_id:
+#             return h2 + dist1
+#         # wt1 and wt2 are at the same depth but lie on different branches.
+#         dist1 += wt1.dist
+#         wt1=wt1.parent
+#         dist2 = wt2.dist-h2
+#         wt2=wt2.parent
+#         while wt1.unique_id != wt2.unique_id:
+#             dist1+=wt1.dist
+#             dist2+=wt2.dist
+#             wt1 = wt1.parent
+#             wt2 = wt2.parent
+#         return dist1+dist2
+#     # Otherwise, wt1.depth == wt2.depth
+#     if wt1.unique_id == wt2.unique_id:
+#         return abs(h1-h2)
+#     # wt1.depth == wt2.depth, but wt1 and wt2 are distinct.
+#     dist1 = wt1.dist-h1
+#     wt1=wt1.parent
+#     dist2 = wt2.dist-h2
+#     wt2=wt2.parent
+#     while wt1.unique_id != wt2.unique_id:
+#         dist1+=wt1.dist
+#         dist2+=wt2.dist
+#         wt1 = wt1.parent
+#         wt2 = wt2.parent
+#     return dist1+dist2
+
+def _weighted_depth_wt(tree : WeightedTree) -> float:
+    """
+    Return the weighted depth/ weighted height of the tree,
+    i.e., the maximal geodesic distance from the root to any other point.
+    """
+    treelist = [(tree,0.0)]
+    max_depth = 0.0
+    
+    while bool(treelist):
+        newlist : list[tuple[NeuronTree,float]] = []
+        for tree0, depth in treelist:
+            if depth > max_depth:
+                max_depth = depth
+            for child_tree in tree0.child_subgraphs:
+                assert(child_tree.dist is not None)
+                newlist.append((child_tree,depth+child_tree.dist))
+        treelist=newlist
+    return max_depth
+
+
+def get_sample_pts_geodesic(
+        tree : NeuronTree,
+        num_sample_pts : int) -> list[tuple[float,WeightedTree]]:
+    wt = WeightedTree_of(tree)
+    max_depth = _weighted_depth_wt(wt)
+    max_reps = 50
+    counter=0
+    step_size=max_reps
+    adjustment=step_size/2
+    while(counter < max_reps):
+        ell = _sample_at_given_stepsize_wt(wt,step_size)
+        if len(ell) < num_samples:
+            step_size -= adjustment
+        
+        num_nodes_this_step_size = sum(map(lambda tree : _count_nodes_at_given_stepsize(tree, step_size), forest))
+        if num_nodes_this_step_size < num_samples:
+            step_size -= adjustment
+        elif num_nodes_this_step_size > num_samples:
+            step_size += adjustment
+        else:
+            return ell
+        adjustment /= 2
+    raise Exception("Binary search timed out.")
+
+    
+# def _binary_stepwise_search_wt(forest : SWCForest, num_samples : int) -> float:
+#     max_depth = max([_weighted_depth(tree) for tree in forest])
+#     max_reps = 50
+#     counter = 0
+#     step_size = max_depth
+#     adjustment = step_size / 2
+#     while(counter < max_reps):
+#         num_nodes_this_step_size = sum(map(lambda tree : _count_nodes_at_given_stepsize(tree, step_size), forest))
+#         if num_nodes_this_step_size < num_samples:
+#             step_size -= adjustment
+#         elif num_nodes_this_step_size > num_samples:
+#             step_size += adjustment
+#         else:
+#             return step_size
+#         adjustment /= 2
+#     raise Exception("Binary search timed out.")
+    
+    
+
+# def get_sample_pts_geodesic(
+#         tree : NeuronTree,
+#         step_size : float) -> list[tuple[NeuronTree,float]]:
+
+#     # Convention: An arbitrary point on the neuron will be represented by its
+#     # height above the child node immediately below it. 
+#     sample_pts_list = [(tree,0.0)]
+#     treelist = [(tree, 0.0)]
+#     while bool(treelist):
+#         new_treelist : list[tuple[NeuronTree,float]] = []
+#         for tree, offset in treelist:
+#             root_triple = np.array(tree.root.coord_triple,dtype='f')
+#             for child_tree in tree.child_subgraphs:
+#                 child_triple = np.array(tree.root.coord_triple,dtype='f')
+#                 dist = euclidean(child_triple,root_triple)
+#                 assert(step_size >= offset)
+#                 spacing = np.arange(start=step_size - offset,
+#                                     stop = dist,
+#                                     step = step_size)
+#                 for x in spacing:
+#                     assert(dist - x > 0)
+#                     sample_pts_list.append((child_tree, dist-x))
+#                 d_plus_o = dist + offset
+#                 y = d_plus_o - (step_size * math.floor(d_plus_o / step_size))
+#                 assert(y >= 0)
+#                 assert(y < step_size)
+#                 new_treelist.append((child_tree, y))
+#         treelist=new_treelist
+#     return sample_pts_list
+
+
+# class NodeRelation(Enum):
+#     LEFT_STRICT_ANCESTOR_OF_RIGHT = 1
+#     RIGHT_STRICT_ANCESTOR_OF_LEFT = 2
+#     COMMON_ANCESTOR = 3
+
+# def get_sample_pts_geodesic(
+#         tree : NeuronTree,
+#         step_size : float) -> ?:
+    
+#     geodesic_distance_dict : dict[tuple[int,int],tuple[NodeRelation,float]] = []
+#     treelist = []
+#     existing_nodes = 1
+#     while bool(treelist):
+#         new_treelist : list[tuple[NeuronTree,float]] = []
+#         for tree, offset in treelist:
+#             root_triple = np.array(tree.root.coord_triple,dtype='f')
+#             for child_tree in tree.child_subgraphs:
+#                 child_triple = np.array(tree.root.coord_triple,dtype='f')
+#                 dist = euclidean(child_triple,root_triple)
+#                 assert(step_size >= offset)
+#                 new_nodes = math.floor((dist + offset)/step_size)
+#                 for i, j in it.combinations(range(existing_nodes,existing_nodes+new_nodes),2)
+#                     geodesic_distance_dict[(i,j)]=(LEFT_STRICT_ANCESTOR_OF_RIGHT,step_size*(j-i))
+#                 for i in range(existing_nodes)
+#                 new_nodes = len(spacing)
+
+
+    
+# def get_sample_pts_geodesic(
+#         tree : NeuronTree,
+#         step_size : float) -> list[tuple[NeuronTree,float]]:
+
+#     # We will here try to be clever, and at the same time that we sample the points,
+#     # we will also prepare a table of their geodesic distances.
+#     sample_pts_list = [(tree,0.0)]
+#     geodesic_distance_dict : dict[tuple[int,int],tuple[NodeRelation,float]] = []
+#     treelist = [(tree, 0.0)]
+#     sample_pts_index = 1
+#     while bool(treelist):
+#         new_treelist : list[tuple[NeuronTree,float]] = []
+#         for tree, offset in treelist:
+#             root_triple = np.array(tree.root.coord_triple,dtype='f')
+#             for child_tree in tree.child_subgraphs:
+#                 child_triple = np.array(tree.root.coord_triple,dtype='f')
+#                 dist = euclidean(child_triple,root_triple)
+#                 assert(step_size >= offset)
+#                 spacing = np.arange(start=step_size - offset,
+#                                     stop = dist,
+#                                     step = step_size)
+                
+#                 for x in spacing:
+#                     assert(dist - x > 0)
+#                     sample_pts_list.append((child_tree, dist-x))
+#                 d_plus_o = dist + offset
+#                 y = d_plus_o - (step_size * math.floor(d_plus_o / step_size))
+#                 assert(y >= 0)
+#                 assert(y < step_size)
+#                 new_treelist.append((child_tree, y))
+#         treelist=new_treelist
+#     return sample_pts_list
+
+
+def depth_table(tree : NeuronTree) -> dict[int,int]:
+    """
+    Return a dictionary which associates to each node the unweighted depth of that node in the tree.
+    """
+    depth : int = 0
+    table : dict[int,int] = {} 
+    treelist = [tree]
+    while bool(treelist):
+        for tree in treelist:
+            table[tree.root.sample_number]=depth
+        treelist = [child_tree for tree in treelist for child_tree in tree.child_subgraphs]
+        depth += 1
+    return table
+
+# def geodesic_distance_table(
+#         tree : NeuronTree,
+#         lookup_table : dict[int,NeuronTree]) -> dict[tuple[int,int],tuple[NodeRelation,float]]:
+#     """
+#     Returns a precomputed lookup table geo_lookup of geodesic distances, \
+#     which should be interpreted as follows:
+#     - if geo_lookup[(i,j)] = (LEFT_STRICT_ANCESTOR_OF_RIGHT,x), then i is a strict ancestor of j, \
+#       and x is the geodesic distance between i and the *parent* of j. For example, if i is the parent of j,
+#       x will be zero.
+#     - if geo_lookup[(i,j)] = (RIGHT_STRICT_ANCESTOR_OF_LEFT,x), then j is a strict ancestor of i, \
+#       and x is the geodesic distance between j and the *parent* of i.
+#     - if geo_lookup[(i,j)] = (COMMON_ANCESTOR,x), then neither of i or j is an ancestor of the other, \
+#       and x is the geodesic distance between the *parent* of j and the *parent* of i.
+#     """
+    
+    
+
+# def geodesic_distance( p1 : tuple[NeuronTree,float], p2 : tuple[NeuronTree,float],
+#                        parent_lookup_table : dict[int,NeuronTree],
+#                        depth_table : dict[int,int]
+#                       ) -> float:
+
+#     tree1, dist1 = p1
+#     tree2, dist2 = p2
+#     index1 = tree1.root.sample_number
+#     index2 = tree2.root.sample_number
+#     depth1 = depth_table[index1]
+#     depth2 = depth_table[index2]
+#     if depth1 > depth2:
+#         new_tree1 = parent_lookup_table[index1]
+#         new_tree1_position = np.array(new_tree1.root.coord_triple)
+#         dist1 = euclidean(new_tree1_position,np.array(tree1.root.coord_triple))
+#         depth1 -= 1
+#         tree1= new_tree1
+#     if depth2 < depth1:
+#         new_tree2 = parent_lookup_table[index2]
+#         new_tree2_position = np.array(new_tree2.root.coord_triple)
+#         dist1 = euclidean(new_tree1_position,np.array(tree1.root.coord_triple))
+#         depth1 -= 1
+#         tree1= new_tree1
+# if nearest_below_p1 == nearest_below_p2:
+#      return math.abs(height1-height2)
+#  tree1_next_ancestor = tree1.root.parent_sample_number
+#  tree2_next_ancestor = tree2.root.parent_sample_number
+#  p1_ancestry : list[int] = []
+#  p2_ancestry : list[int] = []
+#  while true:
+#      if tree1_next_ancestor >= 0:
+#          if tree1_next_ancestor == nearest_below_tree1:
+                
+                
+    
+
 
 # Under development
 # def read_SWCData(file_path : str, keep_disconnect) -> SWCData:
@@ -132,7 +793,6 @@ def _read_swc(file_path: str) -> List[List[str]]:
             vertices.append(row)
     return vertices
 
-
 def _prep_coord_dict(
     vertices: List[List[str]],
     types_keep: Optional[Iterable[int]] = None,
@@ -211,7 +871,6 @@ def _prep_coord_dict(
             )
 
     return vertices_keep, vertex_coords, total_length
-
 
 def _sample_pts_step(
     vertices: List[List[str]],
@@ -780,7 +1439,6 @@ def _euclidean_helper(sample_pts: Optional[np.ndarray]):
     else:
         return pdist(sample_pts)
 
-
 def compute_intracell_parallel(
     infolder: str,
     metric: str,
@@ -820,7 +1478,7 @@ def compute_intracell_parallel(
                 (file_name, infolder, types_keep, sample_pts, 1e-7, 50, False)
                 for file_name in file_names
             ]
-            with Pool(processes=num_cores) as pool:
+            with ProcessPool(processes=num_cores) as pool:
                 samples = pool.starmap(get_sample_pts, eu_arguments)
                 dist_mat_list = pool.map(_euclidean_helper, samples, 100)
         case "geodesic":
@@ -828,14 +1486,12 @@ def compute_intracell_parallel(
                 (file_name, infolder, types_keep, sample_pts)
                 for file_name in file_names
             ]
-            with Pool(processes=num_cores) as pool:
+            with ProcessPool(processes=num_cores) as pool:
                 dist_mat_list = list(pool.starmap(get_geodesic, ge_arguments))
     for i in range(len(file_names)):
         dist_mats[file_names[i]] = dist_mat_list[i]
 
     return dist_mats
-
-
 
 def _compute_intracell_all(
     infolder: str,

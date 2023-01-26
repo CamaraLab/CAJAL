@@ -1,8 +1,6 @@
 Running Gromov-Wasserstein
 ==========================
 
-The GW distance is calculated using the same function whether the distance matrices represent the Euclidean or geodesic metric.
-
 A representative TinyDB \*.json database is structured as:
 
 .. code-block::  javascript

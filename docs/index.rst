@@ -17,13 +17,12 @@ if the cells are geometrically similar in the sense that the shape of one cell c
 
    what-is-cajal
    computing-intracell-distance-matrices
-   computing-gw-distances
+
 
 .. toctree::
    :maxdepth: 2
    :caption: API
 
-   data_types
    sample_swc
    sample_mesh
    sample_seg
