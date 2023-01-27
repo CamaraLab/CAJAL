@@ -251,7 +251,6 @@ def get_sample_pts_euclidean(
 @dataclass
 class WeightedTreeRoot:
     subtrees : list[WeightedTreeChild]
-    depth : int = 0
 
 @dataclass
 class WeightedTreeChild :
@@ -265,19 +264,17 @@ WeightedTree = WeightedTreeRoot | WeightedTreeChild
 
 def WeightedTree_of(tree : NeuronTree) -> WeightedTreeRoot :
     treelist = [tree]
-    subtree_list : list[tuple[float,WeightedTree]] = []
-    counter :int =0
+    # subtree_list : list[tuple[float,WeightedTree]] = []
     depth :int = 0
     wt = WeightedTreeRoot(subtrees=[])
-    correspondence_dict : dict[NeuronTree,WeightedTree] = { tree : wt }
+    correspondence_dict : dict[int,WeightedTree] = { tree.root.sample_number : wt }
     while bool(treelist):
         depth +=1
         new_treelist : list[NeuronTree] = []
         for tree in treelist:
-            wt_parent = correspondence_dict[tree]
+            wt_parent = correspondence_dict[tree.root.sample_number]
             root_triple = np.array(tree.root.coord_triple,dtype='f')
             for child_tree in tree.child_subgraphs:
-                counter += 1
                 child_triple = np.array(child_tree.root.coord_triple,dtype='f')
                 dist = euclidean(child_triple,root_triple)
                 while len(child_tree.child_subgraphs) == 1:
@@ -288,10 +285,11 @@ def WeightedTree_of(tree : NeuronTree) -> WeightedTreeRoot :
                 new_wt = WeightedTreeChild(
                     subtrees=[],
                     depth=depth,
-                    unique_id=counter,
+                    unique_id=child_tree.root.sample_number,
                     parent=wt_parent,
                     dist=dist)
-                correspondence_dict[child_tree]=new_wt
+                correspondence_dict[child_tree.root.sample_number]=new_wt
+                wt_parent.subtrees.append(new_wt)
                 new_treelist.append(child_tree)
         treelist=new_treelist
     return wt
@@ -307,106 +305,102 @@ def WeightedTree_of(tree : NeuronTree) -> WeightedTreeRoot :
 
 def _sample_at_given_stepsize_wt(
         tree : WeightedTreeRoot,
-        stepsize : float) -> list[tuple[float,WeightedTree]]:
-    treelist = [(0.0,tree)]
-    master_list = [(0.0,tree)]
+        stepsize : float) -> list[tuple[WeightedTree,float]]:
+    treelist : list[tuple[WeightedTree,float]] = [(tree,0.0)]
+    master_list : list[tuple[WeightedTree,float]] = [(tree,0.0)]
     # acc : int = 0
     while bool(treelist):
-        new_treelist : list[tuple[float,WeightedTree]] =[]
-        for offset, tree0 in treelist:
+        new_treelist : list[tuple[WeightedTree,float]] =[]
+        for tree0, offset in treelist:
             for child_tree in tree0.subtrees:
-                assert(child_tree.dist) is not None
                 cumulative = child_tree.dist+offset
                 num_intermediary_nodes = math.floor(cumulative/stepsize)
                 leftover=cumulative-(num_intermediary_nodes * stepsize)
                 # acc += num_intermediary_nodes
                 for k in range(num_intermediary_nodes):
-                    master_list.append((cumulative - stepsize * k,child_tree))
-                new_treelist.append((leftover,child_tree))
+                    assert((cumulative - stepsize * k) <= child_tree.dist)
+                    master_list.append((child_tree,cumulative - stepsize * k))
+                new_treelist.append((child_tree,leftover))
         treelist=new_treelist
     return master_list
 
 def _weighted_dist_from_root(wt : WeightedTree) -> float:
-    x =0
-    while true:
-        match wt with:
-        case WeightedTreeRoot:
-            return x
-        case WeightedTreeChild _ _ _ parent dist:
-            wt = parent
-            x += dist
+    x : float =0.0
+    while isinstance(wt, WeightedTreeChild):
+        x += wt.dist
+        wt = wt.parent
+    return x
 
 def geodesic_distance(
         wt1 :WeightedTree, h1 : float,
         wt2 : WeightedTree, h2: float) -> float:
-
-    # If p1 is the point we care about, and wt1 is the current node in the tree
-    # we are considering, then we understand dist1 to be the height of wt1 *above* p1;
-    # thus dist1 is initially *negative* (because wt1 is *below* p1 to start.)
-    # Then, the final correct answer will be the sum of *absolute values*
-    # abs(dist1) + abs(dist2).
-    
-    dist1 = -h1
-    dist2 = -h2
-    
-    match wt1 with:
-        case WeightedTreeRoot:
-            return (_weighted_dist_from_root(wt2) + abs(dist2))
-        case WeightedTreeChild _ depth1 unique_id1 wt1_parent wt1_dist:
-            match wt2 with:
-                case WeightedTreeRoot:
-                    return (_weighted_dist_from_root(wt1_parent) + )
-                case WeightedTreeChild _ depth2 unique_id2 wt2_parent wt2_dist:
-                    
-        
-        
-                
-                    
-    
-    if wt1.depth is None:
-       if wt2.depth is None:
-           
-        
-    if wt1.depth < wt2.depth:
-        wt3,h3=wt2,h2
-        wt2,h2=wt1,h1
-        wt1,h1=wt3,h3        
-    # WLOG wt1.depth >= wt2.depth
-    if wt1.depth > wt2.depth:
-        dist1= wt1.dist - h1
-        wt1=wt1.parent
-        while wt1.depth < wt2.depth:
-            dist1 += wt1.dist
-            wt1=wt1.parent
-        # Here, know that wt1.depth == wt2.depth.
-        if wt1.unique_id == wt2.unique_id:
-            return h2 + dist1
-        # wt1 and wt2 are at the same depth but lie on different branches.
-        dist1 += wt1.dist
-        wt1=wt1.parent
-        dist2 = wt2.dist-h2
-        wt2=wt2.parent
-        while wt1.unique_id != wt2.unique_id:
-            dist1+=wt1.dist
-            dist2+=wt2.dist
-            wt1 = wt1.parent
-            wt2 = wt2.parent
-        return dist1+dist2
-    # Otherwise, wt1.depth == wt2.depth
-    if wt1.unique_id == wt2.unique_id:
-        return abs(h1-h2)
-    # wt1.depth == wt2.depth, but wt1 and wt2 are distinct.
-    dist1 = wt1.dist-h1
-    wt1=wt1.parent
-    dist2 = wt2.dist-h2
-    wt2=wt2.parent
-    while wt1.unique_id != wt2.unique_id:
-        dist1+=wt1.dist
-        dist2+=wt2.dist
-        wt1 = wt1.parent
-        wt2 = wt2.parent
-    return dist1+dist2
-
+    """
+    Let p1 be a point in a weighted tree which lies h1 above wt1.
+    Let p2 be a point in a weighted tree which lies h2 above wt2.
+    Return the geodesic distance between p1 and p2.
+    """
+    match wt1:
+    # If wt1 is a root, we assume h1 is zero and p1 = wt1, otherwise the input is not sensible.
+        case WeightedTreeRoot(_):
+            assert(h1 == 0.0)
+            return (_weighted_dist_from_root(wt2) - h2)
+        case WeightedTreeChild(_, depth1, unique_id1, wt_parent1, d1):
+        # Otherwise, suppose that wt1 is at an unweighted depth of depth1,
+        # and that the distance between wt1 and its parent is d1.
+            match wt2:
+                case WeightedTreeRoot(_):
+                # If wt2 is a root, then the approach is dual to what we have just done.
+                    assert (h2 == 0.0)
+                    return (_weighted_dist_from_root(wt_parent1) + d1 - h1)
+                case WeightedTreeChild(_, depth2, unique_id2, wt_parent2, d2):
+                # So let us consider the case where both wt1, wt2 are child nodes.
+                    if unique_id1 == unique_id2:
+                        return abs(h2 - h1)
+                    # p1, p2 don't lie over the same child node.
+                    # Thus, either one is an ancestor of the other
+                    # (with one of wt1, wt2 strictly in between)
+                    # or they have a common ancestor, and dist(p1, p2)
+                    # is the sum of distances from p1, p2 to the common ancestor respectively.
+                    # These three can be combined into the following problem:
+                    # there is a minimal node in the weighted tree
+                    # which lies above both wt1 and wt2, and dist(p1, p2) is the sum
+                    # of the distances from p1, p2 respectively to that common minimal node.
+                    # This includes the case where the minimal node is wt1 or wt2.
+                    # To address these cases in a uniform way we use some cleverness with abs().
+                    dist1 = -h1
+                    dist2 = -h2
+                    while depth1 > depth2:
+                        dist1 += d1
+                        match wt_parent1:
+                            case WeightedTreeRoot(_):
+                                raise Exception("Nodes constructed have wrong depth.")
+                            case WeightedTreeChild(_, depth1, unique_id1, wt_parent1, d1):
+                                pass
+                    while depth2 > depth1:
+                        dist2 += d2
+                        match wt_parent2:
+                            case WeightedTreeRoot(_):
+                                raise Exception("Nodes constructed have wrong depth.")
+                            case WeightedTreeChild( _, depth2, unique_id2, wt_parent2, d2):
+                                pass
+                    # Now we know that both nodes have the same height.
+                    while unique_id1 != unique_id2:
+                        dist1 += d1
+                        dist2 += d2
+                        match wt_parent1:
+                            case WeightedTreeRoot(_):
+                                assert(dist1 >= 0)
+                                assert(dist2 >= 0)
+                                assert isinstance(wt_parent2, WeightedTreeRoot)
+                                return dist1 + dist2
+                            case WeightedTreeChild(_, _, unique_id2, wt_parent2, d2):
+                                pass
+                        match wt_parent2:
+                            case WeightedTreeRoot(_):
+                                raise Exception("Nodes constructed have wrong depth.")
+                            case WeightedTreeChild(_, _, unique_id2, wt_parent2, d2):
+                                pass
+                    return abs(dist1) + abs(dist2)
 
 # def geodesic_distance(
 #         wt1 :WeightedTree, h1 : float,
@@ -472,42 +466,38 @@ def _weighted_depth_wt(tree : WeightedTree) -> float:
     max_depth = 0.0
     
     while bool(treelist):
-        newlist : list[tuple[NeuronTree,float]] = []
+        newlist : list[tuple[WeightedTree,float]] = []
         for tree0, depth in treelist:
             if depth > max_depth:
                 max_depth = depth
-            for child_tree in tree0.child_subgraphs:
+            for child_tree in tree0.subtrees:
                 assert(child_tree.dist is not None)
                 newlist.append((child_tree,depth+child_tree.dist))
         treelist=newlist
     return max_depth
 
-
 def get_sample_pts_geodesic(
         tree : NeuronTree,
-        num_sample_pts : int) -> list[tuple[float,WeightedTree]]:
+        num_sample_pts : int) -> list[tuple[WeightedTree,float]]:
     wt = WeightedTree_of(tree)
     max_depth = _weighted_depth_wt(wt)
     max_reps = 50
     counter=0
-    step_size=max_reps
+    step_size=max_depth
     adjustment=step_size/2
     while(counter < max_reps):
         ell = _sample_at_given_stepsize_wt(wt,step_size)
-        if len(ell) < num_samples:
+        num_nodes_this_step_size = len(ell)
+        if num_nodes_this_step_size < num_sample_pts:
             step_size -= adjustment
-        
-        num_nodes_this_step_size = sum(map(lambda tree : _count_nodes_at_given_stepsize(tree, step_size), forest))
-        if num_nodes_this_step_size < num_samples:
-            step_size -= adjustment
-        elif num_nodes_this_step_size > num_samples:
+        elif num_nodes_this_step_size > num_sample_pts:
             step_size += adjustment
         else:
+            print(step_size)
             return ell
         adjustment /= 2
     raise Exception("Binary search timed out.")
 
-    
 # def _binary_stepwise_search_wt(forest : SWCForest, num_samples : int) -> float:
 #     max_depth = max([_weighted_depth(tree) for tree in forest])
 #     max_reps = 50
@@ -515,7 +505,8 @@ def get_sample_pts_geodesic(
 #     step_size = max_depth
 #     adjustment = step_size / 2
 #     while(counter < max_reps):
-#         num_nodes_this_step_size = sum(map(lambda tree : _count_nodes_at_given_stepsize(tree, step_size), forest))
+#         num_nodes_this_step_size =\
+#             sum(map(lambda tree : _count_nodes_at_given_stepsize(tree, step_size), forest))
 #         if num_nodes_this_step_size < num_samples:
 #             step_size -= adjustment
 #         elif num_nodes_this_step_size > num_samples:
