@@ -12,7 +12,7 @@ name = "cajal"
 version = "0.1.0"
 description="A library for multi-modal cell morphology analyses using Gromov-Wasserstein (GW) distance."
 readme="./README.md"
-requires-python=">=3.10"
+requires-python="~=3.10"
 
 authors= [ { name="Pablo Cámara", email='pcamara@pennmedicine.upenn.edu' } ]
 classifiers=[
@@ -37,9 +37,15 @@ dependencies = [
         "scipy",
         "scikit-image",
         "tifffile",
+	"tinydb",
         "trimesh",
         "umap-learn~=0.5.3" # Depends on numba which requires python < 3.11 as of 11/29/2022
 	]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=0.991"
+]
 
 [project.license]
 file="./LICENSE.md"

@@ -110,7 +110,22 @@ def _validate_one_soma(forest : SWCForest) -> bool:
 # all([list(map(has_soma_node, p[0])).count(True) == 1 for p in  all_neurons])
 # print(one_component_w_soma)
 
-def _filter_by_node_type(trees : SWCForest, keep_only : List[int]) -> SWCForest:
+def _filter_by_node_type_iterative(tree : NeuronTree, keep_only : List[int]) -> None:
+    """
+    Modify tree in-place to eliminate all but the nodes whose structure_id is in keep_only.
+    It is expected that the root of the tree is in keep_only; otherwise an exception is raised.
+    (It is inconvenient to have to deal with the empty tree as a special case.)
+    """
+    if tree.root.structure_id not in keep_only:
+        raise Exception("Root of tree is not in keep_only.")
+    treelist = [tree]
+    while bool(treelist):
+        for tree0 in treelist:
+            tree0.child_subgraphs = [child_tree for child_tree in tree0.child_subgraphs
+                                     if child_tree.root.structure_id in keep_only]
+        treelist = [child_tree for tree0 in treelist for child_tree in tree0.child_subgraphs]
+
+def _filter_by_node_type_recursive(trees : SWCForest, keep_only : List[int]) -> SWCForest:
     new_tree_list =\
         [ (NeuronTree(root = tree.root,
                       child_subgraphs = _filter_by_node_type(tree.child_subgraphs, keep_only))
@@ -294,6 +309,24 @@ def WeightedTree_of(tree : NeuronTree) -> WeightedTreeRoot :
         treelist=new_treelist
     return wt
 
+def _node_type_counts(tree : neuronTree) -> dict[int,int]:
+    treelist = [tree]
+    node_counts : dict[int,int] = {}
+    while bool(treelist):
+        for tree0 in treelist:
+            if tree0.root.structure_id in node_counts:
+                node_counts[tree0.root.structure_id] += 1
+            else:
+                node_counts[tree0.root.structure_id] =1
+        treelist = [child_tree for tree0 in treelist for child_tree in tree0.child_subgraphs]
+    return node_counts
+
+def _num_nodes(tree : neuronTree) -> int:
+    type_count_dict = _node_type_counts(tree)
+    return sum(type_count_dict[key] for key in type_count_dict)
+
+
+
 # def _count_nodes_helper_wt(
 #         stepsize: float,
 #         offset : float) -> tuple[int,float]:
@@ -318,8 +351,8 @@ def _sample_at_given_stepsize_wt(
                 leftover=cumulative-(num_intermediary_nodes * stepsize)
                 # acc += num_intermediary_nodes
                 for k in range(num_intermediary_nodes):
-                    assert((cumulative - stepsize * k) <= child_tree.dist)
-                    master_list.append((child_tree,cumulative - stepsize * k))
+                    assert((cumulative - stepsize * (k+1)) <= child_tree.dist)
+                    master_list.append((child_tree,cumulative - stepsize * (k+1)))
                 new_treelist.append((child_tree,leftover))
         treelist=new_treelist
     return master_list
@@ -393,7 +426,7 @@ def geodesic_distance(
                                 assert(dist2 >= 0)
                                 assert isinstance(wt_parent2, WeightedTreeRoot)
                                 return dist1 + dist2
-                            case WeightedTreeChild(_, _, unique_id2, wt_parent2, d2):
+                            case WeightedTreeChild(_, _, unique_id1, wt_parent1, d1):
                                 pass
                         match wt_parent2:
                             case WeightedTreeRoot(_):
@@ -493,7 +526,6 @@ def get_sample_pts_geodesic(
         elif num_nodes_this_step_size > num_sample_pts:
             step_size += adjustment
         else:
-            print(step_size)
             return ell
         adjustment /= 2
     raise Exception("Binary search timed out.")
@@ -1548,7 +1580,7 @@ def _compute_intracell_all(
         case _:
             raise Exception("Metric must be either Euclidean or geodesic.")
 
-def compute_and_save_intracell_all(
+def compute_and_save_intracell_all_backup(
     infolder: str,
     db_name: str,
     metric: str,
