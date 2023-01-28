@@ -128,7 +128,7 @@ def _filter_by_node_type_iterative(tree : NeuronTree, keep_only : List[int]) -> 
 def _filter_by_node_type_recursive(trees : SWCForest, keep_only : List[int]) -> SWCForest:
     new_tree_list =\
         [ (NeuronTree(root = tree.root,
-                      child_subgraphs = _filter_by_node_type(tree.child_subgraphs, keep_only))
+                      child_subgraphs = _filter_by_node_type_recursive(tree.child_subgraphs, keep_only))
            if tree.root.structure_id in keep_only else None) for tree in trees]
     return [tree for tree in new_tree_list if tree is not None]
 
@@ -309,7 +309,7 @@ def WeightedTree_of(tree : NeuronTree) -> WeightedTreeRoot :
         treelist=new_treelist
     return wt
 
-def _node_type_counts(tree : neuronTree) -> dict[int,int]:
+def _node_type_counts(tree : NeuronTree) -> dict[int,int]:
     treelist = [tree]
     node_counts : dict[int,int] = {}
     while bool(treelist):
@@ -321,7 +321,7 @@ def _node_type_counts(tree : neuronTree) -> dict[int,int]:
         treelist = [child_tree for tree0 in treelist for child_tree in tree0.child_subgraphs]
     return node_counts
 
-def _num_nodes(tree : neuronTree) -> int:
+def _num_nodes(tree : NeuronTree) -> int:
     type_count_dict = _node_type_counts(tree)
     return sum(type_count_dict[key] for key in type_count_dict)
 

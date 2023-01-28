@@ -44,7 +44,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "mypy>=0.991"
+    "mypy>=0.991",
+    "pytest >= 7.2.1"
 ]
 
 [project.license]
