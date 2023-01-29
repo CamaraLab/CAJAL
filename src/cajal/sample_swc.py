@@ -5,13 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import math
-import re
+import rex
 import numpy as np
+import functools
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean, squareform, pdist
 import networkx as nx
 import warnings
-from typing import List, Dict, Tuple, Optional, Iterable, Iterator, Set, NewType, Callable
+from typing import List, Dict, Tuple, Optional, Iterable, Iterator, Set, NewType, Callable, Literal
 # from multiprocessing import Pool
 from pathos.pools import ProcessPool
 import os
@@ -36,7 +37,7 @@ class NeuronTree:
     root : NeuronNode
     child_subgraphs : List[NeuronTree]
 
-# Convention: The first element of the SWC forest is always the branch containing the soma.
+# Convention: The *first element* of the SWC forest is always the component containing the soma.
 SWCForest = List[NeuronTree]
 
 def _read_swc_node_dict(file_path : str) -> dict[int,NeuronNode]:
@@ -530,6 +531,7 @@ def get_sample_pts_geodesic(
         adjustment /= 2
     raise Exception("Binary search timed out.")
 
+
 # def _binary_stepwise_search_wt(forest : SWCForest, num_samples : int) -> float:
 #     max_depth = max([_weighted_depth(tree) for tree in forest])
 #     max_reps = 50
@@ -656,6 +658,116 @@ def depth_table(tree : NeuronTree) -> dict[int,int]:
         treelist = [child_tree for tree in treelist for child_tree in tree.child_subgraphs]
         depth += 1
     return table
+
+def _compute_intracell_all(
+        infolder: str,
+        metric: Literal["euclidean"] | Literal["geodesic"],
+        pool: ProcessPool,
+        types_keep: list[int] | Literal["keep_all"],
+        sample_pts: int = 50,
+        keep_disconnect: bool = False,
+) -> Iterator[Tuple[str,npt.NDArray[np.float_]]]:
+    r"""
+    Compute intracell distances for all files in the given directory wrt the given metric.
+    Return an iterator over pairs (cell_name, maybe_cell_dists)
+
+    :param infolder: Directory of \*.swc files.
+    :param metric: Either "euclidean" or "geodesic" as appropriate.
+    :param pool: A pathos multiprocessing pool to do the work of sampling and computing distances.\
+        Assumed to be open.
+    :param types_keep: optional parameter, a list of node types to sample from.
+    :param sample_pts: How many points to sample from each cell.
+    :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
+          to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
+          Euclidean distance metric, as the geodesic distance between points \
+          in different components is undefined.
+    """
+    filenames = [
+        file_name for file_name in os.listdir(infolder)
+        if os.path.splitext(file_name)[1] == ".swc"
+        or os.path.splitext(file_name)[1] == ".SWC"
+    ]
+    cell_names = [os.path.splitext(filename)[0] for filename in filenames]
+
+    match metric:
+        case "euclidean":
+            compute_pt_cloud : Callable[[str],Optional[npt.NDArray[np.float_]]]
+            compute_pt_cloud = functools.partial(get_sample_pts,
+            compute_pt_cloud = \
+                lambda file_name : get_sample_pts(
+                    file_name,
+                    infolder,
+                    types_keep,
+                    sample_pts)
+            maybe_pt_clouds = pool.imap(
+                compute_pt_cloud,
+                filenames,
+                chunksize=5)
+            compute_dist_mat : Callable[[Optional[npt.NDArray[np.float_]]],\
+                                        Optional[npt.NDArray[np.float_]]]
+            compute_dist_mat =\
+                lambda maybe_cloud: None if maybe_cloud is None else pdist(maybe_cloud)
+            return(zip(cell_names,pool.imap(
+                compute_dist_mat,
+                maybe_pt_clouds,
+                chunksize=1000
+            )))
+        case "geodesic":
+            compute_geodesic : Callable[[str], Optional[npt.NDArray[np.float_]]]
+            compute_geodesic =\
+                lambda file_name: get_geodesic(file_name, infolder, types_keep, sample_pts)
+            return(zip(cell_names,pool.imap(
+                compute_geodesic,
+                filenames,
+                chunksize=1)))
+        case _:
+            raise Exception("Metric must be either Euclidean or geodesic.")
+
+def compute_and_save_intracell_all(
+    infolder: str,
+    db_name: str,
+    metric: str,
+    n_sample: int = 50,
+    num_cores: int = 8,
+    types_keep: list[int] | Literal["keep_all"],
+    keep_disconnect: bool = False
+) -> List[str]:
+    r"""
+    For each swc file in infolder, sample n_sample many points from the\
+    neuron, evenly spaced, and compute the Euclidean or geodesic intracell\
+    matrix depending on the value of the argument `metric`. Write the \
+    resulting intracell distance matrices to a database file called `db_name.json`.
+
+    :param infolder: Directory of input \*.swc files.
+    :param metric: Either "euclidean" or "geodesic"
+    :param db_name: .json file to write the intracell distance matrices to. \
+        It is assumed that db_name.json does not exist, or is empty.
+    :param types_keep: optional parameter, a list of node types to sample from.
+    :param n_sample: How many points to sample from each cell.
+    :param num_cores: the intracell distance matrices will be computed in parallel processes,\
+          num_cores is the number of processes to run simultaneously. Recommended to set\
+          equal to the number of cores on your machine.
+    :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
+          to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
+          Euclidean distance metric, as the geodesic distance between points \
+          in different components is undefined.
+    """
+    pool = ProcessPool(nodes=num_cores)
+    output_db = TinyDB(db_name)
+    dist_mats = _compute_intracell_all(
+        infolder,
+        metric,
+        pool,
+        types_keep,
+        n_sample,
+        keep_disconnect)
+
+    batch_size = 1000
+    failed_cells = write_tinydb_block(output_db, dist_mats, batch_size)
+    pool.close()
+    pool.join()
+    pool.clear()
+    return failed_cells
 
 # def geodesic_distance_table(
 #         tree : NeuronTree,
@@ -1367,7 +1479,6 @@ def compute_and_save_geodesic(
     else:
         return False
 
-
 # def compute_and_save_sample_pts_parallel(infolder : str, outfolder : str,
 #                              types_keep: Optional[Iterable[int]]=None,
 #                              goal_num_pts : int =50, min_step_change :float =1e-7,
@@ -1516,116 +1627,116 @@ def compute_intracell_parallel(
 
     return dist_mats
 
-def _compute_intracell_all(
-    infolder: str,
-    metric: str,
-    pool: ProcessPool,
-    types_keep: Optional[Iterable[int]] = None,
-    sample_pts: int = 50,
-    keep_disconnect: bool = False,
-) -> Iterator[Tuple[str,Optional[npt.NDArray[np.float_]]]]:
-    r"""
-    Compute intracell distances for all files in the given directory wrt the given metric.
-    Return an iterator over pairs (cell_name, maybe_cell_dists)
+# def _compute_intracell_all(
+#     infolder: str,
+#     metric: str,
+#     pool: ProcessPool,
+#     types_keep: Optional[Iterable[int]] = None,
+#     sample_pts: int = 50,
+#     keep_disconnect: bool = False,
+# ) -> Iterator[Tuple[str,Optional[npt.NDArray[np.float_]]]]:
+#     r"""
+#     Compute intracell distances for all files in the given directory wrt the given metric.
+#     Return an iterator over pairs (cell_name, maybe_cell_dists)
 
-    :param infolder: Directory of \*.swc files.
-    :param metric: Either "euclidean" or "geodesic" as appropriate.
-    :param pool: A pathos multiprocessing pool to do the work of sampling and computing distances.\
-        Assumed to be open.
-    :param types_keep: optional parameter, a list of node types to sample from.
-    :param sample_pts: How many points to sample from each cell.
-    :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
-          to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
-          Euclidean distance metric, as the geodesic distance between points \
-          in different components is undefined.
-    """
+#     :param infolder: Directory of \*.swc files.
+#     :param metric: Either "euclidean" or "geodesic" as appropriate.
+#     :param pool: A pathos multiprocessing pool to do the work of sampling and computing distances.\
+#         Assumed to be open.
+#     :param types_keep: optional parameter, a list of node types to sample from.
+#     :param sample_pts: How many points to sample from each cell.
+#     :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
+#           to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
+#           Euclidean distance metric, as the geodesic distance between points \
+#           in different components is undefined.
+#     """
 
-    filenames = [
-        file_name for file_name in os.listdir(infolder)
-        if os.path.splitext(file_name)[1] == ".swc"
-        or os.path.splitext(file_name)[1] == ".SWC"
-    ]
-    cell_names = [os.path.splitext(filename)[0] for filename in filenames]
+#     filenames = [
+#         file_name for file_name in os.listdir(infolder)
+#         if os.path.splitext(file_name)[1] == ".swc"
+#         or os.path.splitext(file_name)[1] == ".SWC"
+#     ]
+#     cell_names = [os.path.splitext(filename)[0] for filename in filenames]
 
-    match metric:
-        case "euclidean":
-            compute_pt_cloud : Callable[[str],Optional[npt.NDArray[np.float_]]]
-            compute_pt_cloud = \
-                lambda file_name : get_sample_pts(
-                    file_name,
-                    infolder,
-                    types_keep,
-                    sample_pts)
-            maybe_pt_clouds = pool.imap(
-                compute_pt_cloud,
-                filenames,
-                chunksize=5)
-            compute_dist_mat : Callable[[Optional[npt.NDArray[np.float_]]],\
-                                        Optional[npt.NDArray[np.float_]]]
-            compute_dist_mat =\
-                lambda maybe_cloud: None if maybe_cloud is None else pdist(maybe_cloud)
-            return(zip(cell_names,pool.imap(
-                compute_dist_mat,
-                maybe_pt_clouds,
-                chunksize=1000
-            )))
-        case "geodesic":
-            compute_geodesic : Callable[[str], Optional[npt.NDArray[np.float_]]]
-            compute_geodesic =\
-                lambda file_name: get_geodesic(file_name, infolder, types_keep, sample_pts)
-            return(zip(cell_names,pool.imap(
-                compute_geodesic,
-                filenames,
-                chunksize=1)))
-        case _:
-            raise Exception("Metric must be either Euclidean or geodesic.")
+#     match metric:
+#         case "euclidean":
+#             compute_pt_cloud : Callable[[str],Optional[npt.NDArray[np.float_]]]
+#             compute_pt_cloud = \
+#                 lambda file_name : get_sample_pts(
+#                     file_name,
+#                     infolder,
+#                     types_keep,
+#                     sample_pts)
+#             maybe_pt_clouds = pool.imap(
+#                 compute_pt_cloud,
+#                 filenames,
+#                 chunksize=5)
+#             compute_dist_mat : Callable[[Optional[npt.NDArray[np.float_]]],\
+#                                         Optional[npt.NDArray[np.float_]]]
+#             compute_dist_mat =\
+#                 lambda maybe_cloud: None if maybe_cloud is None else pdist(maybe_cloud)
+#             return(zip(cell_names,pool.imap(
+#                 compute_dist_mat,
+#                 maybe_pt_clouds,
+#                 chunksize=1000
+#             )))
+#         case "geodesic":
+#             compute_geodesic : Callable[[str], Optional[npt.NDArray[np.float_]]]
+#             compute_geodesic =\
+#                 lambda file_name: get_geodesic(file_name, infolder, types_keep, sample_pts)
+#             return(zip(cell_names,pool.imap(
+#                 compute_geodesic,
+#                 filenames,
+#                 chunksize=1)))
+#         case _:
+#             raise Exception("Metric must be either Euclidean or geodesic.")
 
-def compute_and_save_intracell_all_backup(
-    infolder: str,
-    db_name: str,
-    metric: str,
-    n_sample: int = 50,
-    num_cores: int = 8,
-    types_keep: Optional[Iterable[int]] = None,
-    keep_disconnect: bool = False
-) -> List[str]:
+# def compute_and_save_intracell_all_backup(
+#     infolder: str,
+#     db_name: str,
+#     metric: str,
+#     n_sample: int = 50,
+#     num_cores: int = 8,
+#     types_keep: Optional[Iterable[int]] = None,
+#     keep_disconnect: bool = False
+# ) -> List[str]:
 
-    r"""
-    For each swc file in infolder, sample n_sample many points from the\
-    neuron, evenly spaced, and compute the Euclidean or geodesic intracell\
-    matrix depending on the value of the argument `metric`. Write the \
-    resulting intracell distance matrices to a database file called `db_name.json`.
+#     r"""
+#     For each swc file in infolder, sample n_sample many points from the\
+#     neuron, evenly spaced, and compute the Euclidean or geodesic intracell\
+#     matrix depending on the value of the argument `metric`. Write the \
+#     resulting intracell distance matrices to a database file called `db_name.json`.
 
-    :param infolder: Directory of input \*.swc files.
-    :param metric: Either "euclidean" or "geodesic"
-    :param db_name: .json file to write the intracell distance matrices to. \
-        It is assumed that db_name.json does not exist.
-    :param types_keep: optional parameter, a list of node types to sample from.
-    :param n_sample: How many points to sample from each cell.
-    :param num_cores: the intracell distance matrices will be computed in parallel processes,\
-          num_cores is the number of processes to run simultaneously. Recommended to set\
-          equal to the number of cores on your machine.
-    :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
-          to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
-          Euclidean distance metric, as the geodesic distance between points \
-          in different components is undefined.
+#     :param infolder: Directory of input \*.swc files.
+#     :param metric: Either "euclidean" or "geodesic"
+#     :param db_name: .json file to write the intracell distance matrices to. \
+#         It is assumed that db_name.json does not exist.
+#     :param types_keep: optional parameter, a list of node types to sample from.
+#     :param n_sample: How many points to sample from each cell.
+#     :param num_cores: the intracell distance matrices will be computed in parallel processes,\
+#           num_cores is the number of processes to run simultaneously. Recommended to set\
+#           equal to the number of cores on your machine.
+#     :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
+#           to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
+#           Euclidean distance metric, as the geodesic distance between points \
+#           in different components is undefined.
 
-    :return: a list of file names for which the sampling process failed.
-    """
+#     :return: a list of file names for which the sampling process failed.
+#     """
 
-    pool = ProcessPool(nodes=num_cores)
-    output_db = TinyDB(db_name)
-    dist_mats = _compute_intracell_all(
-        infolder,
-        metric,
-        pool,
-        types_keep,
-        n_sample,
-        keep_disconnect)
+#     pool = ProcessPool(nodes=num_cores)
+#     output_db = TinyDB(db_name)
+#     dist_mats = _compute_intracell_all(
+#         infolder,
+#         metric,
+#         pool,
+#         types_keep,
+#         n_sample,
+#         keep_disconnect)
 
-    batch_size = 1000
-    failed_cells = write_tinydb_block(output_db, dist_mats, batch_size)
-    pool.close()
-    pool.join()
-    pool.clear()
-    return failed_cells
+#     batch_size = 1000
+#     failed_cells = write_tinydb_block(output_db, dist_mats, batch_size)
+#     pool.close()
+#     pool.join()
+#     pool.clear()
+#     return failed_cells
