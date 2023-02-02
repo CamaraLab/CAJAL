@@ -65,6 +65,24 @@ def read_mp_array(np_array):
     np.copyto(np_wrapper, np_array)
     return mp_array
 
+def write_csv_block(
+        out_csv : str,
+        dist_mats : Iterator[Tuple[str, Optional[npt.NDArray[np.float_]]]],
+        batch_size : int = 1000
+) -> List[str]:
+    failed_cells : List[str] = []
+    with open(out_csv, newline='') as csvfile:
+        csvwriter = csv.writer(csvfile, delimiter=',')
+        while(next_batch := list(it.islice(dist_mats, batch_size))):
+            good_cells : List[[List[str | float]]] = []
+            for name, cell in next_batch:
+                if cell is None:
+                    failed_cells.append(name)
+                else:
+                    good_cells.append( [ name ] + cell.tolist())
+        csvwriter.writerows(good_cells)
+    return failed_cells
+
 def write_tinydb_block(
         output_db : TinyDB,
         dist_mats : Iterator[Tuple[str, Optional[npt.NDArray[np.float_]]]],

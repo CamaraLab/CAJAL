@@ -620,11 +620,69 @@ def _read_and_compute_intracell_one(
     cell_name = os.path.splitext(os.path.split(fullpath)[1])[0]
     return (cell_name,_compute_intracell_one(forest,metric,types_keep,sample_pts,keep_disconnect))
 
+def compute_and_save_intracell_all_csv(
+    infolder: str,
+    out_csv: str,
+    metric: Literal["euclidean"] | Literal["geodesic"],
+    types_keep: list[int] | literal["keep_all"],
+    n_sample: int = 50,
+    num_cores: int = 8,
+    keep_disconnect: bool = False
+) -> List[str]:
+    r"""
+    For each swc file in infolder, sample n_sample many points from the\
+    neuron, evenly spaced, and compute the Euclidean or geodesic intracell\
+    matrix depending on the value of the argument `metric`. Write the \
+    resulting intracell distance matrices to a database file called `db_name.json`.
+
+    :param infolder: Directory of input \*.swc files.
+    :param metric: Either "euclidean" or "geodesic"
+    :param db_name: .json file to write the intracell distance matrices to. \
+        It is assumed that db_name.json does not exist, or is empty.
+    :param types_keep: optional parameter, a list of node types to sample from.
+    :param n_sample: How many points to sample from each cell.
+    :param num_cores: the intracell distance matrices will be computed in parallel processes,\
+          num_cores is the number of processes to run simultaneously. Recommended to set\
+          equal to the number of cores on your machine.
+    :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes connected\
+          to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
+          Euclidean distance metric, as the geodesic distance between points \
+          in different components is undefined.
+    """
+    pool = ProcessPool(nodes=num_cores)
+    
+    file_names = [
+        file_name for file_name in os.listdir(infolder)
+        if os.path.splitext(file_name)[1] == ".swc"
+        or os.path.splitext(file_name)[1] == ".SWC"
+    ]
+    if infolder[-1] == '/':
+        all_files = [infolder + file_name for file_name in file_names]
+    else:
+        all_files = [infolder + '/' + file_name for file_name in file_names]
+
+    # cell_iter = cell_iterator(infolder)
+    compute_icdm_fn = partial(
+        _read_and_compute_intracell_one,
+        metric = metric,
+        types_keep = types_keep,
+        sample_pts = n_sample,
+        keep_disconnect = keep_disconnect)
+    name_distmat_pairs = pool.imap(
+        compute_icdm_fn,
+        all_files,chunksize=5)
+    batch_size = 1000
+    failed_cells = write_csv_block(out_csv, name_distmat_pairs, batch_size)
+    pool.close()
+    pool.join()
+    pool.clear()
+    return failed_cells
+
 def compute_and_save_intracell_all(
     infolder: str,
     db_name: str,
     metric: Literal["euclidean"] | Literal["geodesic"],
-    types_keep: list[int] | Literal["keep_all"],
+    types_keep: list[int] | literal["keep_all"],
     n_sample: int = 50,
     num_cores: int = 8,
     keep_disconnect: bool = False

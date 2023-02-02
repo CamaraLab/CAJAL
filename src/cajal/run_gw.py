@@ -6,13 +6,15 @@ using algorithms in Peyre et al. ICML 2016
 # std lib dependencies
 import itertools as it
 import time
+import csv
 # import ctypes
 from typing import List, Optional, Tuple, Iterable, Iterator, Dict, TypedDict, TypeVar, Callable
 # from multiprocessing import Pool
 from pathos.pools import ProcessPool
 from multiprocess.shared_memory import SharedMemory
 from multiprocess import set_start_method
-from math import sqrt
+from math import sqrt, ceil
+import statistics
 #external dependencies
 import ot
 import numpy as np
@@ -22,7 +24,6 @@ import numpy.typing as npt
 from scipy.spatial.distance import squareform
 from scipy.sparse import coo_matrix
 from tinydb import TinyDB
-
 
 # cajal dependencies
 # from .utilities import pj load_dist_mat, list_sort_files, read_mp_array
@@ -271,7 +272,7 @@ def _compute_gw_pool_batched_indices(
     retlist : List[Tuple[float,Optional[List[List[float]]]]] = []
     for index_1, index_2 in index_list:
         fst_matrix = np_array_1[index_1]
-        snd_matrix = np_array_2[index_2]        
+        snd_matrix = np_array_2[index_2]
         # Compute Gromov-Wasserstein matching coupling matrix and distance
         coupling_mat, log = ot.gromov.gromov_wasserstein(
             fst_matrix,
@@ -281,57 +282,58 @@ def _compute_gw_pool_batched_indices(
             'square_loss',
             log=True)
         if return_coupling_mat:
-            coo_mat = coo_matrix(coupling_mat)
+            # coo_mat = coo_matrix(coupling_mat)
             retlist.append((log['gw_dist'], coupling_mat.tolist()))
         else:
             retlist.append((log['gw_dist'], None))
-        
     shared_mem_1.close()
     shared_mem_2.close()
     time1=time.time()
     print(time1-time0)
     return(retlist)
     
-def _compute_gw(
-        block_length_1 : int,
-        block_length_2 : int,
-        side_length : int,
-        index_1 : int,
-        index_2 : int,
-        return_coupling_mat : bool
-) -> Tuple[float, Optional[List[List[float]]]]:
-    time0=time.time()
+# def _compute_gw(
+#         block_length_1 : int,
+#         block_length_2 : int,
+#         side_length : int,
+#         index_1 : int,
+#         index_2 : int,
+#         shared_mem_name_1 : str,
+#         shared_mem_name_2 : str,
+#         return_coupling_mat : bool
+# ) -> Tuple[float, Optional[List[List[float]]]]:
+#     time0=time.time()
 
-    shared_mem_1 = SharedMemory(name=shared_mem_name_1)
-    shared_mem_2 = SharedMemory(name=shared_mem_name_2)
+#     shared_mem_1 = SharedMemory(name=shared_mem_name_1)
+#     shared_mem_2 = SharedMemory(name=shared_mem_name_2)
 
-    np_array_1 : npt.NDArray[np.float64] = np.ndarray(
-        (block_length_1,side_length,side_length),
-        dtype=np.float64,
-        buffer=shared_mem_1.buf)
-    np_array_2 : npt.NDArray[np.float64] = np.ndarray(
-        (block_length_2,side_length,side_length),
-        dtype=np.float64,
-        buffer=shared_mem_2.buf)
-    fst_matrix = np_array_1[index_1]
-    snd_matrix = np_array_2[index_2]
-    # Compute Gromov-Wasserstein matching coupling matrix and distance
-    coupling_mat, log = ot.gromov.gromov_wasserstein(
-        fst_matrix,
-        snd_matrix,
-        ot.unif(side_length),
-        ot.unif(side_length),
-        'square_loss',
-        log=True)
-    shared_mem_1.close()
-    shared_mem_2.close()
-    time1=time.time()
-    if return_coupling_mat:
-        coo_mat = coo_matrix(coupling_mat)
-        return log['gw_dist'], { "data" : coo_mat.data.tolist(),
-                                 "row" : coo_mat.row.tolist(),
-                                 "col" : coo_mat.col.tolist() }
-    return log['gw_dist'], None
+#     np_array_1 : npt.NDArray[np.float64] = np.ndarray(
+#         (block_length_1,side_length,side_length),
+#         dtype=np.float64,
+#         buffer=shared_mem_1.buf)
+#     np_array_2 : npt.NDArray[np.float64] = np.ndarray(
+#         (block_length_2,side_length,side_length),
+#         dtype=np.float64,
+#         buffer=shared_mem_2.buf)
+#     fst_matrix = np_array_1[index_1]
+#     snd_matrix = np_array_2[index_2]
+#     # Compute Gromov-Wasserstein matching coupling matrix and distance
+#     coupling_mat, log = ot.gromov.gromov_wasserstein(
+#         fst_matrix,
+#         snd_matrix,
+#         ot.unif(side_length),
+#         ot.unif(side_length),
+#         'square_loss',
+#         log=True)
+#     shared_mem_1.close()
+#     shared_mem_2.close()
+#     time1=time.time()
+#     if return_coupling_mat:
+#         coo_mat = coo_matrix(coupling_mat)
+#         return log['gw_dist'], { "data" : coo_mat.data.tolist(),
+#                                  "row" : coo_mat.row.tolist(),
+#                                  "col" : coo_mat.col.tolist() }
+#     return log['gw_dist'], None
 
 GW_Record_W_CouplingMat = TypedDict('GW_Record_W_CouplingMat',
                                     { "name_1" : str,
@@ -345,21 +347,95 @@ GW_Record_WO_CouplingMat = TypedDict('GW_Record_WO_CouplingMat',
                                       "name_2" : str,
                                       "gw_dist" : float})
 
-# def cell_pair_iterator(
-#         intracell_db_loc : str,
-#         chunk_size : int)-> Iterator[???]:
+def _batched_cell_list_iterator(
+        intracell_db_loc : str,
+        chunk_size : int
+) -> Iterator[Tuple[
+        List[Tuple[int,str, npt.NDArray[np.float64]]],
+        List[Tuple[int,str, npt.NDArray[np.float64]]]]]:
+    """
+    :param intracell_db_loc: A full file path to a TinyDB json database.
+    :param chunk_size: A size parameter.
 
-#     cell_id_list : List[int] = []
-#     for cell in iter(intracell_table):
-#         cell_id_list.append(cell.doc_id)
-#     assert(_is_sorted(cell_id_list))
-#     assert chunk_size > 0
-#     intracell_db = TinyDB(intracell_db_loc)
-#     # intracell_db is an existing \*.json file
-#     intracell_db = TinyDB(intracell_db_loc)
-#     # We assume that the table is called "_default", which is the TinyDB default name for a database.
-#     intracell_table = intracell_db.table('_default', cache_size=2 * chunk_size)
+    :return: An iterator over pairs (list1, list2), where each element in list1 and list2 is a triple
+    (cell_id, cell_name, icdm), where cell_id is the unique identifier of a cell in the tinydb database,
+    cell_name is a string, and icdm is a square n x n distance matrix.
+    """
 
+    # intracell_db is an existing \*.json file
+    intracell_db = TinyDB(intracell_db_loc)
+    # We assume that the table is called "_default", which is the TinyDB default name for a database.
+    intracell_table = intracell_db.table('_default', cache_size=2 * chunk_size)
+    cell_id_list : List[int] = []
+    for cell in iter(intracell_table):
+        cell_id_list.append(cell.doc_id)
+    assert(_is_sorted(cell_id_list))
+
+    # Construct an iterator over all cells in the table.
+    # Batch the iterator into blocks of size chunk_size.
+    outer_doc_iter = iter(intracell_table)
+    batched_outer = _batched(outer_doc_iter, chunk_size)
+    for outer_batch in batched_outer:
+        # Convert cells to a simple form (key, name, intracell_distance_matrix of shape (n,n))
+        outer_batch_tuples = list(map(_convert_document,outer_batch))
+        side_length : int = outer_batch_tuples[0][2].shape[0]
+        inner_doc_iter = iter(intracell_table)
+        # This loop discards the initial segment of the iterator containing all
+        # those cells whose key is less than the first cell in outer_batch. It
+        # also discards the first cell for which this test fails, which should
+        # be outer_batch[0] itself if the iterator returns the cells in increasing
+        # order of their keys.
+        while(next(inner_doc_iter).doc_id < outer_batch[0].doc_id):
+            pass
+        batched_inner = _batched(inner_doc_iter, chunk_size)
+        for inner_batch in batched_inner:
+            inner_batch_tuples = list(map(_convert_document,inner_batch))
+            yield outer_batch_tuples, inner_batch_tuples
+
+def compute_gw_distance_matrix(
+        intracell_db_loc : str,
+        gw_csv : str,
+        save_mat : bool =False
+) -> None:
+    with open(gw_csv, 'a', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile, delimiter=',')
+        chunk_size=100
+        list_length : int = len(next(iter(TinyDB(intracell_db_loc)))['cell'])
+        side_length : int = ceil(sqrt(2 * list_length))
+        assert (side_length * (side_length - 1) == list_length * 2)
+        if save_mat:
+            header = ["first_cell","second_cell","gw_dist"] + list(range(side_length ** 2))
+        else:
+            header = ["first_cell","second_cell","gw_dist"]
+        csvwriter.writerow(header)
+        time_start=time.time()
+        cell_comparisons=0
+        for cell_list_1, cell_list_2 in _batched_cell_list_iterator(intracell_db_loc, chunk_size):
+            name_mat_pairs =\
+                _batched(((t[1], t[2], s[1], s[2])
+                          for (t, s) in it.product(cell_list_1, cell_list_2)
+                          if t[0]<s[0]),
+                         chunk_size)
+            for name_mat_pair_batch in name_mat_pairs:
+                rowlist : list[ list[str | float] ] = []
+                for name1, icdm_1, name2, icdm_2 in name_mat_pair_batch:
+                    coupling_mat, log = ot.gromov.gromov_wasserstein(
+                        icdm_1,
+                        icdm_2,
+                        ot.unif(side_length),
+                        ot.unif(side_length),
+                        'square_loss',
+                        log=True)
+                    if save_mat:
+                        flatlist = [x for l in coupling_mat.tolist() for x in l]
+                        rowlist.append([name1,name2,log['gw_dist']]+flatlist)
+                    else:
+                        rowlist.append([name1,name2,log['gw_dist']])
+                csvwriter.writerows(rowlist)
+                cell_comparisons+=len(name_mat_pair_batch)
+                print("Total time elapsed:" + str(time.time()-time_start))
+                print("Cell comparisons so far:" + str(cell_comparisons))
+                
 # def compute_gw_distance_matrix_one_process(
 #         intracell_db_loc : str,
 #         gw_db_loc : str,
@@ -487,15 +563,13 @@ GW_Record_WO_CouplingMat = TypedDict('GW_Record_WO_CouplingMat',
 #                     print("Time spent writing to file: " +str(1000*(time2-time0)))
 #                 counter += 1
 
-
-
-# GOOD WORKING VERSION
-def compute_gw_distance_matrix(
+# This works but does not appear to offer any real performance boosts.
+def compute_gw_distance_matrix_parallel(
         intracell_db_loc : str,
         gw_db_loc : str,
         save_mat : bool =False,
         num_cores : int=8,
-        chunk_size : int = 1000
+        chunk_size : int = 50
         )-> None:
     r"""
     Compute the GW distance between every pair of cells in the database intracell_db_loc.
@@ -556,18 +630,30 @@ def compute_gw_distance_matrix(
     # Batch the iterator into blocks of size chunk_size.
     outer_doc_iter = iter(intracell_table)
     batched_outer = _batched(outer_doc_iter, chunk_size)
+    time_start= time.time()
+    total_num_pairs =0 
     for outer_batch in batched_outer:
-        # Convert cells to a simple form (key, name, intracell_distance_matrix of shape (n,n))
+        # outer_batch is a list of chunk_size many documents.
+        # Convert cells to a simple form: (key, name, intracell_distance_matrix of shape (n,n))
         outer_batch_tuples = list(map(_convert_document,outer_batch))
+        
+        assert(len(outer_batch_tuples) <= 1000)
         side_length : int = outer_batch_tuples[0][2].shape[0]
+        assert(side_length == 100)
         outer_local_array = np.empty(
             shape=(len(outer_batch_tuples),side_length, side_length),
             dtype=np.float64)
         shm_icdm_1 = SharedMemory(create=True,size=outer_local_array.nbytes)
         outer_shared_dists : npt.NDArray[np.float64]=np.ndarray(
             outer_local_array.shape,dtype=np.float64, buffer=shm_icdm_1.buf)
+
         for i in range(len(outer_batch_tuples)):
             outer_shared_dists[i][:]=outer_batch_tuples[i][2][:]
+        for i in range(len(outer_batch_tuples)):
+            assert(outer_shared_dists[i].shape == (100,100))
+            assert(outer_batch_tuples[i][2].shape == (100,100))
+            assert(np.array_equal(outer_shared_dists[i],outer_batch_tuples[i][2]))
+
         inner_doc_iter = iter(intracell_table)
         batched_inner = _batched(inner_doc_iter, chunk_size)
         # This loop discards the initial segment of the iterator containing all
@@ -579,21 +665,32 @@ def compute_gw_distance_matrix(
             pass
         for inner_batch in batched_inner:
             inner_batch_tuples = list(map(_convert_document,inner_batch))
-            # print(len(inner_batch_tuples))
             inner_local_array = np.empty(
                 shape=(len(inner_batch_tuples), side_length, side_length),
                 dtype=np.float64)
             shm_icdm_2 = SharedMemory(create=True,size=inner_local_array.nbytes)
             inner_shared_dists : npt.NDArray[np.float64] =np.ndarray(
                 inner_local_array.shape,dtype=np.float64, buffer=shm_icdm_2.buf)
-            filter_fun : Callable[[Tuple[int,int]],bool]
+            for j in range(len(inner_batch_tuples)):
+                inner_shared_dists[j][:]=inner_batch_tuples[j][2][:]
+            # filter_fun : Callable[[Tuple[int,int]],bool]
             # If i, j are array indices, filter_fun (i, j) is true iff the
             # key of the cell at outer_batch_tuples[i] is lower than the one at inner_batch_tuples[j].
-            filter_fun = lambda tup : (outer_batch_tuples[tup[0]][0] < inner_batch_tuples[tup[1]][0])
-            array_index_pairs : Iterator[Tuple[int,int]]
-            array_index_pairs = filter(
-                    filter_fun,
-                    it.product(range(len(outer_batch_tuples)),range(len(inner_batch_tuples))))
+            # filter_fun = lambda tup : (outer_batch_tuples[tup[0]][0] < inner_batch_tuples[tup[1]][0])
+            all_index_pairs = it.product(
+                range(len(outer_batch_tuples)),
+                range(len(inner_batch_tuples)))
+            array_index_pairs : Iterator[Tuple[int,int]]            
+            array_index_pairs = ( (i, j) for i, j in all_index_pairs if
+                                  outer_batch_tuples[i][0] < inner_batch_tuples[j][0])
+            # if save_mat:
+            #     array_index_pairs_batched = _batched(array_index_pairs,int(num_cores*chunk_size/10))
+            # else:
+            #     array_index_pairs_batched = _batched(array_index_pairs,num_cores*chunk_size)
+
+            # array_index_pairs = filter(
+            #         filter_fun,
+            #     it.product(range(len(outer_batch_tuples)),range(len(inner_batch_tuples))))
             if save_mat:
                 array_index_pairs_batched = _batched(array_index_pairs,int(num_cores*chunk_size/10))
             else:
@@ -614,14 +711,12 @@ def compute_gw_distance_matrix(
             out = pool.uimap(
                 compute_gw_pool_local,
                 array_index_pairs_batched,chunksize=1)
-
-            counter = 0
-            time0 = time.time()
             for index_list, batch_output in out:
-                time1 = time.time()
-                print("Total time of this iteration:" + str(1000*(time1 - time0)))
-                print("Currently processing batch " + str(counter))
-                time0 = time.time()
+                assert(len(index_list)==len(batch_output))
+                total_num_pairs += len(index_list)
+                time_now = time.time()
+                print("Total pairs: " + str(total_num_pairs))
+                print("Total time elapsed: "+ str(time_now-time_start))
                 if save_mat:
                     insert_dict_list_w_coupling_mat : List[GW_Record_W_CouplingMat]
                     insert_dict_list_w_coupling_mat =\
@@ -631,9 +726,6 @@ def compute_gw_distance_matrix(
                             "gw_dist" : t[1][0] }
                           for t in zip(index_list, batch_output) ]
                     gw_db.insert_multiple(insert_dict_list_w_coupling_mat)
-                    time2 = time.time()
-                    print("Pairs in batch: " + str(len(insert_dict_list_w_coupling_mat)))
-                    print("Time spent writing to file: " + str(1000*(time2 - time0)))
                 else:           # save_mat is false
                     insert_dict_list_wo_coupling_mat : List[GW_Record_WO_CouplingMat]
                     insert_dict_list_wo_coupling_mat =\
@@ -642,10 +734,6 @@ def compute_gw_distance_matrix(
                              "gw_dist" : t[1][0] }
                           for t in zip(index_list,batch_output) ]
                     gw_db.insert_multiple(insert_dict_list_wo_coupling_mat)
-                    time2 = time.time()
-                    print("Pairs in batch: " + str(len(insert_dict_list_wo_coupling_mat)))
-                    print("Time spent writing to file: " +str(1000*(time2-time0)))
-                counter += 1
             shm_icdm_2.close()
             shm_icdm_2.unlink()
         shm_icdm_1.close()
@@ -765,50 +853,50 @@ def compute_gw_distance_matrix(
                 
                 
                       
-            # batched_output = _batched(out,100)
-            # counter = 0
-            # time2=time.time()
-            # for batch_output in batched_output:
-            #     print("Currently processing batch " + str(counter))
-            #     if save_mat:
-            #         time0 = time.time()
-            #         print("Time to compute batch_output =" +str(1000*(time0-time2)))
-            #         insert_dict_list_w_coupling_mat : List[GW_Record_W_CouplingMat]
-            #         insert_dict_list_w_coupling_mat =\
-            #             [ { "name_1" : outer_batch_tuples[index_gw_dist_pair[0][0]][1],
-            #                 "name_2" : inner_batch_tuples[index_gw_dist_pair[0][1]][1],
-            #                 "coupling_mat" : index_gw_dist_pair[1][1],
-            #                 "gw_dist" :  index_gw_dist_pair[1][0] }
-            #               for index_gw_dist_pair in batch_output]
-            #         time1 = time.time()
-            #         print("Time to form insertion dictionary=" +str(1000*(time1-time0)))
-            #         gw_db.insert_multiple(insert_dict_list_w_coupling_mat)
-            #         time2 = time.time()
-            #         print("Time to write dictionary to db=" +str(1000*(time2-time1)))
-            #     else:           # save_mat is false
-            #         time0 = time.time()
-            #         print("Time to compute batch_output =" +str(1000*(time0-time2)))
-            #         insert_dict_list_wo_coupling_mat : List[GW_Record_WO_CouplingMat]
-            #         insert_dict_list_wo_coupling_mat =\
-            #             [ { "name_1" : outer_batch_tuples[index_gw_dist_pair[0][0]][1],
-            #                 "name_2" : inner_batch_tuples[index_gw_dist_pair[0][1]][1],
-            #                 "gw_dist" :  index_gw_dist_pair[1][0] }
-            #               for index_gw_dist_pair in batch_output]
-            #         time1 = time.time()
-            #         print("Time to form insertion dictionary=" +str(1000*(time1-time0)))
-            #         gw_db.insert_multiple(insert_dict_list_wo_coupling_mat)
-            #         time2 = time.time()
-            #         print("Time to write dictionary to db=" +str(1000*(time2-time1)))
-            #     counter += 1
-    #         shm_icdm_2.close()
-    #         shm_icdm_2.unlink()
+#             batched_output = _batched(out,100)
+#             counter = 0
+#             time2=time.time()
+#             for batch_output in batched_output:
+#                 print("Currently processing batch " + str(counter))
+#                 if save_mat:
+#                     time0 = time.time()
+#                     print("Time to compute batch_output =" +str(1000*(time0-time2)))
+#                     insert_dict_list_w_coupling_mat : List[GW_Record_W_CouplingMat]
+#                     insert_dict_list_w_coupling_mat =\
+#                         [ { "name_1" : outer_batch_tuples[index_gw_dist_pair[0][0]][1],
+#                             "name_2" : inner_batch_tuples[index_gw_dist_pair[0][1]][1],
+#                             "coupling_mat" : index_gw_dist_pair[1][1],
+#                             "gw_dist" :  index_gw_dist_pair[1][0] }
+#                           for index_gw_dist_pair in batch_output]
+#                     time1 = time.time()
+#                     print("Time to form insertion dictionary=" +str(1000*(time1-time0)))
+#                     gw_db.insert_multiple(insert_dict_list_w_coupling_mat)
+#                     time2 = time.time()
+#                     print("Time to write dictionary to db=" +str(1000*(time2-time1)))
+#                 else:           # save_mat is false
+#                     time0 = time.time()
+#                     print("Time to compute batch_output =" +str(1000*(time0-time2)))
+#                     insert_dict_list_wo_coupling_mat : List[GW_Record_WO_CouplingMat]
+#                     insert_dict_list_wo_coupling_mat =\
+#                         [ { "name_1" : outer_batch_tuples[index_gw_dist_pair[0][0]][1],
+#                             "name_2" : inner_batch_tuples[index_gw_dist_pair[0][1]][1],
+#                             "gw_dist" :  index_gw_dist_pair[1][0] }
+#                           for index_gw_dist_pair in batch_output]
+#                     time1 = time.time()
+#                     print("Time to form insertion dictionary=" +str(1000*(time1-time0)))
+#                     gw_db.insert_multiple(insert_dict_list_wo_coupling_mat)
+#                     time2 = time.time()
+#                     print("Time to write dictionary to db=" +str(1000*(time2-time1)))
+#                 counter += 1
+#             shm_icdm_2.close()
+#             shm_icdm_2.unlink()
             
             
-    #     shm_icdm_1.close()
-    #     shm_icdm_1.unlink()
+#         shm_icdm_1.close()
+#         shm_icdm_1.unlink()
         
-    # pool.close()
-    # pool.join()
+#     pool.close()
+#     pool.join()
 
         # # Group them into batches of size chunk_size.
     # batched_ids = _batched(cell_id_list,chunk_size)
