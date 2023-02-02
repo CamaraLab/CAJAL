@@ -3,9 +3,11 @@ import os
 from multiprocessing import RawArray
 import numpy as np
 import numpy.typing as npt
+import csv
 from scipy.spatial.distance import squareform
 from tinydb import TinyDB
 import itertools as it
+import math
 from typing import Tuple, List, Iterator, Optional
 
 def pj(*paths):
@@ -71,8 +73,15 @@ def write_csv_block(
         batch_size : int = 1000
 ) -> List[str]:
     failed_cells : List[str] = []
-    with open(out_csv, newline='') as csvfile:
+    with open(out_csv, 'a', newline='') as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=',')
+        name, arr = next(dist_mats)
+        length=arr.shape[0]
+        sidelength=math.ceil(math.sqrt(2*length))
+        assert(sidelength*(sidelength-1)==length*2)
+        firstline = [ "cell_id" ] + [ "d_%d_%d" % (i , j) for i,j in it.combinations(range(sidelength),2)]
+        csvwriter.writerow(firstline)
+        csvwriter.writerow([name]+arr.tolist())
         while(next_batch := list(it.islice(dist_mats, batch_size))):
             good_cells : List[[List[str | float]]] = []
             for name, cell in next_batch:

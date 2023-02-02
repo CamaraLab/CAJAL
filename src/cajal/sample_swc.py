@@ -17,7 +17,7 @@ from typing import List, Dict, Tuple, Optional, Iterable, Iterator, Set, NewType
 from pathos.pools import ProcessPool
 import os
 from tinydb import TinyDB
-from cajal.utilities import pj, write_tinydb_block
+from cajal.utilities import pj, write_tinydb_block, write_csv_block
 
 # Warning: Of 509 neurons downloaded from the Allen Brain Initiative database,
 # about 5 had a height of at least 1000 nodes. Therefore on about 1% of test
