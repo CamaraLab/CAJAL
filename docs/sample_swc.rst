@@ -5,6 +5,9 @@ CAJAL supports neuronal tracing data in the SWC spec as specified here: http://w
 
 The sample_swc.py file contains functions to help the user sample points from an \*.swc file.
 
+.. warning:: In the Allen Brain 
+
+
 .. autofunction:: sample_swc.get_sample_pts
 .. autofunction:: sample_swc.get_geodesic
 		  

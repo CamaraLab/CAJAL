@@ -69,7 +69,7 @@ def read_mp_array(np_array):
 
 def write_csv_block(
         out_csv : str,
-        dist_mats : Iterator[Tuple[str, Optional[npt.NDArray[np.float_]]]],
+        dist_mats : Iterator[Tuple[str, npt.NDArray[np.float_]]],
         batch_size : int = 1000
 ) -> List[str]:
     failed_cells : List[str] = []
@@ -83,7 +83,7 @@ def write_csv_block(
         csvwriter.writerow(firstline)
         csvwriter.writerow([name]+arr.tolist())
         while(next_batch := list(it.islice(dist_mats, batch_size))):
-            good_cells : List[[List[str | float]]] = []
+            good_cells : list[list[str | float]] = []
             for name, cell in next_batch:
                 if cell is None:
                     failed_cells.append(name)
