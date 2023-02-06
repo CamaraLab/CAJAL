@@ -536,8 +536,6 @@ def get_sample_pts_euclidean(
                     dtype='f8')
                 dist = euclidean(root_triple, child_triple)
                 assert(step_size >= offset)
-                # def _count_nodes_helper(node_a : NeuronNode, node_b: NeuronNode,
-                #         stepsize: float, offset : float) -> tuple[int,float]:
                 num_nodes,leftover = _count_nodes_helper(tree.root,child_tree.root,step_size,offset)
                 spacing = np.linspace(start = step_size - offset,
                                       stop = dist - leftover,
@@ -545,17 +543,9 @@ def get_sample_pts_euclidean(
                                       endpoint=True
                                       )
                 assert(spacing.shape[0]==num_nodes)
-                
-                # spacing = np.arange(start=step_size - offset,
-                #                     stop = dist,
-                #                     step = step_size) / dist
                 for x in spacing:
                     sample_pts_list.append(
                         (root_triple * x)+(child_triple *(1-x)))
-                # d_plus_o = dist + offset
-                # ct = math.floor(d_plus_o / step_size)
-                # assert(ct == spacing.shape[0])
-                # y = d_plus_o - (step_size * ct)
                 assert(leftover >= 0)
                 assert(leftover < step_size)
                 new_treelist.append((child_tree, leftover))
