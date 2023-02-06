@@ -21,10 +21,9 @@ Save the following metadata table to a convenient location:
 https://celltypes.brain-map.org/cell_types_specimen_details.csv
 
 Now we will download the data (about 141 MB) to some convenient working directory. (The
-Allen Brain Atlas API is available `here
-<http://help.brain-map.org/display/celltypes/API#API-download_swc>`_. They also
+Allen Brain Atlas API is available `here <http://help.brain-map.org/display/celltypes/API#API-download_swc>`_. They also
 provide a Python package `allensdk` (`project
-homepage<https://allensdk.readthedocs.io/en/latest/index.html>`_, `PyPI
+homepage <https://allensdk.readthedocs.io/en/latest/index.html>`_, `PyPI
 <https://pypi.org/project/allensdk/>`_), however it is not yet updated to
 support Python 3.10.)
 
@@ -146,7 +145,7 @@ use as a precomputed distance metric.
 		with open("/home/patn/recon/swc_gwm.csv", "r", newline='') as csvfile:
 		    gw_reader = iter(csv.reader(csvfile, delimiter=','))
 		    header = next(gw_reader)
-		    for a, b, c in gw_reader:
+ 		    for a, b, c in gw_reader:
 		    cell_id_1 = int(a)
 		    cell_id_2 = int(b)
 		    gw_dist = float(c)
@@ -179,6 +178,7 @@ other sets.
 		cvs = cross_val_score(clf, X=gw_dist_mat, y=clusters,cv=cv))
 		print(cvs)
 		# array([0.2739726 , 0.32876712, 0.2739726 , 0.21917808, 0.28767123, 0.31944444, 0.30555556])
+		
 We see that the average accuracy is between 27% and 30%. However, this number is a bit inflated, as merely evaluating the percentage of correct classifications will underweigh the smallest groups of the dataset. For a more realistic appraisal we will compute the `Matthews correlation coefficient <https://bmcgenomics.biomedcentral.com/counter/pdf/10.1186/s12864-019-6413-7.pdf>_` of the classification, which appropriately weights the error arising from misclassifying elements of smaller classes.
 
 .. code-block:: python
