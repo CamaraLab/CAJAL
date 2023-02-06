@@ -669,7 +669,7 @@ def compute_intracell_all(
 
 def compute_and_save_intracell_all(
         infolder: str,
-        db_name: str,
+        out_csv: str,
         metric: str,
         n_sample : int = 50,
         num_cores: int = 8,
@@ -679,15 +679,18 @@ def compute_and_save_intracell_all(
     r"""
     Go through every Wavefront \*.obj file in the given input directory `infolder`\
     and compute intracell\
-    distances according to the given metric. Write the results to output \*.json file named
-    `db_name`.
+    distances according to the given metric. Write the results to output \*.csv file named
+    `out_csv`.
 
     :param infolder: Folder full of \*.obj files.
-    :param db_name: Output will be written to a \*.json file named `db_name`.
+    :param out_csv: Output will be written to a \*.csv file named \
+       `out_csv.csv`.
     :param n_sample: How many points to sample from each cell.
-    :param metric: Either "euclidean" or "geodesic" as preferred by the user.
-    :param segment: If segment is True, each \*.obj file\
-    will be segmented into its set of connected components before being returned, that is,\
+    :param metric: Either "euclidean" or "geodesic" as preferred by the \
+         user.
+    :param segment: If segment is True, each \*.obj file \
+    will be segmented into its set of connected components before \
+         being returned, that is,\
     so an \*.obj file with multiple connected components will be understood to contain multiple\
     distinct cells. If segment is False, each \*.obj file will be understood to contain a single\
     cell, and points will be sampled accordingly. If segment is False and the user \
@@ -709,7 +712,7 @@ def compute_and_save_intracell_all(
     fewer than n_sample points.
     """
 
-    output_db = TinyDB(db_name)
+    # output_db = TinyDB(db_name)
     pool = ProcessPool(nodes=num_cores)
     dist_mats = compute_intracell_all(
         infolder,
@@ -719,7 +722,7 @@ def compute_and_save_intracell_all(
         segment,
         method)
     batch_size = 1000
-    failed_cells = write_tinydb_block(output_db, dist_mats, batch_size)
+    failed_cells = write_csv_block(out_csv, dist_mats, batch_size)
     pool.close()
     pool.join()
     pool.clear()

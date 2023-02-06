@@ -46,15 +46,16 @@ Neuronal Tracing Data
 CAJAL supports neuronal tracing data in the SWC spec as specified `here
 <http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html>`_.
 
-The function :func:`sample_swc.compute_and_save_intracell_all` operates on
-directories of \*.swc files and populates a \*.json database with intracell
+The function :func:`sample_swc.compute_and_save_intracell_all_csv`
+operates on
+directories of \*.swc files and populates a \*.csv file with intracell
 distance matrices, one for each cell in the source directory.
 
 .. code-block:: python
 
 		failed_cells = sample_swc.compute_and_save_intracell_all(
                     infolder = "/home/jovyan/CAJAL/CAJAL/data/swc_files",
-		    db_name= "/home/jovyan/CAJAL/CAJAL/data/swc_icd.json",
+		    out_csv= "/home/jovyan/CAJAL/CAJAL/data/swc_icdm.csv",
 		    metric = "geodesic",
 		    n_sample = 50,
 		    num_cores = 8,
@@ -62,8 +63,9 @@ distance matrices, one for each cell in the source directory.
 		    keep_disconnect =False
 		    )
 
-Here, `infolder` is a directory full of \*.swc files and `db_name` is a (not
-already-existing) \*.json file where the intracell distance matrices will be
+Here, `infolder` is a directory full of \*.swc files and `out_csv` is a
+(not already-existing) \*.csv file where the intracell distance matrices
+will be
 written. The argument `metric` can be either "euclidean" or
 "geodesic". `types_keep` is an optional argument, one can supply a list of
 integers corresponding to node types to sample from as in the SWC spec. (If
@@ -120,7 +122,7 @@ distance is insensitive to connectivity.)
 CAJAL provides one batch-processing function which goes through all \*.obj
 files in a given directory, separates them into connected components, computes
 intracell distance matrices for each component, and writes all these square
-matrices to a \*.json file. (Bundling file I/O and math together in one
+matrices to a \*.csv file. (Bundling file I/O and math together in one
 function is less modular but it makes it easier to parallelize and not fill the
 memory)
 
@@ -128,7 +130,7 @@ memory)
 
 		failed_samples = sample_mesh.compute_and_save_intracell_all(
 		            infolder="/home/jovyan/CAJAL/data/obj_files",
-			    db_name="/home/jovyan/CAJAL/data/sampled_pts/obj_geodesic_50.json",
+			    out_csv="/home/jovyan/CAJAL/data/sampled_pts/obj_geodesic_50.csv",
 			    metric = "segment",
 			    n_sample=50,
 			    num_cores=8,
@@ -136,7 +138,7 @@ memory)
 			    method="heat"
 			    )
 
-The arguments `infolder, db_name, n_sample, metric` are as in :ref:`Neuronal
+The arguments `infolder, out_csv, n_sample, metric` are as in :ref:`Neuronal
 Tracing Data`, except that `infolder` is a folder containing \*.obj files
 rather than \*.swc files.
 
@@ -293,10 +295,10 @@ single collective database for all files in the directory.
 .. code-block:: python
 
 		infolder ="/home/jovyan/CAJAL/CAJAL/data/tiff_images_cleaned/"
-		db_name="/home/jovyan/CAJAL/CAJAL/data/tiff_sampled_50.json"
+		out_csv="/home/jovyan/CAJAL/CAJAL/data/tiff_sampled_50.csv"
 		sample_seg.compute_and_save_intracell_all(
 		       infolder,
-		       db_name,
+		       out_csv,
 		       n_sample = 50,
 		       num_cores = 8,
 		       background = 0,
@@ -329,14 +331,14 @@ matrices represent the Euclidean or geodesic metric.
 .. code-block:: python
 
 		run_gw.compute_gw_distance_matrix(
-		    intracell_db_loc = "/home/jovyan/CAJAL/CAJAL/data/swc_icd.json",
-		    gw_db_loc = "/home/jovyan/CAJAL/CAJAL/data/gw_dists.json",
-		    save_mat = False,
-		    num_cores = 8,
-		    chunk_size = 1000
+		    intracell_db_loc = "/home/jovyan/CAJAL/CAJAL/data/swc_icd.csv",
+		    gw_csv = "/home/jovyan/CAJAL/CAJAL/data/gw_dists.csv",
+		    save_mat = False
 		    )
 
-In this function call, `intracell_db_loc` points to an input \*.json database which has been populated by intracell distance matrices, and `gw_db_loc` points to an output \.json database which does not yet exist. The fact that `save_mat` is False tells CAJAL not to retain the coupling matrices which represent the best possible pairing between two cells. `num_cores` and `chunk_size` are parameters controlling the degree of parallelization.
+In this function call, `intracell_db_loc` points to an input \*.json database which has been populated by intracell distance matrices, and `gw_db_loc` points to an output \.json database which does not yet exist. The fact that `save_mat` is False tells CAJAL not to retain the coupling matrices which represent the best possible pairing between two cells.
+
+Numpy should automatically parallelize under the hood. Please check your process manager on Windows or use the "top" command to verify that the program is indeed making use of all cores on your machine.
 
 .. warning::
 

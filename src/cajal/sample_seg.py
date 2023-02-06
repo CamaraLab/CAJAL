@@ -147,7 +147,7 @@ def _compute_intracell_all(
 
 def compute_and_save_intracell_all(
         infolder : str,
-        db_name: str,
+        out_csv: str,
         n_sample: int,
         num_cores: int = 8,
         background: int = 0,
@@ -161,8 +161,9 @@ def compute_and_save_intracell_all(
     skipping cells that touch the border of the image.
 
     :param infolder: path to folder containing .tif files.
-    :param outfolder: path to folder to save cell boundaries.
-    :param n_sample: number of pixel coordinates to sample from boundary of each cell
+    :param out_csv: path to csv file to save cell boundaries.
+    :param n_sample: number of pixel coordinates \
+           to sample from boundary of each cell
     :param discard_cells_with_holes: \
         if discard_cells_with_holes is true, we discard any cells \
         with more than one boundary (e.g., an annulus) with a \
@@ -178,7 +179,7 @@ def compute_and_save_intracell_all(
     :return: None (writes to file)
     """
     
-    output_db = TinyDB(db_name + ".json")
+    # output_db = TinyDB(db_name + ".json")
     pool = ProcessPool(nodes=num_cores)
     name_dist_mat_pairs = _compute_intracell_all(
         infolder,
@@ -188,7 +189,7 @@ def compute_and_save_intracell_all(
         discard_cells_with_holes,
         only_longest)
     batch_size : int =1000
-    write_tinydb_block(output_db, name_dist_mat_pairs, batch_size)
+    write_tinydb_block(out_csv, name_dist_mat_pairs, batch_size)
     pool.close()
     pool.join()
     pool.clear()

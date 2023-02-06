@@ -13,17 +13,19 @@ import numpy.typing as npt
 from scipy.spatial.distance import euclidean, squareform, pdist
 import networkx as nx
 import warnings
-from typing import List, Dict, Tuple, Optional, Iterable, Iterator, Set, NewType, Callable, Literal
+from typing import List, Dict, Tuple, Optional, Iterable, Iterator, Set, \
+    NewType, Callable, Literal
 # from multiprocessing import Pool
 from pathos.pools import ProcessPool
 import os
 from tinydb import TinyDB
 from cajal.utilities import pj, write_tinydb_block, write_csv_block
 
-# Warning: Of 509 neurons downloaded from the Allen Brain Initiative database,
-# about 5 had a height of at least 1000 nodes. Therefore on about 1% of test
-# cases, recursive graph traversal algorithms will fail. For this reason we
-# have tried to write our functions in an iterative style when possible.
+# Warning: Of 509 neurons downloaded from the Allen Brain Initiative
+# database, about 5 had a height of at least 1000 nodes. Therefore on
+# about 1% of test cases, recursive graph traversal algorithms will
+# fail. For this reason we have tried to write our functions in an
+# iterative style when possible.
 
 @dataclass
 class NeuronNode:
@@ -38,7 +40,8 @@ class NeuronTree:
     root : NeuronNode
     child_subgraphs : List[NeuronTree]
 
-# Convention: The *first element* of the SWC forest is always the component containing the soma.
+# Convention: The *first element* of the SWC forest is always the
+# component containing the soma.
 SWCForest = List[NeuronTree]
 
 def _read_swc_node_dict(file_path : str) -> dict[int,NeuronNode]:
@@ -110,18 +113,17 @@ def _topological_sort_rec(
     tree[index]=tree[parent_sample_number].child_subgraphs[-1]
     return
     
-def _read_swc(file_path : str) -> Tuple[SWCForest,Dict[int,NeuronTree]]:
+def read_swc(file_path : str) -> Tuple[SWCForest,Dict[int,NeuronTree]]:
     r"""
     Construct the graph (forest) associated to an SWC file. 
-
-    It is guaranteed that forest[0] is the component containing the soma. (An
-    exception is raised if there is no soma node in the forest.)
-
-    An exception is raised if any line has fewer than seven whitespace separated strings.
+    It is guaranteed that forest[0] is the component containing the soma.\
+    (An exception is raised if there is no soma node in the forest.)
+    An exception is raised if any line has fewer than seven whitespace \
+    separated strings.
     
     :param file_path: A path to an \*.swc file.
-    :return: (forest, lookup_table), where lookup_table
-    maps sample numbers for nodes to their positions in the forest.
+    :return: (forest, lookup_table), where lookup_table \
+          maps sample numbers for nodes to their positions in the forest.
     """
     nodes = _read_swc_node_dict(file_path)
     tree : Dict[int,NeuronTree] = {}
@@ -144,9 +146,9 @@ def cell_iterator(infolder : str) -> Iterator[Tuple[str,SWCForest]]:
     Construct an iterator over all SWCs in a directory (all files ending in \*.swc or \*.SWC)
     
     :param infolder: A path to a folder containing SWC files.
-    :return: An iterator over pairs (name, forest), where "name" is the file
-    root (everything before the period in the file name) and "forest" is the
-    forest contained in the SWC file.
+    :return: An iterator over pairs (name, forest), where "name" is \
+         the file root (everything before the period in the file name) \
+         and "forest" is the forest contained in the SWC file.
     """
     file_names = [
         file_name for file_name in os.listdir(infolder)
@@ -156,7 +158,7 @@ def cell_iterator(infolder : str) -> Iterator[Tuple[str,SWCForest]]:
     cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
     all_files = [infolder + file_name for file_name in file_names] if infolder[-1] == '/' \
         else [infolder + '/' + file_name for file_name in file_names]
-    cell_stream = (_read_swc(file_name)[0] for file_name in all_files)
+    cell_stream = (read_swc(file_name)[0] for file_name in all_files)
     return zip(cell_names, cell_stream)
 
 def _is_soma_node(node : NeuronNode) -> bool:
@@ -167,8 +169,6 @@ def _has_soma_node(tree : NeuronTree) -> bool:
 
 def _validate_one_soma(forest : SWCForest) -> bool:
     return(list(map(_has_soma_node, forest)).count(True) == 1)
-# all([list(map(has_soma_node, p[0])).count(True) == 1 for p in  all_neurons])
-# print(one_component_w_soma)
 
 # # This works fine, but on large inputs it may cause a stack overflow.
 # def _filter_forest_rec(
@@ -345,7 +345,7 @@ def _filter_forest_rec(
 #         treelist = [child_tree for tree0 in treelist for child_tree in tree0.child_subgraphs]
 #     return tree
 
-def _filter_forest(forest : SWCForest, keep_only : list[int]) -> SWCForest:
+def filter_forest(forest : SWCForest, keep_only : list[int]) -> SWCForest:
     """
     Given an SWCForest `forest` and a list keep_only of integers to keep, \
     returns the smallest sub-forest of `forest` containing all nodes with \
@@ -514,10 +514,13 @@ def get_sample_pts_euclidean(
         forest : SWCForest,
         step_size : float) -> list[npt.NDArray[np.float_]]:
     """
-    Sample points uniformly throughout the forest, starting at the roots, at the given step size.
+    Sample points uniformly throughout the forest, starting at the roots, \
+     at the given step size.
 
-    :return: a list of (x,y,z) coordinate triples, represented as numpy floating point \
-    arrays of shape (3,). The list length depends (inversely) on the value of `step_size`.
+    :return: a list of (x,y,z) coordinate triples, \
+    represented as numpy floating point \
+    arrays of shape (3,). The list length depends (inversely) \
+    on the value of `step_size`.
     """
     sample_pts_list : list[npt.NDArray[np.float_]] = []
     for tree in forest:
@@ -528,14 +531,17 @@ def get_sample_pts_euclidean(
         for tree, offset in treelist:
             root_triple = np.array(tree.root.coord_triple,dtype='f')
             for child_tree in tree.child_subgraphs:
-                child_triple = np.array(child_tree.root.coord_triple,dtype='f')
+                child_triple = np.array(
+                    child_tree.root.coord_triple,
+                    dtype='f')
                 dist = euclidean(child_triple,root_triple)
                 assert(step_size >= offset)
                 spacing = np.arange(start=step_size - offset,
                                     stop = dist,
                                     step = step_size) / dist
                 for x in spacing:
-                    sample_pts_list.append((root_triple * x)+(child_triple *(1-x)))
+                    sample_pts_list.append(
+                        (root_triple * x)+(child_triple *(1-x)))
                 d_plus_o = dist + offset
                 y = d_plus_o - (step_size * math.floor(d_plus_o / step_size))
                 assert(y >= 0)
@@ -546,7 +552,8 @@ def get_sample_pts_euclidean(
 
 def icdm_euclidean(forest : SWCForest, num_samples : int) -> npt.NDArray[np.float_]:
     """
-    Compute the (Euclidean) intracell distance matrix for the forest, with n sample points.
+    Compute the (Euclidean) intracell distance matrix for the forest, \
+    with n sample points.
     :param forest: The cell to be sampled.
     :param num_samples: How many points to be sampled.
     :return: A condensed distance matrix of length n\* (n-1)/2.
@@ -803,7 +810,7 @@ def _weighted_depth_wt(tree : WeightedTree) -> float:
         treelist=newlist
     return max_depth
 
-def depth_table(tree : NeuronTree) -> dict[int,int]:
+def _depth_table(tree : NeuronTree) -> dict[int,int]:
     """
     Return a dictionary which associates to each node the unweighted depth of that node in the tree.
     """
@@ -821,18 +828,19 @@ def get_sample_pts_geodesic(
         tree : NeuronTree,
         num_sample_pts : int) -> list[tuple[WeightedTree,float]]:
     """
-    Sample points uniformly throughout the body of `tree`, starting at the root, \
-    returning a list of length `num_sample_pts`.
+    Sample points uniformly throughout the body of `tree`, starting at \
+    the root, returning a list of length `num_sample_pts`.
 
-    :return: a list of pairs (wt, h), where `wt` is a node of `tree`, and `h` is a floating point \
-    real number representing a point `p` which lies a distance of `h` above `wt` on the line \
-    segment between `wt` and its parent. If `wt` is a child node, `h` is guaranteed to be less \
-    than the distance between `wt` and its parent. If `wt` is a root, `h` is \
-    guaranteed to be zero.
+    :return: a list of pairs (wt, h), where `wt` is a node of `tree`, \
+    and `h` is a floating point real number representing a point \
+    `p` which lies a distance of `h` above `wt` on the line \
+    segment between `wt` and its parent. If `wt` is a child node, \
+    `h` is guaranteed to be less than the distance between `wt` \
+    and its parent. If `wt` is a root, `h` is guaranteed to be zero.
 
-    "Sample points uniformly" means that there is some scalar `step_size` such that \
-    a point `p` on a line segment of `tree` will be in the return list iff its geodesic \
-    distance from the origin is an integer multiple of `step_size.`.
+    "Sample points uniformly" means that there is some scalar `step_size` \    such that a point `p` on a line segment of `tree` will be in the \
+    return list iff its geodesic distance from the origin is an integer \
+    multiple of `step_size.`.
     """
     wt = WeightedTree_of(tree)
     max_depth = _weighted_depth_wt(wt)
@@ -874,7 +882,7 @@ def icdm_geodesic(tree : NeuronTree, num_samples : int) -> npt.NDArray[np.float_
             assert(len(dist_list) == math.comb(num_samples,2)-math.comb(num_samples-i,2) + j - i)
     return np.array(dist_list)
 
-def _compute_intracell_one(
+def compute_intracell_one(
         cell : SWCForest,
         metric: Literal["euclidean"] | Literal["geodesic"],
         types_keep: list[int] | Literal["keep_all"],
@@ -912,7 +920,7 @@ def _compute_intracell_one(
 
 
     cell_1 = cell if (keep_disconnect and metric == "euclidean") else [cell[0]]
-    cell_2 = cell_1 if types_keep == "keep_all" else _filter_forest(cell_1, types_keep)
+    cell_2 = cell_1 if types_keep == "keep_all" else filter_forest(cell_1, types_keep)
     match metric:
         case "euclidean":
             return icdm_euclidean(cell_2, sample_pts)
@@ -1013,9 +1021,9 @@ def _read_and_compute_intracell_one(
         sample_pts: int,
         keep_disconnect: bool
 ) -> tuple[str,npt.NDArray[np.float_]]:    
-    forest, _ = _read_swc(fullpath)
+    forest, _ = read_swc(fullpath)
     cell_name = os.path.splitext(os.path.split(fullpath)[1])[0]
-    return (cell_name,_compute_intracell_one(forest,metric,types_keep,sample_pts,keep_disconnect))
+    return (cell_name,compute_intracell_one(forest,metric,types_keep,sample_pts,keep_disconnect))
 
 def compute_and_save_intracell_all_csv(
     infolder: str,
@@ -1033,6 +1041,7 @@ def compute_and_save_intracell_all_csv(
     resulting intracell distance matrices to a database file called `db_name.json`.
 
     :param infolder: Directory of input \*.swc files.
+    :param out_csv: Output file to write to.
     :param metric: Either "euclidean" or "geodesic"
     :param db_name: .json file to write the intracell distance matrices to. \
         It is assumed that db_name.json does not exist, or is empty.
@@ -1045,6 +1054,7 @@ def compute_and_save_intracell_all_csv(
           to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
           Euclidean distance metric, as the geodesic distance between points \
           in different components is undefined.
+    :return: List of cell names for which sampling failed.
     """
     pool = ProcessPool(nodes=num_cores)
     
