@@ -379,7 +379,9 @@ def _total_length(tree : NeuronTree) -> float:
     while bool(treelist):
         for tree0 in treelist:
             for child_tree in tree0.child_subgraphs:
-                acc_length += math.dist(tree0.root.coord_triple,child_tree.root.coord_triple)
+                acc_length += euclidean(
+                    np.array(tree0.root.coord_triple,dtype='f8'),
+                    np.array(child_tree.root.coord_triple,dtype='f8'))
         treelist = [child_tree for tree0 in treelist for child_tree in tree0.child_subgraphs]
     return acc_length
 
@@ -398,15 +400,12 @@ def _weighted_depth(tree : NeuronTree) -> float:
                 max_depth = depth
             for child_tree in tree0.child_subgraphs:
                 newlist.append((child_tree,
-                                depth+math.dist(tree0.root.coord_triple,
-                                                child_tree.root.coord_triple)))
+                                depth+\
+                                euclidean(
+                                    np.array(tree0.root.coord_triple,dtype='f8'),
+                                    np.array(child_tree.root.coord_triple,dtype='f8'))))
         treelist=newlist
     return max_depth
-    
-# def _total_length(tree : NeuronTree) -> float:
-#     return sum(map(lambda child_tree :
-#                    math.dist(tree.root.coord_triple,child_tree.root.coord_triple) +
-#                    _total_length(child_tree), tree.child_subgraphs))
 
 def _discrete_depth(tree : NeuronTree) -> int:
     """
@@ -437,7 +436,8 @@ def _count_nodes_helper(node_a : NeuronNode, node_b: NeuronNode,
     :return: `leftover`, the height of the least sampled point on the line segment from `a` to `b`
     after sampling according to this procedure.
     """
-    cumulative = math.dist(node_a.coord_triple, node_b.coord_triple)+offset
+    cumulative = euclidean(np.array(node_a.coord_triple,dtype='f8'),
+                           np.array(node_b.coord_triple,dtype='f8'))+offset
     num_intermediary_nodes = math.floor(cumulative / stepsize)
     leftover = cumulative - (num_intermediary_nodes * stepsize)
     return num_intermediary_nodes, leftover
@@ -452,7 +452,7 @@ def _count_nodes_at_given_stepsize(tree : NeuronTree, stepsize : float) -> int:
     :return: the number of points which would be sampled at this stepsize.
     """
     treelist = [(tree,0.0)]
-    acc : int = 0
+    acc : int = 1
     while bool(treelist):
         new_treelist : list[tuple[NeuronTree,float]] =[]
         for tree0, offset in treelist:
@@ -470,7 +470,7 @@ def _binary_stepwise_search(forest : SWCForest, num_samples : int) -> float:
 
     The user should ensure that len(forest) <= num_samples.
     """
-    if length(forest) > num_samples:
+    if len(forest) > num_samples:
         raise Exception("More trees in the forest than num_samples. \
         All root nodes of all connected components are returned as sample points, \
         so given this input it is impossible to get `num_samples` sample points. \
@@ -524,29 +524,41 @@ def get_sample_pts_euclidean(
     """
     sample_pts_list : list[npt.NDArray[np.float_]] = []
     for tree in forest:
-        sample_pts_list.append(np.array(tree.root.coord_triple,dtype='f'))
+        sample_pts_list.append(np.array(tree.root.coord_triple,dtype='f8'))
     treelist = [(tree, 0.0) for tree in forest]
     while bool(treelist):
         new_treelist : list[tuple[NeuronTree,float]] = []
         for tree, offset in treelist:
-            root_triple = np.array(tree.root.coord_triple,dtype='f')
+            root_triple = np.array(tree.root.coord_triple,dtype='f8')
             for child_tree in tree.child_subgraphs:
                 child_triple = np.array(
                     child_tree.root.coord_triple,
-                    dtype='f')
-                dist = euclidean(child_triple,root_triple)
+                    dtype='f8')
+                dist = euclidean(root_triple, child_triple)
                 assert(step_size >= offset)
-                spacing = np.arange(start=step_size - offset,
-                                    stop = dist,
-                                    step = step_size) / dist
+                # def _count_nodes_helper(node_a : NeuronNode, node_b: NeuronNode,
+                #         stepsize: float, offset : float) -> tuple[int,float]:
+                num_nodes,leftover = _count_nodes_helper(tree.root,child_tree.root,step_size,offset)
+                spacing = np.linspace(start = step_size - offset,
+                                      stop = dist - leftover,
+                                      num= num_nodes,
+                                      endpoint=True
+                                      )
+                assert(spacing.shape[0]==num_nodes)
+                
+                # spacing = np.arange(start=step_size - offset,
+                #                     stop = dist,
+                #                     step = step_size) / dist
                 for x in spacing:
                     sample_pts_list.append(
                         (root_triple * x)+(child_triple *(1-x)))
-                d_plus_o = dist + offset
-                y = d_plus_o - (step_size * math.floor(d_plus_o / step_size))
-                assert(y >= 0)
-                assert(y < step_size)
-                new_treelist.append((child_tree, y))
+                # d_plus_o = dist + offset
+                # ct = math.floor(d_plus_o / step_size)
+                # assert(ct == spacing.shape[0])
+                # y = d_plus_o - (step_size * ct)
+                assert(leftover >= 0)
+                assert(leftover < step_size)
+                new_treelist.append((child_tree, leftover))
         treelist=new_treelist
     return sample_pts_list
 
@@ -561,7 +573,7 @@ def icdm_euclidean(forest : SWCForest, num_samples : int) -> npt.NDArray[np.floa
     if len(forest) >= num_samples:
         pts : list[npt.NDArray[np.float_]] = []
         for i in range(num_samples):
-            pts.append(np.array(forest[i].root.coord_triple))
+            pts.append(np.array(forest[i].root.coord_triple,dtype='f8'))
     else:
         step_size = _binary_stepwise_search(forest, num_samples)
         pts = get_sample_pts_euclidean(forest, step_size)
@@ -608,13 +620,13 @@ def WeightedTree_of(tree : NeuronTree) -> WeightedTreeRoot :
         new_treelist : list[NeuronTree] = []
         for tree in treelist:
             wt_parent = correspondence_dict[tree.root.sample_number]
-            root_triple = np.array(tree.root.coord_triple,dtype='f')
+            root_triple = np.array(tree.root.coord_triple,dtype='f8')
             for child_tree in tree.child_subgraphs:
-                child_triple = np.array(child_tree.root.coord_triple,dtype='f')
+                child_triple = np.array(child_tree.root.coord_triple,dtype='f8')
                 dist = euclidean(child_triple,root_triple)
                 while len(child_tree.child_subgraphs) == 1:
                     child_tree=child_tree.child_subgraphs[0]
-                    new_triple=np.array(child_tree.root.coord_triple,dtype='f')
+                    new_triple=np.array(child_tree.root.coord_triple,dtype='f8')
                     dist += euclidean(child_triple,new_triple)
                     child_triple=new_triple
                 new_wt = WeightedTreeChild(
@@ -1025,7 +1037,7 @@ def _read_and_compute_intracell_one(
     cell_name = os.path.splitext(os.path.split(fullpath)[1])[0]
     return (cell_name,compute_intracell_one(forest,metric,types_keep,sample_pts,keep_disconnect))
 
-def compute_and_save_intracell_all_csv(
+def compute_and_save_intracell_all(
     infolder: str,
     out_csv: str,
     metric: Literal["euclidean"] | Literal["geodesic"],
