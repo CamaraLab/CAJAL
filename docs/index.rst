@@ -17,7 +17,7 @@ if the cells are geometrically similar in the sense that the shape of one cell c
 
    what-is-cajal
    computing-intracell-distance-matrices
-
+   benchmarking
 
 .. toctree::
    :maxdepth: 2
