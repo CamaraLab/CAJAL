@@ -1,8 +1,8 @@
 Worked Examples
 ===============
 
-Clustering Neurons
-------------------
+Classifying the CRE-driver line of neurons
+------------------------------------------
 
 Here we perform some basic data analysis on a set of neuron morphological reconstructions which are provided by the `Allen Brain Atlas <https://celltypes.brain-map.org/>`_.
 
@@ -11,7 +11,11 @@ The `brain cell database <https://celltypes.brain-map.org/data>`_ contains 509 m
 
 Downloading the SWC Files
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-These \*.SWC files are available from the CAJAL git repository in CAJAL/data/swc. The user should ignore this subsection and skip to the next subsection unless they are interested in downloading a different set of neurons from the Allen Brain Atlas.
+The \*.SWC files we use in our experiments are available in a compressed \*.tar.gz file here : https://www.dropbox.com/s/aq0ovetjtqihf4f/allen_brain_atlas_509_SWCs_mouse_full_or_dendrite_only.tar.gz?dl=0.
+
+The user should download and extract the SWC files from this link, ignore this
+subsection, and skip ahead to the next subsection unless they are interested in
+downloading a different set of neurons from the Allen Brain Atlas.
 
 If the user wants to download a different set of SWC files, for example the
 human samples, we provide the script we used to download these SWC files so the
@@ -190,3 +194,5 @@ We see that the average accuracy is between 27% and 30%. However, this number is
 
 So the class-weighted accuracy of the classifier is about 25%.
 
+Visualizing and Clustering Data
+-------------------------------

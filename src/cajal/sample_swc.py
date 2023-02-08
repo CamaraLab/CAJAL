@@ -35,16 +35,32 @@ class NeuronNode:
     radius : float
     parent_sample_number : int
 
-@dataclass
+@dataclass(eq=False)
 class NeuronTree:
     root : NeuronNode
     child_subgraphs : List[NeuronTree]
+
+    def __eq__(self,other):
+        treelist0=[self]
+        treelist1=[other]
+        while bool(treelist0):
+            assert(len(treelist0) == len(treelist1))
+            for tree0, tree1 in zip(treelist0,treelist1):
+                if tree0.root != tree1.root:
+                    return False
+                if len(tree0.child_subgraphs) != len(tree1.child_subgraphs):
+                    return False
+            treelist0 = [tree for child_tree in treelist0 for tree in child_tree.child_subgraphs ]
+            treelist1 = [tree for child_tree in treelist1 for tree in child_tree.child_subgraphs ]
+        return (not bool(treelist1))
+            
+
 
 # Convention: The *first element* of the SWC forest is always the
 # component containing the soma.
 SWCForest = List[NeuronTree]
 
-def _read_swc_node_dict(file_path : str) -> dict[int,NeuronNode]:
+def read_swc_node_dict(file_path : str) -> dict[int,NeuronNode]:
     r"""
     Read the swc file at `file_path` and return a dictionary mapping sample numbers \
     to their associated nodes.
@@ -74,50 +90,96 @@ def _read_swc_node_dict(file_path : str) -> dict[int,NeuronNode]:
                 )
     return nodes
 
-def _topological_sort_rec(
-        index: int,
-        nodes : dict[int,NeuronNode],
-        tree : dict[int, NeuronTree],
-        components: list[NeuronTree]) -> None:
+def topological_sort(
+        nodes : dict[int,NeuronNode]) -> tuple[SWCForest,dict[int,NeuronTree]]:
     """
-    Recursively construct the SWCForest `components` together with the
-    dictionary `tree` which tells where to find each node in the SWCForest,
-    given its sample number.
+    Given a dictionary mapping (integer) sample numbers to NeuronNodes,
+    construct the SWCForest representing the graph.
 
-    Specifically, we update "components" so that :
+    :param nodes: A dictionary which directly represents the original SWC file, \
+    in the sense that it sends sample_number to the node associated to that sample_number. \
 
-    #. the node `nodes[index]` is a node the forest `components`
-    #. trees[index] points at exactly this node, so that trees[index].root == nodes[index]
-    #. both of the previous conditions hold recursively for all ancestors of nodes[index]
-
-    :param index: A sample number for a sample in an SWC file, drawn from the
-    first column. `index` is expected to be a key of `nodes`, as are all of the
-    sample numbers of ancestors of `index`.
-    :param tree: A partially constructed dictionary mapping sample numbers to
-    positions within the SWCForest. The state of `tree` will be modified by
-    this function call (updated with new entries)
-    :param components: A partially constructed SWCForest. The state of
-    `components` will be modified by this function call (new subtrees will be
-    added as children of existing nodes)
+    :return:
+    #. the SWCForest encoded by the nodes dictionary
+    #. a dictionary which associates to each sample number `x` the NeuronTree `tree` in the \
+    SWCForest such that `tree.root.sample_number == x`.
     """
-    if index in tree:
-        return
-    parent_sample_number = nodes[index].parent_sample_number
-    if parent_sample_number == -1:
-        components.append(NeuronTree(root=nodes[index],child_subgraphs=[]))
-        tree[index]=components[-1]
-        return
-    _topological_sort_rec(parent_sample_number,nodes,tree,components)
-    tree[parent_sample_number].child_subgraphs.append(
-        NeuronTree(root=nodes[index],child_subgraphs=[]))
-    tree[index]=tree[parent_sample_number].child_subgraphs[-1]
-    return
+    components : list[NeuronTree] = []
+    placed_trees : dict[int, NeuronTree] = {}
+
+    for key in nodes:
+        stack : list[int] = []
+        while ((current_node := nodes[key]).parent_sample_number != -1) and \
+              (key not in placed_trees):
+            stack.append(key)
+            key = current_node.parent_sample_number
+        # Exit condition: Either key is in placed_trees, or parent_sample_number is -1, or both.
+        if (current_node.parent_sample_number == -1 and key not in placed_trees):
+            new_child_tree = NeuronTree(root=current_node,child_subgraphs=[])
+            components.append(new_child_tree)
+            placed_trees[key]=new_child_tree
+        # Loop invariant:
+        # key is in placed_trees.
+        # current_node is placed_trees[key].root.
+        while bool(stack):
+            parent_tree = placed_trees[key]
+            assert current_node is parent_tree.root
+            child_key= stack.pop()
+            new_child_node = nodes[child_key]
+            new_child_tree = NeuronTree(root=new_child_node,child_subgraphs=[])
+            placed_trees[child_key]=new_child_tree
+            parent_tree.child_subgraphs.append(new_child_tree)
+            key = child_key
+            current_node = nodes[key]
+        # At the end of this loop, all keys in the stack have been added to
+        # placed_trees.
+    return components, placed_trees
+
+# def _topological_sort_rec(
+#         index: int,
+#         nodes : dict[int,NeuronNode],
+#         tree : dict[int, NeuronTree],
+#         components: list[NeuronTree]) -> None:
+#     """
+#     Recursively construct the SWCForest `components` together with the
+#     dictionary `tree` which tells where to find each node in the SWCForest,
+#     given its sample number.
+
+#     Specifically, we update "components" so that :
+
+#     #. the node `nodes[index]` is a node the forest `components`
+#     #. trees[index] points at exactly this node, so that trees[index].root == nodes[index]
+#     #. both of the previous conditions hold recursively for all ancestors of nodes[index]
+
+#     :param index: A sample number for a sample in an SWC file, drawn from the
+#     first column. `index` is expected to be a key of `nodes`, as are all of the
+#     sample numbers of ancestors of `index`.
+#     :param tree: A partially constructed dictionary mapping sample numbers to
+#     positions within the SWCForest. The state of `tree` will be modified by
+#     this function call (updated with new entries)
+#     :param components: A partially constructed SWCForest. The state of
+#     `components` will be modified by this function call (new subtrees will be
+#     added as children of existing nodes)
+#     """
+#     if index in tree:
+#         return
+#     parent_sample_number = nodes[index].parent_sample_number
+#     if parent_sample_number == -1:
+#         components.append(NeuronTree(root=nodes[index],child_subgraphs=[]))
+#         tree[index]=components[-1]
+#         return
+#     _topological_sort_rec(parent_sample_number,nodes,tree,components)
+#     tree[parent_sample_number].child_subgraphs.append(
+#         NeuronTree(root=nodes[index],child_subgraphs=[]))
+#     tree[index]=tree[parent_sample_number].child_subgraphs[-1]
+#     return
     
 def read_swc(file_path : str) -> Tuple[SWCForest,Dict[int,NeuronTree]]:
     r"""
-    Construct the graph (forest) associated to an SWC file. 
-    It is guaranteed that forest[0] is the component containing the soma.\
-    (An exception is raised if there is no soma node in the forest.)
+    Construct the graph (forest) associated to an SWC file.
+    If the SWC file contains a marked soma node, forest[0] is a component containing a soma.\
+    If the SWC file does not contain any soma node, forest[0] is the largest component of the graph by number of nodes.
+
     An exception is raised if any line has fewer than seven whitespace \
     separated strings.
     
@@ -125,21 +187,20 @@ def read_swc(file_path : str) -> Tuple[SWCForest,Dict[int,NeuronTree]]:
     :return: (forest, lookup_table), where lookup_table \
           maps sample numbers for nodes to their positions in the forest.
     """
-    nodes = _read_swc_node_dict(file_path)
-    tree : Dict[int,NeuronTree] = {}
-    components : List[NeuronTree] = []
-    a_soma_node : Optional[int] = None
-    for index in nodes:
-        if nodes[index].structure_id == 1:
-            a_soma_node = index
-            break
-    if a_soma_node is None:
-        raise Exception("No soma nodes in SWC file.")
-    _topological_sort_rec(a_soma_node,nodes,tree,components)
+    nodes = read_swc_node_dict(file_path)
+    components, tree_index = topological_sort(nodes)
+    i=0
+    while(i < len(components)):
+        if components[i].root.structure_id == 1:
+            swap_tree = components[i]
+            components[i] = components[0]
+            components[0] = swap_tree
+            return components, tree_index
+        i += 1
+
+    # Otherwise, there is no soma node.
+    return sorted(components, key = _num_nodes), tree_index
     
-    for index in nodes:
-        _topological_sort_rec(index,nodes,tree,components)
-    return components, tree
 
 def cell_iterator(infolder : str) -> Iterator[Tuple[str,SWCForest]]:
     """
