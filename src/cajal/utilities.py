@@ -1,5 +1,6 @@
 # Helper functions
 import os
+from dataclasses import dataclass
 from multiprocessing import RawArray
 import numpy as np
 import numpy.typing as npt
@@ -8,7 +9,7 @@ from scipy.spatial.distance import squareform
 from tinydb import TinyDB
 import itertools as it
 import math
-from typing import Tuple, List, Iterator, Optional
+from typing import Tuple, List, Iterator, Optional, TypeVar, Generic
 
 def pj(*paths):
     return os.path.abspath(os.path.join(*paths))
@@ -67,29 +68,37 @@ def read_mp_array(np_array):
     np.copyto(np_wrapper, np_array)
     return mp_array
 
+T = TypeVar('T')
+@dataclass
+class Err(Generic[T]):
+    code : T
+
 def write_csv_block(
         out_csv : str,
-        dist_mats : Iterator[Tuple[str, npt.NDArray[np.float_]]],
-        batch_size : int = 1000
-) -> List[str]:
-    failed_cells : List[str] = []
+        sidelength : int,
+        dist_mats : Iterator[Tuple[str,Err[T] | npt.NDArray[np.float_]]],
+        batch_size : int
+) -> list[tuple[str,Err[T]]]:
+    """
+    :param sidelength: The side length of all matrices in dist_mats.
+    :param dist_mats: an iterator over pairs (name, arr), where arr is an 
+    vector-form array (rank 1) or an error code.
+    """
+    failed_cells : list[tuple[str,Err[T]]] = []
     with open(out_csv, 'a', newline='') as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=',')
-        name, arr = next(dist_mats)
-        length=arr.shape[0]
-        sidelength=math.ceil(math.sqrt(2*length))
-        assert(sidelength*(sidelength-1)==length*2)
-        firstline = [ "cell_id" ] + [ "d_%d_%d" % (i , j) for i,j in it.combinations(range(sidelength),2)]
+        firstline = [ "cell_id" ] + [ "d_%d_%d" % (i , j)
+                                      for i,j in it.combinations(range(sidelength),2)]
         csvwriter.writerow(firstline)
-        csvwriter.writerow([name]+arr.tolist())
         while(next_batch := list(it.islice(dist_mats, batch_size))):
             good_cells : list[list[str | float]] = []
             for name, cell in next_batch:
-                if cell is None:
-                    failed_cells.append(name)
-                else:
-                    good_cells.append( [ name ] + cell.tolist())
-        csvwriter.writerows(good_cells)
+                match cell:
+                    case Err(_):
+                        failed_cells.append((name,cell))    
+                    case cell:
+                        good_cells.append( [ name ] + cell.tolist())
+            csvwriter.writerows(good_cells)
     return failed_cells
 
 def write_tinydb_block(
