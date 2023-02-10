@@ -382,7 +382,7 @@ def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
 
     Sample `num_samples` many points uniformly throughout the body of `tree`, compute the \
     pairwise geodesic distance between all sampled points, and return the matrix of distances.
-    
+
     :return: A numpy array, a "condensed distance matrix" in the sense of \
     :func:`scipy.spatial.distance.squareform`, i.e., an array of shape \
     (num_samples \* num_samples - 1/2, ). Contains the entries in the intracell geodesic distance \
@@ -412,7 +412,7 @@ def compute_intracell_one(
     r"""
     Compute the intracell distance matrix for `tree` using either the Euclidean or geodesic \
     metric, as appropriate.
-    
+
     Sample `num_samples` many points uniformly throughout the body of `tree`, compute the \
     pairwise distance between all sampled points, and return the matrix of distances.
 
@@ -431,7 +431,7 @@ def compute_intracell_one(
     If the user selects the geodesic distance, and supplies a list of integers "types_keep" \
     which does not contain the soma, an exception will be raised, as in this case \
     it is not clear which connected component should be sampled from.
-    
+
     :return: A numpy array, a "condensed distance matrix" in the sense of \
     :func:`scipy.spatial.distance.squareform`, i.e., an array of shape \
     (num_samples \* num_samples - 1/2, ). Contains the entries in the intracell geodesic distance \
@@ -505,6 +505,27 @@ def read_preprocess_compute_geodesic(
         return tree
     return icdm_geodesic(tree, n_sample)
 
+def default_name_validate(filename: str) -> bool:
+    if filename[0] == '.':
+        return False
+    return os.path.splitext(filename)[1].casefold() == ".swc".casefold()
+
+def _get_filenames(
+        infolder : str,
+        name_validate : Callable[[str], bool]) -> tuple[list[str],list[str]]:
+    """
+    Get a list of all files in infolder. Filter the list by name_validate. \
+
+    :return: a pair of lists (cell_names, file_paths), where `file_paths` are the paths  \
+    to cells we want to sample from, and `cell_names[i]` is the substring of `file_paths[i]` \
+    containing only the file name, minus the extension; i.e., if  file_paths[i] is
+    "/home/jovyan/files/abc.swc" then cell_names[i] is "abc".
+    """
+
+    file_names = filter(name_validate, os.listdir(infolder))
+    file_paths = [os.path.join(infolder, file_name) for file_name in file_names]
+    cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
+    return (cell_names,file_paths)
 
 def compute_and_save_intracell_all_euclidean(
     infolder: str,
@@ -554,39 +575,17 @@ def compute_and_save_intracell_all_euclidean(
       sampling failed, and `error` is a wrapper around a message indicating why \
       the neuron was not sampled from.
     """
-    file_names = [
-        file_name
-        for file_name in os.listdir(infolder)
-        if os.path.splitext(file_name)[1] == ".swc"
-        or os.path.splitext(file_name)[1] == ".SWC"
-    ]
-    if infolder[-1] == "/":
-        all_files = [infolder + file_name for file_name in file_names]
-    else:
-        all_files = [infolder + "/" + file_name for file_name in file_names]
-    cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
-    # Takes a pair of strings (cell_name, file_path), and
-    # returns (cell_name, read_preprocess_compute_euclidean(file_path, n_sample, preprocess))
-    # This is a bit convoluted but it is just meant to give a way of keeping the cell's name
-    # or identifier hanging around with it as it passes through the system
-    def rpce(str_pair: tuple[str, str]) -> tuple[str, Err[T] | npt.NDArray[np.float_]]:
-        cell_name, file_path = str_pair
-        return (
-            cell_name,
-            read_preprocess_compute_euclidean(file_path, n_sample, preprocess),
-        )
+    cell_names, file_paths = _get_filenames(infolder, default_name_validate)
+    assert len(cell_names) == len(file_paths)
 
-    # rpce: Callable[[tuple[str, str]], tuple[str, Err[T] | npt.NDArray[np.float_]]]
-    # rpce = lambda str_pair: (
-    #     str_pair[0],
-    #     read_preprocess_compute_euclidean(str_pair[1], n_sample, preprocess),
-    # )
+    def rpce(file_path: str) -> Err[T] | npt.NDArray[np.float_]:
+        return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
+
     pool = ProcessPool(nodes=num_cores)
-    icdms: Iterator[tuple[str, Err[T] | npt.NDArray[np.float_]]]
-    assert len(cell_names) == len(all_files)
-    icdms = pool.imap(rpce, zip(cell_names, all_files))
+    icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
+    icdms = pool.imap(rpce, file_paths)
     failed_cells: list[tuple[str, Err[T]]]
-    failed_cells = write_csv_block(out_csv, n_sample, icdms, 10)
+    failed_cells = write_csv_block(out_csv,n_sample,zip(cell_names,icdms),3 * num_cores)
     pool.close()
     pool.join()
     pool.clear()
@@ -609,103 +608,17 @@ def compute_and_save_intracell_all_geodesic(
     between points in two different components of a graph.
 
     For no preprocessing, the user should set `preprocess = lambda forest : forest[0]`.
-
     """
 
-    file_names = [
-        file_name
-        for file_name in os.listdir(infolder)
-        if os.path.splitext(file_name)[1] == ".swc"
-        or os.path.splitext(file_name)[1] == ".SWC"
-    ]
-    if infolder[-1] == "/":
-        all_files = [infolder + file_name for file_name in file_names]
-    else:
-        all_files = [infolder + "/" + file_name for file_name in file_names]
-    cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
-    # Takes a pair of strings (cell_name, file_path), and
-    # returns (cell_name, read_preprocess_compute_geodesic(file_path, n_sample, preprocess))
-    # This is a bit convoluted but it is just meant to give a way of keeping the cell's name
-    # or identifier hanging around with it as it passes through the system
-    # rpce: Callable[[tuple[str, str]], tuple[str, Err[T] | npt.NDArray[np.float_]]]
-    def rpce(str_pair: tuple[str, str]) -> tuple[str, Err[T] | npt.NDArray[np.float_]]:
-        cell_name, file_path = str_pair
-        return (
-            cell_name,
-            read_preprocess_compute_geodesic(file_path, n_sample, preprocess),
-        )
-
-    # rpce = lambda str_pair: (
-    #     str_pair[0],
-    #     read_preprocess_compute_geodesic(str_pair[1], n_sample, preprocess),
-    # )
+    cell_names, file_paths = _get_filenames(infolder, default_name_validate)
+    def rpcg(file_path) -> Err[T] | npt.NDArray[np.float_]:
+        return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
     pool = ProcessPool(nodes=num_cores)
-    icdms: Iterator[tuple[str, Err[T] | npt.NDArray[np.float_]]]
-    assert len(cell_names) == len(all_files)
-    icdms = pool.imap(rpce, zip(cell_names, all_files))
+    icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
+    icdms = pool.imap(rpcg, file_paths)
     failed_cells: list[tuple[str, Err[T]]]
-    failed_cells = write_csv_block(out_csv, n_sample, icdms, 10)
+    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names,icdms), 10)
     pool.close()
     pool.join()
     pool.clear()
     return failed_cells
-
-
-# def compute_and_save_intracell_all(
-#         infolder: str,
-#         out_csv: str,
-#         metric: Literal["euclidean"] | Literal["geodesic"],
-#     types_keep: list[int] | Literal["keep_all"],
-#     n_sample: int = 50,
-#     num_cores: int = 8,
-#     keep_disconnect: bool = False
-# ) -> List[str]:
-#     r"""
-#     For each swc file in infolder, sample n_sample many points from the\
-#     neuron, evenly spaced, and compute the Euclidean or geodesic intracell\
-#     matrix depending on the value of the argument `metric`. Write the \
-#     resulting intracell distance matrices to a database file called `db_name.json`.
-
-#     :param infolder: Directory of input \*.swc files.
-#     :param out_csv: Output file to write to.
-#     :param metric: Either "euclidean" or "geodesic"
-#     :param types_keep: optional parameter, a list of node types to sample from.
-#     :param n_sample: How many points to sample from each cell.
-#     :param num_cores: the intracell distance matrices will be computed in parallel processes,\
-#           num_cores is the number of processes to run simultaneously. Recommended to set\
-#           equal to the number of cores on your machine.
-#     :param keep_disconnect: If keep_disconnect is True, we sample from only the the nodes \
-#           connected \
-#           to the soma. If False, all nodes are sampled from. This flag is only relevant to the\
-#           Euclidean distance metric, as the geodesic distance between points \
-#           in different components is undefined.
-#     :return: List of cell names for which sampling failed.
-#     """
-#     pool = ProcessPool(nodes=num_cores)
-
-#     file_names = [
-#         file_name for file_name in os.listdir(infolder)
-#         if os.path.splitext(file_name)[1] == ".swc"
-#         or os.path.splitext(file_name)[1] == ".SWC"
-#     ]
-#     if infolder[-1] == '/':
-#         all_files = [infolder + file_name for file_name in file_names]
-#     else:
-#         all_files = [infolder + '/' + file_name for file_name in file_names]
-
-#     # cell_iter = cell_iterator(infolder)
-#     compute_icdm_fn = partial(
-#         _read_and_compute_intracell_one,
-#         metric = metric,
-#         types_keep = types_keep,
-#         sample_pts = n_sample,
-#         keep_disconnect = keep_disconnect)
-#     name_distmat_pairs = pool.imap(
-#         compute_icdm_fn,
-#         all_files,chunksize=5)
-#     batch_size = 1000
-#     failed_cells = write_csv_block(out_csv, name_distmat_pairs, batch_size)
-#     pool.close()
-#     pool.join()
-#     pool.clear()
-#     return failed_cells
