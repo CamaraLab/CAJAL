@@ -10,10 +10,12 @@ import re
 from copy import copy
 from dataclasses import dataclass
 from collections import deque
+import csv
 
 from typing import Callable, Iterator
 import numpy as np
 from scipy.spatial.distance import euclidean
+
 
 @dataclass
 class NeuronNode:
@@ -25,6 +27,7 @@ class NeuronNode:
     coord_triple: tuple[float, float, float]
     radius: float
     parent_sample_number: int
+
 
 @dataclass(eq=False)
 class NeuronTree:
@@ -56,6 +59,7 @@ class NeuronTree:
 # Convention: The *first element* of the SWC forest is always the
 # component containing the soma.
 SWCForest = list[NeuronTree]
+
 
 def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:
     r"""
@@ -168,6 +172,7 @@ def read_swc(file_path: str) -> tuple[SWCForest, dict[int, NeuronTree]]:
     # Otherwise, there is no soma node.
     return sorted(components, key=num_nodes), tree_index
 
+
 def linearize(forest: SWCForest) -> list[NeuronNode]:
     """
     Linearize the SWCForest into a list of NeuronNodes where the sample number of each node is just
@@ -230,6 +235,69 @@ def linearize(forest: SWCForest) -> list[NeuronNode]:
     return ell
 
 
+def forest_from_linear(ell: list[NeuronNode]) -> SWCForest:
+    """
+    Convert a list of :class:`swc.NeuronNode`'s to a graph.
+
+    :param ell: A list of :class:`swc.NeuronNode`'s where \
+    ell[i].sample_number == i+1 for all i. It is assumed that `ell` is topologically sorted, \
+    i.e., that parents are listed before their children, and that roots are marked by -1.
+
+    :return: An SWCForest containing the contents of the graph.
+    """
+    treedict: dict[int, NeuronTree] = {}
+    components: SWCForest = []
+    for node in ell:
+        new_tree = NeuronTree(root=node, child_subgraphs=[])
+        treedict[node.sample_number - 1] = new_tree
+        if node.parent_sample_number == -1:
+            components.append(new_tree)
+        else:
+            parent_index = node.parent_sample_number - 1
+            treedict[parent_index].child_subgraphs.append(new_tree)
+    return components
+
+
+def write_swc(outfile: str, forest: SWCForest) -> None:
+    """
+    Write `forest` to `outfile`. Overwrite whatever is in `outfile`.
+
+    This function does not respect the sample numbers and parent sample numbers
+    in `forest`. They will be renumbered so that the indices are contiguous and
+    start at 1.
+
+    :param outfile: An absolute path to the output file.
+    """
+    lin = linearize(forest)
+    rows = (
+        [
+            node.sample_number,
+            node.structure_id,
+            node.coord_triple[0],
+            node.coord_triple[1],
+            node.coord_triple[2],
+            node.radius,
+            node.parent_sample_number,
+        ]
+        for node in lin
+    )
+    with open(outfile, "w", newline="") as out_swc:
+        csvwriter = csv.writer(out_swc, delimiter=" ")
+        csvwriter.writerow(
+            [
+                "#",
+                "sample_number",
+                "structure_id",
+                "x",
+                "y",
+                "z",
+                "radius",
+                "parent_sample_number",
+            ]
+        )
+        csvwriter.writerows(rows)
+
+
 def cell_iterator(infolder: str) -> Iterator[tuple[str, SWCForest]]:
     r"""
     Construct an iterator over all SWCs in a directory (all files ending in \*.swc or \*.SWC).
@@ -266,10 +334,10 @@ def _has_soma_node(tree: NeuronTree) -> bool:
 def _validate_one_soma(forest: SWCForest) -> bool:
     return list(map(_has_soma_node, forest)).count(True) == 1
 
+
 def _filter_forest_to_good_roots(
-        forest: SWCForest,
-        test : Callable[[NeuronNode], bool]
-)-> tuple[SWCForest,SWCForest]:
+    forest: SWCForest, test: Callable[[NeuronNode], bool]
+) -> tuple[SWCForest, SWCForest]:
     """
     Terminological convention:
     If t is a tree, call a "strong subtree" of t any subtree which shares the
@@ -290,9 +358,9 @@ def _filter_forest_to_good_roots(
     Trees in `strong_subtrees` have the same root node as some tree in `forest`; trees in \
     `weak_subtrees` do not.
     """
-    subforest_good_strong : list[NeuronTree] = []
-    subforest_good_weak : list[NeuronTree] = []
-    subforest_bad_root : list[NeuronTree] = []
+    subforest_good_strong: list[NeuronTree] = []
+    subforest_good_weak: list[NeuronTree] = []
+    subforest_bad_root: list[NeuronTree] = []
     for tree in forest:
         if test(tree.root):
             subforest_good_strong.append(tree)
@@ -300,7 +368,7 @@ def _filter_forest_to_good_roots(
             subforest_bad_root.append(tree)
     while bool(subforest_bad_root):
         # Inductive invariant: All elements in subforest_bad_root have bad roots.
-        last_tree=subforest_bad_root.pop()
+        last_tree = subforest_bad_root.pop()
         for child_tree in last_tree.child_subgraphs:
             if test(child_tree.root):
                 subforest_good_weak.append(child_tree)
@@ -308,9 +376,9 @@ def _filter_forest_to_good_roots(
                 subforest_bad_root.append(child_tree)
     return subforest_good_strong, subforest_good_weak
 
+
 def _filter_tree_while_nonbranching(
-        tree : NeuronTree,
-        test : Callable[[NeuronNode], bool]
+    tree: NeuronTree, test: Callable[[NeuronNode], bool]
 ) -> tuple[NeuronTree, NeuronTree, NeuronTree]:
     """
     :param tree: A NeuronTree such that test(tree.root) is True.
@@ -329,22 +397,22 @@ def _filter_tree_while_nonbranching(
 
     This function is not recursive.
     """
-    treecopy = NeuronTree(root=tree.root,child_subgraphs=[])
+    treecopy = NeuronTree(root=tree.root, child_subgraphs=[])
     desc = tree
     last = treecopy
-    while len(desc.child_subgraphs) == 1 and \
-          test((child_subtree:= desc.child_subgraphs[0]).root):
-        desc=child_subtree
-        new_child_tree = NeuronTree(
-            root=copy(desc.root),
-            child_subgraphs=[])
+    while len(desc.child_subgraphs) == 1 and test(
+        (child_subtree := desc.child_subgraphs[0]).root
+    ):
+        desc = child_subtree
+        new_child_tree = NeuronTree(root=copy(desc.root), child_subgraphs=[])
         last.child_subgraphs.append(new_child_tree)
-        last=new_child_tree
+        last = new_child_tree
     return desc, treecopy, last
 
+
 def _filter_forest_rec(
-        forest: SWCForest,
-        test : Callable[[NeuronNode],bool],
+    forest: SWCForest,
+    test: Callable[[NeuronNode], bool],
 ) -> tuple[SWCForest, SWCForest]:
     """
     Given an SWCForest `forest` and a boolean-valued test, \
@@ -357,8 +425,10 @@ def _filter_forest_rec(
     """
     # First, separate the forest into two lists,
     # depending on whether their roots are in keep_only.
-    subforest_good_roots_strong, subforest_good_roots_weak =\
-        _filter_forest_to_good_roots(forest, test)
+    (
+        subforest_good_roots_strong,
+        subforest_good_roots_weak,
+    ) = _filter_forest_to_good_roots(forest, test)
     # I will call a "strong" subtree a subtree sharing the same root node.
     # A "weak" subtree is a subtree which does not share the same root node.
     ret_strong_subtree_list: SWCForest = []
@@ -380,16 +450,14 @@ def _filter_forest_rec(
         strong_subtrees, even_weaker_subtrees = _filter_forest_rec(
             tree.child_subgraphs, test
         )
-        new_tree = NeuronTree(
-            root=copy(tree.root), child_subgraphs=strong_subtrees
-        )
+        new_tree = NeuronTree(root=copy(tree.root), child_subgraphs=strong_subtrees)
         new_tree.root.parent_sample_number = -1
         ret_weak_subtree_list.append(new_tree)
         ret_weak_subtree_list += even_weaker_subtrees
     return ret_strong_subtree_list, ret_weak_subtree_list
 
 
-def filter_forest(forest: SWCForest, test: Callable[[NeuronNode],bool]) -> SWCForest:
+def filter_forest(forest: SWCForest, test: Callable[[NeuronNode], bool]) -> SWCForest:
     """
     Given an SWCForest `forest` and a criterion for membership, returns the `filtered_forest` \
     of all nodes in the SWCForest passing `test` (i.e. with a truthy value for test)
@@ -459,6 +527,7 @@ def _discrete_depth(tree: NeuronTree) -> int:
         depth += 1
     return depth
 
+
 def node_type_counts_tree(tree: NeuronTree) -> dict[int, int]:
     """
     Return a dictionary whose keys are all structure_id's in `tree` and whose values are \
@@ -477,6 +546,7 @@ def node_type_counts_tree(tree: NeuronTree) -> dict[int, int]:
         ]
     return node_counts
 
+
 def node_type_counts_forest(forest: SWCForest) -> dict[int, int]:
     """
     Return a dictionary whose keys are all structure_id's in `forest` and whose values are \
@@ -492,6 +562,7 @@ def node_type_counts_forest(forest: SWCForest) -> dict[int, int]:
             else:
                 node_counts[key] = tree_node_counts[key]
     return node_counts
+
 
 def num_nodes(tree: NeuronTree) -> int:
     """
