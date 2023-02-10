@@ -8,7 +8,6 @@ import warnings
 
 from .utilities import pj
 
-
 def set_index(swc, new_index=1):
     """
     Shifts SWC node IDs to new minimum index (i.e. from zero-index to one-index, required by some external software)
