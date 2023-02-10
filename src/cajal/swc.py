@@ -12,10 +12,12 @@ from dataclasses import dataclass
 from collections import deque
 import csv
 
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Literal
 import numpy as np
 from scipy.spatial.distance import euclidean
+from pathos.pools import ProcessPool
 
+from .utilities import Err, T
 
 @dataclass
 class NeuronNode:
@@ -297,7 +299,6 @@ def write_swc(outfile: str, forest: SWCForest) -> None:
         )
         csvwriter.writerows(rows)
 
-
 def cell_iterator(infolder: str) -> Iterator[tuple[str, SWCForest]]:
     r"""
     Construct an iterator over all SWCs in a directory (all files ending in \*.swc or \*.SWC).
@@ -570,3 +571,110 @@ def num_nodes(tree: NeuronTree) -> int:
     """
     type_count_dict = node_type_counts_tree(tree)
     return sum(type_count_dict[key] for key in type_count_dict)
+
+def default_name_validate(filename: str) -> bool:
+    if filename[0] == '.':
+        return False
+    return os.path.splitext(filename)[1].casefold() == ".swc".casefold()
+
+def read_preprocess_save(
+        infile_name: str,
+        outfile_name: str,
+        preprocess: Callable[[SWCForest], Err[T] | SWCForest],
+) -> Err[T] | Literal["success"]:
+    r"""
+    Read the \*.swc file `file_name` from disk as an `SWCForest`.
+    Apply the function `preprocess` to the forest. If preprocessing returns an error,\
+    return that error. \
+    Otherwise, write the preprocessed swc to outfile and return the string "success".
+    """
+    loaded_forest, _ = read_swc(infile_name)
+    tree = preprocess(loaded_forest)
+    if isinstance(tree, Err):
+        return tree
+    write_swc(outfile_name,tree)
+    return "success"
+
+def get_filenames(
+        infolder : str,
+        name_validate : Callable[[str], bool]) -> tuple[list[str],list[str]]:
+    """
+    Get a list of all files in infolder. Filter the list by name_validate. \
+
+    :return: a pair of lists (cell_names, file_paths), where `file_paths` are the paths  \
+    to cells we want to sample from, and `cell_names[i]` is the substring of `file_paths[i]` \
+    containing only the file name, minus the extension; i.e., if  file_paths[i] is
+    "/home/jovyan/files/abc.swc" then cell_names[i] is "abc".
+    """
+
+    file_names = filter(name_validate, os.listdir(infolder))
+    file_paths = [os.path.join(infolder, file_name) for file_name in file_names]
+    cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
+    return (cell_names,file_paths)
+
+def batch_filter_and_preprocess(
+        infolder: str,
+        outfolder : str,
+        preprocess: Callable[[SWCForest], Err[T] | SWCForest],
+        err_log : str,
+        parallel_processes: int,
+        suffix : str,
+        name_validate : Callable[[str], bool] = default_name_validate
+) -> None:
+    r"""
+    Get the set of files in infolder. Filter down to the filenames which pass the test
+    `name_validate`, which is responsible for filtering out any non-swc files.
+
+    For the files in this filtered list, read them into memory as :class:`swc.SWCForest`'s.
+    Apply the function `preprocess` to each forest. `preprocess` may return an error \
+    (essentially just a message contained in an error wrapper) or a modified/transformed \
+    SWCForest, i.e., certain nodes have been filtered out, or certain components of the graph \
+    deleted. If `preprocess` returns an error, write the error to the given log file `err_log` \
+    together with the name of the cell that caused the error. \
+    
+    Otherwise, if `preprocess` returns an SWCForest, write this SWCForest into the folder \
+    `outfolder` with filename == cellname + suffix + '.swc'.
+
+    :param infolder: Folder containing SWC files to process.
+    :param outfolder: Folder where the results of the filtering will be written.
+    :param err_log: A file name for a (currently nonexistent) \*.csv file. This file will \
+    be written to with a list of all the cells which were rejected by \
+    `preprocess` together with an explanation of why these cells could not be processed.
+
+    :param parallel_processes: Run this many Python processes in parallel. \
+    :param suffix: If a file in infolder has the name "abc.swc" then the corresponding file \
+    written to outfolder will have the name "abc" + suffix + ".swc".
+    :param name_validate: A function which identifies the files in `infolder` which \
+    are \*.swc files. The default argument, `default_name_validate`, checks to see \
+    whether the filename has file extension ".swc", case insensitive, and discards files \
+    starting with '.', the marker for hidden files on Linux. The user may need \
+    to write their own function to ensure that various kinds of backup /autosave files \
+    and metadata files are not read into memory.
+    """
+
+    cell_names, file_paths = get_filenames(infolder, default_name_validate)
+    
+    def rps(str_pair : tuple[str,str]) -> Err[T] | Literal["success"]:
+        cell_name, file_path = str_pair
+        outpath = os.path.join(outfolder,cell_name+suffix+".swc")
+        return read_preprocess_save(file_path,outpath,preprocess)
+        
+    pool = ProcessPool(nodes=parallel_processes)
+    results = pool.imap(rps,zip(cell_names,file_paths))
+    
+    with open(err_log, 'w', newline='') as outfile:
+        for cell_name, result in zip(cell_names,results):
+            match result:
+                case "success":
+                    pass
+                case Err(code):
+                    outfile.write(cell_name + " " + str(code))
+
+    pool.close()
+    pool.join()
+    pool.clear()
+
+
+
+
+

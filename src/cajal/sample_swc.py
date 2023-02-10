@@ -22,7 +22,7 @@ from pathos.pools import ProcessPool
 
 # from tinydb import TinyDB
 from .swc import NeuronNode, NeuronTree, SWCForest, read_swc, weighted_depth, \
-    filter_forest
+    filter_forest, default_name_validate, get_filenames
 from .weighted_tree import WeightedTree, WeightedTreeChild, WeightedTreeRoot, WeightedTree_of, \
     weighted_dist_from_root, weighted_depth_wt
 
@@ -505,28 +505,6 @@ def read_preprocess_compute_geodesic(
         return tree
     return icdm_geodesic(tree, n_sample)
 
-def default_name_validate(filename: str) -> bool:
-    if filename[0] == '.':
-        return False
-    return os.path.splitext(filename)[1].casefold() == ".swc".casefold()
-
-def _get_filenames(
-        infolder : str,
-        name_validate : Callable[[str], bool]) -> tuple[list[str],list[str]]:
-    """
-    Get a list of all files in infolder. Filter the list by name_validate. \
-
-    :return: a pair of lists (cell_names, file_paths), where `file_paths` are the paths  \
-    to cells we want to sample from, and `cell_names[i]` is the substring of `file_paths[i]` \
-    containing only the file name, minus the extension; i.e., if  file_paths[i] is
-    "/home/jovyan/files/abc.swc" then cell_names[i] is "abc".
-    """
-
-    file_names = filter(name_validate, os.listdir(infolder))
-    file_paths = [os.path.join(infolder, file_name) for file_name in file_names]
-    cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
-    return (cell_names,file_paths)
-
 def compute_and_save_intracell_all_euclidean(
     infolder: str,
     out_csv: str,
@@ -575,7 +553,7 @@ def compute_and_save_intracell_all_euclidean(
       sampling failed, and `error` is a wrapper around a message indicating why \
       the neuron was not sampled from.
     """
-    cell_names, file_paths = _get_filenames(infolder, default_name_validate)
+    cell_names, file_paths = get_filenames(infolder, default_name_validate)
     assert len(cell_names) == len(file_paths)
 
     def rpce(file_path: str) -> Err[T] | npt.NDArray[np.float_]:
@@ -610,7 +588,7 @@ def compute_and_save_intracell_all_geodesic(
     For no preprocessing, the user should set `preprocess = lambda forest : forest[0]`.
     """
 
-    cell_names, file_paths = _get_filenames(infolder, default_name_validate)
+    cell_names, file_paths = get_filenames(infolder, default_name_validate)
     def rpcg(file_path) -> Err[T] | npt.NDArray[np.float_]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
     pool = ProcessPool(nodes=num_cores)
