@@ -23,7 +23,9 @@ from pathos.pools import ProcessPool
 # from tinydb import TinyDB
 from .swc import NeuronNode, NeuronTree, SWCForest, read_swc, weighted_depth, \
     filter_forest
-from .weighted_tree import WeightedTree, WeightedTreeChild, WeightedTreeRoot, WeightedTree_of
+from .weighted_tree import WeightedTree, WeightedTreeChild, WeightedTreeRoot, WeightedTree_of, \
+    weighted_dist_from_root, weighted_depth_wt
+
 from .utilities import write_csv_block, Err, T
 
 # from cajal.utilities import write_tinydb_block
@@ -200,8 +202,6 @@ def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_
     return pdist(pts_matrix)
 
 
-
-
 def _sample_at_given_stepsize_wt(
     tree: WeightedTreeRoot, stepsize: float
 ) -> list[tuple[WeightedTree, float]]:
@@ -236,19 +236,6 @@ def _sample_at_given_stepsize_wt(
     return master_list
 
 
-def _weighted_dist_from_root(wt: WeightedTree) -> float:
-    """
-    :param wt: A node in a weighted tree.
-    :return: The weighted distance between wt and the root of the tree.
-    """
-
-    x: float = 0.0
-    while isinstance(wt, WeightedTreeChild):
-        x += wt.dist
-        wt = wt.parent
-    return x
-
-
 def geodesic_distance(
     wt1: WeightedTree, h1: float, wt2: WeightedTree, h2: float
 ) -> float:
@@ -270,7 +257,7 @@ def geodesic_distance(
         # If wt1 is a root, we assume h1 is zero and p1 = wt1, otherwise the input is not sensible.
         case WeightedTreeRoot(_):
             assert h1 == 0.0
-            return _weighted_dist_from_root(wt2) - h2
+            return weighted_dist_from_root(wt2) - h2
         case WeightedTreeChild(_, depth1, unique_id1, wt_parent1, d1):
             # Otherwise, suppose that wt1 is at an unweighted depth of depth1,
             # and that the distance between wt1 and its parent is d1.
@@ -278,7 +265,7 @@ def geodesic_distance(
                 case WeightedTreeRoot(_):
                     # If wt2 is a root, then the approach is dual to what we have just done.
                     assert h2 == 0.0
-                    return _weighted_dist_from_root(wt_parent1) + d1 - h1
+                    return weighted_dist_from_root(wt_parent1) + d1 - h1
                 case WeightedTreeChild(_, depth2, unique_id2, wt_parent2, d2):
                     # So let us consider the case where both wt1, wt2 are child nodes.
                     if unique_id1 == unique_id2:
@@ -334,25 +321,6 @@ def geodesic_distance(
                     return abs(dist1) + abs(dist2)
 
 
-def _weighted_depth_wt(tree: WeightedTree) -> float:
-    """
-    Return the weighted depth/ weighted height of the tree,
-    i.e., the maximal geodesic distance from the root to any other point.
-    """
-    treelist = [(tree, 0.0)]
-    max_depth = 0.0
-
-    while bool(treelist):
-        newlist: list[tuple[WeightedTree, float]] = []
-        for tree0, depth in treelist:
-            if depth > max_depth:
-                max_depth = depth
-            for child_tree in tree0.subtrees:
-                newlist.append((child_tree, depth + child_tree.dist))
-        treelist = newlist
-    return max_depth
-
-
 def _depth_table(tree: NeuronTree) -> dict[int, int]:
     """
     Return a dictionary which associates to each node the unweighted depth of that node in the tree.
@@ -390,7 +358,7 @@ def get_sample_pts_geodesic(
     multiple of `step_size.`.
     """
     weighted_tree = WeightedTree_of(tree)
-    max_depth = _weighted_depth_wt(weighted_tree)
+    max_depth = weighted_depth_wt(weighted_tree)
     max_reps = 50
     counter = 0
     step_size = max_depth

@@ -72,3 +72,34 @@ def WeightedTree_of(tree: NeuronTree) -> WeightedTreeRoot:
                 new_treelist.append(child_tree)
         treelist = new_treelist
     return wt_root
+
+
+def weighted_dist_from_root(wt: WeightedTree) -> float:
+    """
+    :param wt: A node in a weighted tree.
+    :return: The weighted distance between wt and the root of the tree.
+    """
+
+    x: float = 0.0
+    while isinstance(wt, WeightedTreeChild):
+        x += wt.dist
+        wt = wt.parent
+    return x
+
+def weighted_depth_wt(tree: WeightedTree) -> float:
+    """
+    Return the weighted depth/ weighted height of the tree,
+    i.e., the maximal geodesic distance from the root to any other point.
+    """
+    treelist = [(tree, 0.0)]
+    max_depth = 0.0
+
+    while bool(treelist):
+        newlist: list[tuple[WeightedTree, float]] = []
+        for tree0, depth in treelist:
+            if depth > max_depth:
+                max_depth = depth
+            for child_tree in tree0.subtrees:
+                newlist.append((child_tree, depth + child_tree.dist))
+        treelist = newlist
+    return max_depth
