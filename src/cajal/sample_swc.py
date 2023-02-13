@@ -121,25 +121,6 @@ def _binary_stepwise_search(forest: SWCForest, num_samples: int) -> float:
     raise Exception("Binary search timed out.")
 
 
-def _branching_degree(forest: SWCForest) -> list[int]:
-    """
-    Compute the branching degrees of nodes in `forest`.
-    The nodes are not indexed in any particular order, only by a breadth-first search,
-    so it is primarily useful for computing summary statistics.
-
-    :return: a list of integers containing the branching degree of each node in `forest`.
-    """
-    treelist = forest
-    branching_list: list[int] = []
-    while bool(treelist):
-        for tree in treelist:
-            branching_list.append(len(tree.child_subgraphs))
-        treelist = [
-            child_tree for tree in treelist for child_tree in tree.child_subgraphs
-        ]
-    return branching_list
-
-
 def get_sample_pts_euclidean(
     forest: SWCForest, step_size: float
 ) -> list[npt.NDArray[np.float_]]:
@@ -321,23 +302,6 @@ def geodesic_distance(
                     return abs(dist1) + abs(dist2)
 
 
-def _depth_table(tree: NeuronTree) -> dict[int, int]:
-    """
-    Return a dictionary which associates to each node the unweighted depth of that node in the tree.
-    """
-    depth: int = 0
-    table: dict[int, int] = {}
-    treelist = [tree]
-    while bool(treelist):
-        for tree0 in treelist:
-            table[tree0.root.sample_number] = depth
-        treelist = [
-            child_tree for tree0 in treelist for child_tree in tree0.child_subgraphs
-        ]
-        depth += 1
-    return table
-
-
 def get_sample_pts_geodesic(
     tree: NeuronTree, num_sample_pts: int
 ) -> list[tuple[WeightedTree, float]]:
@@ -481,11 +445,13 @@ def read_preprocess_compute_euclidean(
     Apply the function `preprocess` to the forest. If it returns an error, return that error. \
     Otherwise return the preprocessed forest.
     """
+    mypid = str(os.getpid())
     loaded_forest, _ = read_swc(file_name)
     forest = preprocess(loaded_forest)
     if isinstance(forest, Err):
         return forest
-    return icdm_euclidean(forest, n_sample)
+    icdm = icdm_euclidean(forest, n_sample)
+    return icdm
 
 
 def read_preprocess_compute_geodesic(
@@ -505,11 +471,12 @@ def read_preprocess_compute_geodesic(
         return tree
     return icdm_geodesic(tree, n_sample)
 
+
 def compute_and_save_intracell_all_euclidean(
     infolder: str,
     out_csv: str,
-    preprocess: Callable[[SWCForest], Err[T] | SWCForest],
     n_sample: int,
+    preprocess: Callable[[SWCForest], Err[T] | SWCForest] = lambda forest : forest
     num_cores: int = 8,
 ) -> list[tuple[str, Err[T]]]:
     r"""
@@ -525,7 +492,8 @@ def compute_and_save_intracell_all_euclidean(
     to a csv file with path `out_csv`.
 
     :param infolder: Directory of input \*.swc files.
-    :param out_csv: Output file to write to.
+    :param out_csv: Output file to write to.    
+    :param n_sample: How many points to sample from each cell.
     :param preprocess: `preprocess` is expected to be roughly of the following form:
         #. Apply such-and-such tests of data quality and integrity to the SWCForest. \
            (For example, check that the forest has only a single connected component,
@@ -543,9 +511,8 @@ def compute_and_save_intracell_all_euclidean(
         returned by `preprocess`. If `preprocess(forest)` returns a SWCForest, this is what \
         will be sampled.
 
-        For no preprocessing one can take `preprocess= lambda forest : forest`.
+        By default, no preprocessing is performed, and the neuron is processed as-is.
 
-    :param n_sample: How many points to sample from each cell.
     :param num_cores: the intracell distance matrices will be computed in parallel processes,\
           num_cores is the number of processes to run simultaneously. Recommended to set\
           equal to the number of cores on your machine.
@@ -555,7 +522,6 @@ def compute_and_save_intracell_all_euclidean(
     """
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
     assert len(cell_names) == len(file_paths)
-
     def rpce(file_path: str) -> Err[T] | npt.NDArray[np.float_]:
         return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
 
@@ -573,9 +539,9 @@ def compute_and_save_intracell_all_euclidean(
 def compute_and_save_intracell_all_geodesic(
     infolder: str,
     out_csv: str,
-    preprocess: Callable[[SWCForest], Err[T] | NeuronTree],
     n_sample: int,
     num_cores: int = 8,
+    preprocess: Callable[[SWCForest], Err[T] | NeuronTree] = lambda forest : forest[0]
 ) -> list[tuple[str, Err[T]]]:
     """
     This function is substantially the same as \
@@ -585,7 +551,9 @@ def compute_and_save_intracell_all_geodesic(
     rather than an `SWCForest`. There is not a meaningful notion of geodesic distance \
     between points in two different components of a graph.
 
-    For no preprocessing, the user should set `preprocess = lambda forest : forest[0]`.
+    The default preprocessing is as follows:  we take the first connected component \
+    in the forest with a soma node as the root, or if no such component exists, we \
+    take the largest component.    
     """
 
     cell_names, file_paths = get_filenames(infolder, default_name_validate)

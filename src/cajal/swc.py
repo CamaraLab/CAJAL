@@ -234,6 +234,7 @@ def linearize(forest: SWCForest) -> list[NeuronNode]:
             )
             child_trees = [(counter, child_tree) for child_tree in tree.child_subgraphs]
             queue.extend(child_trees)
+            counter += 1
     return ell
 
 
@@ -298,6 +299,7 @@ def write_swc(outfile: str, forest: SWCForest) -> None:
             ]
         )
         csvwriter.writerows(rows)
+
 
 def cell_iterator(infolder: str) -> Iterator[tuple[str, SWCForest]]:
     r"""
@@ -467,6 +469,27 @@ def filter_forest(forest: SWCForest, test: Callable[[NeuronNode], bool]) -> SWCF
     return list_a + list_b
 
 
+def keep_only_eu(structure_ids : Container[int]) -> Callable[[SWCForest],SWCForest]:
+    def filter_by_structure_ids(forest : SWCForest) -> SWCForest:
+        return filter_forest(
+            forest,
+            lambda node : operator.contains(structure_ids, node.structure_id))
+    
+    return filter_by_structure_ids
+
+
+def keep_only_geo(structure_ids : Container[int]) -> Callable[[SWCForest], NeuronTree]:
+    def filter_by_structure_ids(forest : SWCForest) -> Err[T] | NeuronTree:
+        return filter_forest(
+            forest,
+            lambda node : operator.contains(structure_ids, node.structure_id))[0]
+    return filter_by_structure_ids
+
+
+def keep_only_geodesic(structure_ids : Container[int]) -> Callable[[NeuronNode],bool]:
+    return lambda node : operator.contains(structure_ids, node.structure_i)d
+
+
 def total_length(tree: NeuronTree) -> float:
     """
     Return the sum of lengths of all edges in the graph.
@@ -572,6 +595,43 @@ def num_nodes(tree: NeuronTree) -> int:
     type_count_dict = node_type_counts_tree(tree)
     return sum(type_count_dict[key] for key in type_count_dict)
 
+
+def _branching_degree(forest: SWCForest) -> list[int]:
+    """
+    Compute the branching degrees of nodes in `forest`.
+    The nodes are not indexed in any particular order, only by a breadth-first search,
+    so it is primarily useful for computing summary statistics.
+
+    :return: a list of integers containing the branching degree of each node in `forest`.
+    """
+    treelist = forest
+    branching_list: list[int] = []
+    while bool(treelist):
+        for tree in treelist:
+            branching_list.append(len(tree.child_subgraphs))
+        treelist = [
+            child_tree for tree in treelist for child_tree in tree.child_subgraphs
+        ]
+    return branching_list
+
+
+def _depth_table(tree: NeuronTree) -> dict[int, int]:
+    """
+    Return a dictionary which associates to each node the unweighted depth of that node in the tree.
+    """
+    depth: int = 0
+    table: dict[int, int] = {}
+    treelist = [tree]
+    while bool(treelist):
+        for tree0 in treelist:
+            table[tree0.root.sample_number] = depth
+        treelist = [
+            child_tree for tree0 in treelist for child_tree in tree0.child_subgraphs
+        ]
+        depth += 1
+    return table
+
+
 def default_name_validate(filename: str) -> bool:
     if filename[0] == '.':
         return False
@@ -607,7 +667,7 @@ def get_filenames(
     "/home/jovyan/files/abc.swc" then cell_names[i] is "abc".
     """
 
-    file_names = filter(name_validate, os.listdir(infolder))
+    file_names = [file_name for file_name in os.listdir(infolder) if name_validate(file_name)]
     file_paths = [os.path.join(infolder, file_name) for file_name in file_names]
     cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
     return (cell_names,file_paths)
@@ -652,6 +712,11 @@ def batch_filter_and_preprocess(
     and metadata files are not read into memory.
     """
 
+    try:
+        os.mkdir(outfolder)
+    except OSError as error:
+        # print(error)
+        pass
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
     
     def rps(str_pair : tuple[str,str]) -> Err[T] | Literal["success"]:
@@ -668,7 +733,7 @@ def batch_filter_and_preprocess(
                 case "success":
                     pass
                 case Err(code):
-                    outfile.write(cell_name + " " + str(code))
+                    outfile.write(cell_name + " " + str(code)+"\n")
 
     pool.close()
     pool.join()
