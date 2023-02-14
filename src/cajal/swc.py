@@ -301,6 +301,12 @@ def write_swc(outfile: str, forest: SWCForest) -> None:
         csvwriter.writerows(rows)
 
 
+def default_name_validate(filename: str) -> bool:
+    if filename[0] == '.':
+        return False
+    return os.path.splitext(filename)[1].casefold() == ".swc".casefold()
+
+
 def cell_iterator(infolder: str,
                   name_validate: Callable[[str], bool] = default_name_validate
                   ) -> Iterator[tuple[str, SWCForest]]:
@@ -632,11 +638,6 @@ def _depth_table(tree: NeuronTree) -> dict[int, int]:
         depth += 1
     return table
 
-
-def default_name_validate(filename: str) -> bool:
-    if filename[0] == '.':
-        return False
-    return os.path.splitext(filename)[1].casefold() == ".swc".casefold()
 
 def read_preprocess_save(
         infile_name: str,
