@@ -301,7 +301,9 @@ def write_swc(outfile: str, forest: SWCForest) -> None:
         csvwriter.writerows(rows)
 
 
-def cell_iterator(infolder: str) -> Iterator[tuple[str, SWCForest]]:
+def cell_iterator(infolder: str,
+                  name_validate: Callable[[str], bool] = default_name_validate
+                  ) -> Iterator[tuple[str, SWCForest]]:
     r"""
     Construct an iterator over all SWCs in a directory (all files ending in \*.swc or \*.SWC).
 
@@ -313,8 +315,7 @@ def cell_iterator(infolder: str) -> Iterator[tuple[str, SWCForest]]:
     file_names = [
         file_name
         for file_name in os.listdir(infolder)
-        if os.path.splitext(file_name)[1] == ".swc"
-        or os.path.splitext(file_name)[1] == ".SWC"
+        if name_validate(file_name)
     ]
     cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
     all_files = (
@@ -487,7 +488,7 @@ def keep_only_geo(structure_ids : Container[int]) -> Callable[[SWCForest], Neuro
 
 
 def keep_only_geodesic(structure_ids : Container[int]) -> Callable[[NeuronNode],bool]:
-    return lambda node : operator.contains(structure_ids, node.structure_i)d
+    return lambda node : operator.contains(structure_ids, node.structure_id)
 
 
 def total_length(tree: NeuronTree) -> float:

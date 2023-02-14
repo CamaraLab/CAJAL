@@ -476,7 +476,7 @@ def compute_and_save_intracell_all_euclidean(
     infolder: str,
     out_csv: str,
     n_sample: int,
-    preprocess: Callable[[SWCForest], Err[T] | SWCForest] = lambda forest : forest
+    preprocess: Callable[[SWCForest], Err[T] | SWCForest] = lambda forest : forest,
     num_cores: int = 8,
 ) -> list[tuple[str, Err[T]]]:
     r"""
