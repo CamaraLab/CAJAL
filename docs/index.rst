@@ -23,6 +23,7 @@ if the cells are geometrically similar in the sense that the shape of one cell c
    :maxdepth: 2
    :caption: API
 
+   swc
    sample_swc
    sample_mesh
    sample_seg

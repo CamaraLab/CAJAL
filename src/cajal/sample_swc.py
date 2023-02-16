@@ -309,17 +309,17 @@ def get_sample_pts_geodesic(
     Sample points uniformly throughout the body of `tree`, starting at \
     the root, returning a list of length `num_sample_pts`.
 
+    "Sample points uniformly" means that there is some scalar `step_size` \
+    such that a point `p` on a line segment of `tree` will be in the \
+    return list iff its geodesic distance from the origin is an integer \
+    multiple of `step_size.`.
+    
     :return: a list of pairs (wt, h), where `wt` is a node of `tree`, \
     and `h` is a floating point real number representing a point \
     `p` which lies a distance of `h` above `wt` on the line \
     segment between `wt` and its parent. If `wt` is a child node, \
     `h` is guaranteed to be less than the distance between `wt` \
     and its parent. If `wt` is a root, `h` is guaranteed to be zero.
-
-    "Sample points uniformly" means that there is some scalar `step_size` \
-    such that a point `p` on a line segment of `tree` will be in the \
-    return list iff its geodesic distance from the origin is an integer \
-    multiple of `step_size.`.
     """
     weighted_tree = WeightedTree_of(tree)
     max_depth = weighted_depth_wt(weighted_tree)
@@ -342,16 +342,16 @@ def get_sample_pts_geodesic(
 
 def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
     r"""
-    Compute the intracell distance matrix for `tree` using the geodesic metric.
-
-    Sample `num_samples` many points uniformly throughout the body of `tree`, compute the \
-    pairwise geodesic distance between all sampled points, and return the matrix of distances.
+    Compute the intracell distance matrix for `tree` using the geodesic metric. \
+        Sample `num_samples` many points uniformly throughout the body of `tree`, compute the \
+        pairwise geodesic distance between all sampled points, and return the matrix of distances.
 
     :return: A numpy array, a "condensed distance matrix" in the sense of \
-    :func:`scipy.spatial.distance.squareform`, i.e., an array of shape \
-    (num_samples \* num_samples - 1/2, ). Contains the entries in the intracell geodesic distance \
-    matrix for `tree` lying strictly above the diagonal.
+        :func:`scipy.spatial.distance.squareform`, i.e., an array of shape \
+        (num_samples \* num_samples - 1/2, ). Contains the entries in the intracell geodesic \
+        distance matrix for `tree` lying strictly above the diagonal.
     """
+    
     pts_list = get_sample_pts_geodesic(tree, num_samples)
     dist_list = []
     for i in range(len(pts_list)):
@@ -364,77 +364,6 @@ def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
                 == math.comb(num_samples, 2) - math.comb(num_samples - i, 2) + j - i
             )
     return np.array(dist_list)
-
-
-def compute_intracell_one(
-    cell: SWCForest,
-    metric: Literal["euclidean"] | Literal["geodesic"],
-    types_keep: list[int] | Literal["keep_all"],
-    sample_pts: int,
-    keep_disconnect: bool,
-) -> npt.NDArray[np.float_]:
-    r"""
-    Compute the intracell distance matrix for `tree` using either the Euclidean or geodesic \
-    metric, as appropriate.
-
-    Sample `num_samples` many points uniformly throughout the body of `tree`, compute the \
-    pairwise distance between all sampled points, and return the matrix of distances.
-
-    :param cell: An SWCForest to sample points and compute an intracell distance matrix from.
-    :param metric: Controls which notion of distance between points of the cell to use.
-    :param types_keep: If a list of integers is given, filter the cell first to discard \
-    all cells except those of the given type. Otherwise, if types_keep is "keep_all", no \
-    filtering is performed.
-    :param sample_pts: How many points to sample from the cell.
-    :param keep_disconnect: If keep_disconnect is true, only the component of the forest \
-    connected to the soma will be sampled from. Otherwise, if \keep_disconnect is false, \
-    points will be sampled uniformly from all components of the cell. The flag `keep_disconnect` \
-    is ignored if the user selects the geodesic metric, as there is not a notion of geodesic \
-    distance between points lying in two distinct connected components.
-
-    If the user selects the geodesic distance, and supplies a list of integers "types_keep" \
-    which does not contain the soma, an exception will be raised, as in this case \
-    it is not clear which connected component should be sampled from.
-
-    :return: A numpy array, a "condensed distance matrix" in the sense of \
-    :func:`scipy.spatial.distance.squareform`, i.e., an array of shape \
-    (num_samples \* num_samples - 1/2, ). Contains the entries in the intracell geodesic distance \
-    matrix for `tree` lying strictly above the diagonal.
-    """
-
-    cell_1 = cell if (keep_disconnect and metric == "euclidean") else [cell[0]]
-    if types_keep == 'keep_all':
-        cell_2 = cell_1
-    else:
-        def mem_types_keep(node : NeuronNode) -> bool:
-            return contains(types_keep, node.structure_id)
-    cell_2 = cell_1 if types_keep == "keep_all" else filter_forest(cell_1, mem_types_keep)
-    match metric:
-        case "euclidean":
-            return icdm_euclidean(cell_2, sample_pts)
-        case "geodesic":
-            assert cell_2[0].root.structure_id == 1
-            if type(types_keep) == list and 1 not in types_keep:
-                raise Exception(
-                    "Soma was filtered out. \
-                Not clear which connected component should be sampled."
-                )
-            return icdm_geodesic(cell_2[0], sample_pts)
-
-
-def _read_and_compute_intracell_one(
-    fullpath: str,
-    metric: Literal["euclidean"] | Literal["geodesic"],
-    types_keep: list[int] | Literal["keep_all"],
-    sample_pts: int,
-    keep_disconnect: bool,
-) -> tuple[str, npt.NDArray[np.float_]]:
-    forest, _ = read_swc(fullpath)
-    cell_name = os.path.splitext(os.path.split(fullpath)[1])[0]
-    return (
-        cell_name,
-        compute_intracell_one(forest, metric, types_keep, sample_pts, keep_disconnect),
-    )
 
 
 def read_preprocess_compute_euclidean(
@@ -483,8 +412,7 @@ def compute_and_save_intracell_all_euclidean(
     For each \*.swc file in infolder, read the \*.swc file into memory as an SWCForest, `forest`.
     Apply a preprocessing function `preprocess` to `forest`, which can return either an error \
     message (because the file is for whatever reason unsuitable for processing or sampling) \
-    or a potentially modified SWCForest `processed_forest`.
-
+    or a potentially modified SWCForest `processed_forest`. \
     Sample n_sample many points from the \
     neuron, evenly spaced, and compute the Euclidean intracell \
     matrix. Write the \
@@ -509,10 +437,7 @@ def compute_and_save_intracell_all_euclidean(
         If `preprocess(forest)` returns an instance of the :class:`utilities.Err` class, this \
         file is not sampled from, and its name is added to a list together with the error \
         returned by `preprocess`. If `preprocess(forest)` returns a SWCForest, this is what \
-        will be sampled.
-
-        By default, no preprocessing is performed, and the neuron is processed as-is.
-
+        will be sampled. By default, no preprocessing is performed, and the neuron is processed as-is.
     :param num_cores: the intracell distance matrices will be computed in parallel processes,\
           num_cores is the number of processes to run simultaneously. Recommended to set\
           equal to the number of cores on your machine.

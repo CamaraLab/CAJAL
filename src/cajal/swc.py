@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import os
 import re
+import operator
 from copy import copy
 from dataclasses import dataclass
 from collections import deque
 import csv
 
-from typing import Callable, Iterator, Literal
+from typing import Callable, Iterator, Literal, Container
 import numpy as np
 from scipy.spatial.distance import euclidean
 from pathos.pools import ProcessPool
@@ -246,7 +247,7 @@ def forest_from_linear(ell: list[NeuronNode]) -> SWCForest:
     ell[i].sample_number == i+1 for all i. It is assumed that `ell` is topologically sorted, \
     i.e., that parents are listed before their children, and that roots are marked by -1.
 
-    :return: An SWCForest containing the contents of the graph.
+    :return: An :class:`swc.SWCForest` containing the contents of the graph.
     """
     treedict: dict[int, NeuronTree] = {}
     components: SWCForest = []
@@ -302,6 +303,10 @@ def write_swc(outfile: str, forest: SWCForest) -> None:
 
 
 def default_name_validate(filename: str) -> bool:
+    """
+    If the file name starts with a period '.', the standard hidden-file marker on Linux, return False.
+    Otherwise, return True if and only if the file ends in ".swc" (case-insensitive).
+    """
     if filename[0] == '.':
         return False
     return os.path.splitext(filename)[1].casefold() == ".swc".casefold()
@@ -477,6 +482,24 @@ def filter_forest(forest: SWCForest, test: Callable[[NeuronNode], bool]) -> SWCF
 
 
 def keep_only_eu(structure_ids : Container[int]) -> Callable[[SWCForest],SWCForest]:
+    """
+    Given `structure_ids`, a (list, set, tuple, etc.) of integers, \
+    return a filtering function which accepts an :class:`swc.SWCForest` and \
+    returns the subforest containing only the node types in `structure_ids`.
+
+    Example: `keep_only([1,3,4])(forest)` is the subforest of `forest` containing only \
+    the soma, the basal dendrites and the apical dendrites, but not the axon.
+
+    The intended use is to generate a preprocessing function for `swc.read_preprocess_save`, \
+    `swc.batch_filter_and_preprocess`, or `sample_swc.compute_and_save_intracell_all_euclidean`, \
+    see the documentation for those functions for more information.
+    
+    :param structure_ids: A container of integers representing types of neuron nodes.
+    :return: A filtering function taking as an argument an SWCForest `forest` and \
+    returning the subforest of \
+    `forest` containing only the node types in `structure_ids`.
+    
+    """
     def filter_by_structure_ids(forest : SWCForest) -> SWCForest:
         return filter_forest(
             forest,
@@ -486,15 +509,20 @@ def keep_only_eu(structure_ids : Container[int]) -> Callable[[SWCForest],SWCFore
 
 
 def keep_only_geo(structure_ids : Container[int]) -> Callable[[SWCForest], NeuronTree]:
-    def filter_by_structure_ids(forest : SWCForest) -> Err[T] | NeuronTree:
+    """
+    This is similar to :func:`swc.keep_only_eu` and the user should consult the documentation \
+    for that function. The difference is that the returned function also trims the tree down to a \
+    single connected component. Observe that the type signature is also different. The callable \
+    returned by this function is suitable as a preprocessing function for \
+    :func:`sample_swc.read_preprocess_compute_geodesic` or \
+    :func:`sample_swc.compute_and_save_intracell_all_geodesic`.
+    """
+
+    def filter_by_structure_ids(forest : SWCForest) -> NeuronTree:
         return filter_forest(
             forest,
             lambda node : operator.contains(structure_ids, node.structure_id))[0]
     return filter_by_structure_ids
-
-
-def keep_only_geodesic(structure_ids : Container[int]) -> Callable[[NeuronNode],bool]:
-    return lambda node : operator.contains(structure_ids, node.structure_id)
 
 
 def total_length(tree: NeuronTree) -> float:
@@ -544,11 +572,12 @@ def weighted_depth(tree: NeuronTree) -> float:
     return max_depth
 
 
-def _discrete_depth(tree: NeuronTree) -> int:
+def discrete_depth(tree: NeuronTree) -> int:
     """
-    Get the height of the tree in the unweighted or discrete sense, i.e. the \
-    longest path from the root to any leaf measured in the number of edges.
+    :return: The height of the tree in the unweighted or discrete sense, i.e. the \
+        longest path from the root to any leaf measured in the number of edges.
     """
+    
     depth: int = 0
     treelist = tree.child_subgraphs
     while bool(treelist):
@@ -561,7 +590,7 @@ def _discrete_depth(tree: NeuronTree) -> int:
 
 def node_type_counts_tree(tree: NeuronTree) -> dict[int, int]:
     """
-    Return a dictionary whose keys are all structure_id's in `tree` and whose values are \
+    :return: A dictionary whose keys are all structure_id's in `tree` and whose values are \
     the multiplicities with which that node type occurs.
     """
     treelist = [tree]
@@ -580,7 +609,7 @@ def node_type_counts_tree(tree: NeuronTree) -> dict[int, int]:
 
 def node_type_counts_forest(forest: SWCForest) -> dict[int, int]:
     """
-    Return a dictionary whose keys are all structure_id's in `forest` and whose values are \
+    :return: a dictionary whose keys are all structure_id's in `forest` and whose values are \
     the multiplicities with which that node type occurs.
     """
 
@@ -597,7 +626,7 @@ def node_type_counts_forest(forest: SWCForest) -> dict[int, int]:
 
 def num_nodes(tree: NeuronTree) -> int:
     """
-    Count the nodes in `tree.`
+    :return: The number of nodes in `tree`.
     """
     type_count_dict = node_type_counts_tree(tree)
     return sum(type_count_dict[key] for key in type_count_dict)
@@ -649,6 +678,10 @@ def read_preprocess_save(
     Apply the function `preprocess` to the forest. If preprocessing returns an error,\
     return that error. \
     Otherwise, write the preprocessed swc to outfile and return the string "success".
+
+    This function exists mostly for convenience, as it can be called in parallel on \
+    several files at once without requiring a large amount of data to be \
+    communicated between processes.
     """
     loaded_forest, _ = read_swc(infile_name)
     tree = preprocess(loaded_forest)
@@ -667,6 +700,8 @@ def get_filenames(
     to cells we want to sample from, and `cell_names[i]` is the substring of `file_paths[i]` \
     containing only the file name, minus the extension; i.e., if  file_paths[i] is
     "/home/jovyan/files/abc.swc" then cell_names[i] is "abc".
+
+    See :func:`swc.default_name_validate` for an example of a name validation function.
     """
 
     file_names = [file_name for file_name in os.listdir(infolder) if name_validate(file_name)]
@@ -707,7 +742,7 @@ def batch_filter_and_preprocess(
     :param suffix: If a file in infolder has the name "abc.swc" then the corresponding file \
     written to outfolder will have the name "abc" + suffix + ".swc".
     :param name_validate: A function which identifies the files in `infolder` which \
-    are \*.swc files. The default argument, `default_name_validate`, checks to see \
+    are \*.swc files. The default argument, :func:`swc.default_name_validate`, checks to see \
     whether the filename has file extension ".swc", case insensitive, and discards files \
     starting with '.', the marker for hidden files on Linux. The user may need \
     to write their own function to ensure that various kinds of backup /autosave files \
