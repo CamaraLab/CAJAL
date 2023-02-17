@@ -44,7 +44,7 @@ html_theme = 'sphinx_rtd_theme'
 
 sys.path.insert(0,"../src/")
 
-html_static_path = []
+html_static_path = ['_static']
 html_css_files = [
     'css/custom.css',
 ]
