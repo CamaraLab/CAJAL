@@ -37,7 +37,6 @@ dependencies = [
         "scipy",
         "scikit-image",
         "tifffile",
-	"tinydb",
         "trimesh",
         "umap-learn~=0.5.3" # Depends on numba which requires python < 3.11 as of 11/29/2022
 	]

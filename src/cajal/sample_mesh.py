@@ -16,8 +16,7 @@ import warnings
 from typing import Tuple, List, Set, Dict, Optional, Iterator, Iterable, TypeAlias, Callable
 from multiprocessing import Pool
 from pathos.pools import ProcessPool
-from tinydb import TinyDB
-from cajal.utilities import pj, write_tinydb_block
+from cajal.utilities import pj
 
 # We represent a mesh as a pair (vertices, faces) : Tuple[VertexArray,FaceArray].
 # A VertexArray is a numpy array of shape (n, 3), where n is the number of vertices in the mesh.
@@ -712,7 +711,6 @@ def compute_and_save_intracell_all(
     fewer than n_sample points.
     """
 
-    # output_db = TinyDB(db_name)
     pool = ProcessPool(nodes=num_cores)
     dist_mats = compute_intracell_all(
         infolder,

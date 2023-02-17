@@ -9,9 +9,8 @@ from scipy.spatial.distance import pdist
 from typing import List, Iterator, Tuple, Callable
 import itertools as it
 from pathos.pools import ProcessPool
-from tinydb import TinyDB
 
-from cajal.utilities import pj, write_tinydb_block
+from cajal.utilities import pj
 
 # def save_cell_boundaries(imarray, outfile, n_sample, background=0):
 #     """
@@ -178,8 +177,7 @@ def compute_and_save_intracell_all(
     :param num_cores: How many threads to run while sampling.
     :return: None (writes to file)
     """
-    
-    # output_db = TinyDB(db_name + ".json")
+
     pool = ProcessPool(nodes=num_cores)
     name_dist_mat_pairs = _compute_intracell_all(
         infolder,
@@ -189,7 +187,7 @@ def compute_and_save_intracell_all(
         discard_cells_with_holes,
         only_longest)
     batch_size : int =1000
-    write_tinydb_block(out_csv, name_dist_mat_pairs, batch_size)
+    write_csv_block(out_csv, name_dist_mat_pairs, batch_size)
     pool.close()
     pool.join()
     pool.clear()

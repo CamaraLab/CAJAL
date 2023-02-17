@@ -4,31 +4,19 @@ Functions for sampling points from an SWC reconstruction of a neuron.
 
 from operator import contains
 import os
-
 import math
-
-# from functools import partial
 from typing import Iterator, Callable, Literal
 
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean, pdist
-# from scipy.spatial.distance import squareform
-# import networkx as nx
-
-
-# from multiprocessing import Pool
 from pathos.pools import ProcessPool
 
-# from tinydb import TinyDB
 from .swc import NeuronNode, NeuronTree, SWCForest, read_swc, weighted_depth, \
     filter_forest, default_name_validate, get_filenames
 from .weighted_tree import WeightedTree, WeightedTreeChild, WeightedTreeRoot, WeightedTree_of, \
     weighted_dist_from_root, weighted_depth_wt
-
 from .utilities import write_csv_block, Err, T
-
-# from cajal.utilities import write_tinydb_block
 
 # Warning: Of 509 neurons downloaded from the Allen Brain Initiative
 # database, about 5 had a height of at least 1000 nodes. Therefore on
