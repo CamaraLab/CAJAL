@@ -52,7 +52,7 @@ independently.
 .. autofunction:: cajal.swc.cell_iterator
 
 The following function is very useful for sampling from fragments of a neuron.
-.. autofunction:: swc.filter_forest
+.. autofunction:: cajal.swc.filter_forest
 
 .. autofunction:: cajal.swc.keep_only_eu
 .. autofunction:: cajal.swc.keep_only_geo

@@ -49,6 +49,9 @@ html_css_files = [
     'css/custom.css',
 ]
 
+# The module name will NOT be prepended to all unit titles.
+add_module_names=False
+
 # -- Intersphinx --
 intersphinx_mapping = { 'scipy' : ('https://docs.scipy.org/doc/scipy/reference/', None),
                         'numpy' : ('https://numpy.org/doc/stable/', None),

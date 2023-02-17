@@ -46,7 +46,7 @@ Neuronal Tracing Data
 CAJAL supports neuronal tracing data in the SWC spec as specified `here
 <http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html>`_.
 
-The function :func:`sample_swc.compute_and_save_intracell_all_csv`
+The function :func:`cajal.sample_swc.compute_and_save_intracell_all_csv`
 operates on
 directories of \*.swc files and populates a \*.csv file with intracell
 distance matrices, one for each cell in the source directory.
@@ -284,10 +284,10 @@ Cells which meet the image boundary are discarded, as we currently do not have
 a reasonable theoretical approach for analyzing partial cell boundaries.
 
 CAJAL samples from \*.tiff / \*.tif files via the function
-:func:`sample_seg.compute_and_save_intracell_all` which takes as an argument an
+:func:`cajal.sample_seg.compute_and_save_intracell_all` which takes as an argument an
 input directory full of (cleaned!) \*.tiff/\*.tif files and an output
 directory. For each \*.tiff file in the input directory,
-:func:`sample_seg.compute_and_save_intracell_all` breaks the image down into
+:func:`cajal.sample_seg.compute_and_save_intracell_all` breaks the image down into
 its separate cells, samples a given number of points between each one, and
 writes the resulting resulting intracell distance matrix for each cell to a
 single collective database for all files in the directory.
@@ -319,7 +319,7 @@ Computing GW Distances
 ======================
 
 Once the user prepares the list of intracell distance matrices, they can use
-the function :func:`run_gw.compute_gw_distance_matrix` to
+the function :func:`cajal.run_gw.compute_gw_distance_matrix` to
 compute the Gromov-Wasserstein distance between all matrices in the given list.
 
 In this section, we assume that the user has already computed intracellular
