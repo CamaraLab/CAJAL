@@ -19,7 +19,7 @@ Euclidean vs. geodesic distances
 1. the ordinary, straight-line Euclidean
    distance through space ("as the crow flies")
 2. the geodesic distance, the length of the shortest path
-   through the surface of the cell.
+   through the surface or body of the cell.
 
 The choice between using Euclidean or geodesic distance will affect what kinds
 of deformations *CAJAL* regards as relevant when comparing the shape of two
@@ -46,50 +46,56 @@ Neuronal Tracing Data
 CAJAL supports neuronal tracing data in the SWC spec as specified `here
 <http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html>`_.
 
-The function :func:`cajal.sample_swc.compute_and_save_intracell_all_csv`
+The function :func:`cajal.sample_swc.compute_and_save_intracell_all_euclidean`
 operates on
 directories of \*.swc files and populates a \*.csv file with intracell
 distance matrices, one for each cell in the source directory.
 
 .. code-block:: python
 
-		failed_cells = sample_swc.compute_and_save_intracell_all(
+		failed_cells = sample_swc.compute_and_save_intracell_all_euclidean(
                     infolder = "/home/jovyan/CAJAL/CAJAL/data/swc_files",
 		    out_csv= "/home/jovyan/CAJAL/CAJAL/data/swc_icdm.csv",
-		    metric = "geodesic",
 		    n_sample = 50,
-		    num_cores = 8,
-		    types_keep = None,
-		    keep_disconnect =False
+		    preprocess=swc.preprocessor_eu(
+		        structure_ids=[1,3,4],
+			soma_component_only=True),
+		    num_cores = 8
 		    )
 
-Here, `infolder` is a directory full of \*.swc files and `out_csv` is a
-(not already-existing) \*.csv file where the intracell distance matrices
-will be
-written. The argument `metric` can be either "euclidean" or
-"geodesic". `types_keep` is an optional argument, one can supply a list of
-integers corresponding to node types to sample from as in the SWC spec. (If
-`types_keep` is `None`, all types will be sampled from.)  Thus, if `types_keep
-= [0,1,2,3,4]`, only the standard parts identified in the SWC spec will be
-sampled (undefined, soma, axon, basal dendrite, apical dendrite), and custom
-parts will be ignored. The soma will always be included as a type to sample
-from, regardless of whether the user includes it in this list.
-
-`n_sample` is the number of points from each cell that will be sampled. We
+Here, `infolder` is a directory full of \*.swc files and `out_csv` is a (not
+already-existing) \*.csv file where the intracell distance matrices will be
+written. `n_sample` is the number of points from each cell that will be sampled. We
 recommend between 50-100. Past 100 points, the increase in resolution is not
 associated with a significant increase in statistical predictive power.
-
 `num_cores` is the number of processes that will be launched in parallel, we
 recommend setting this to the number of cores on your machine.
 
-The flag `keep_disconnect` is only relevant when the user selects the
-Euclidean distance matrix. In this case, if `keep_disconnect` is False, only branches of the
-neuron connected to the soma will be sampled.  Otherwise if `keep_disconnected`
-is True, the function will sample from all branches, including free-floating
-ones.
+The optional argument `preprocess` is more complicated. It can be used to
+
+- filter out some neurons from being sampled, for reasons of data quality, and / or
+- transform the remaining data before sampling from it.
+
+The argument is very flexible. For convenience, two specific use cases are
+built-in.  The line `structure_ids = [1,3,4]` indicates that samples will only
+be drawn from the node types corresponding to 1, 3 and 4 in the SWC spec, i.e.,
+the soma and basical/apical dendrites. (This is useful when the user has a mix
+of full neuron reconstructions and dendrite-only neuron reconstructions and
+wants to discard the axons from the full neuron reconstruction in order to
+compare "apples to apples.") The argument `soma_component_only=True` indicates
+that the function will only sample from the unique component of the neuron
+containing the soma, and write to an error log any neurons which do not contain
+a unique error log. This illustrates the basic function of the preprocessing function, in this case:
+
+- filter out all neurons which don't have a unique soma node, and
+- transform the remaining neurons by discarding all components except the one containing the unique soma node.
+
+To keep all node types, set `structure_ids = "keep_all_types"`. To keep all connected components,
+set `soma_component_only=False`.
 
 The function returns a list `failed_cells` of names of cells for which sampling
-was unsuccessful. If the sampling is successful, the results are silently
+was unsuccessful (i.e., the preprocessing function returned an error) together
+with the error itself. If the sampling is successful, the results are silently
 written to a file.
 
 		    
