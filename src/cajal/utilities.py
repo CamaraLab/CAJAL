@@ -1,15 +1,17 @@
-# Helper functions
+"""
+Helper functions.
+"""
 import os
 from dataclasses import dataclass
 from multiprocessing import RawArray
-import numpy as np
-import numpy.typing as npt
 import csv
 from scipy.spatial.distance import squareform
-from tinydb import TinyDB
 import itertools as it
 import math
 from typing import Tuple, List, Iterator, Optional, TypeVar, Generic
+
+import numpy as np
+import numpy.typing as npt
 
 
 def pj(*paths):
@@ -157,24 +159,4 @@ def write_csv_block(
                     case cell:
                         good_cells.append([name] + cell.tolist())
             csvwriter.writerows(good_cells)
-    return failed_cells
-
-
-def write_tinydb_block(
-    output_db: TinyDB,
-    dist_mats: Iterator[Tuple[str, Optional[npt.NDArray[np.float_]]]],
-    batch_size: int = 1000,
-) -> List[str]:
-
-    failed_cells: List[str] = []
-    while next_batch := list(it.islice(dist_mats, batch_size)):
-        good_cells: List[Tuple[str, List[float]]] = []
-        for name, cell in next_batch:
-            if cell is None:
-                failed_cells.append(name)
-            else:
-                good_cells.append((name, cell.tolist()))
-        output_db.insert_multiple(
-            {"name": name, "cell": cell} for name, cell in good_cells
-        )
     return failed_cells

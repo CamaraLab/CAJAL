@@ -12,8 +12,8 @@ from copy import copy
 from dataclasses import dataclass
 from collections import deque
 import csv
-
 from typing import Callable, Iterator, Literal, Container
+
 import numpy as np
 from scipy.spatial.distance import euclidean
 from pathos.pools import ProcessPool
