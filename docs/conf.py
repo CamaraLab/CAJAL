@@ -42,7 +42,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'sphinx_rtd_theme'
 
-sys.path.append('../src/cajal')
+sys.path.insert(0,"../src/")
 
 html_static_path = ['_static']
 html_css_files = [

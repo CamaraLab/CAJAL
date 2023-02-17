@@ -719,34 +719,32 @@ def batch_filter_and_preprocess(
         name_validate : Callable[[str], bool] = default_name_validate
 ) -> None:
     r"""
-    Get the set of files in infolder. Filter down to the filenames which pass the test
-    `name_validate`, which is responsible for filtering out any non-swc files.
 
+    Get the set of files in infolder. Filter down to the filenames which pass the test
+    `name_validate`, which is responsible for filtering out any non-swc files.\
     For the files in this filtered list, read them into memory as :class:`swc.SWCForest`'s.
     Apply the function `preprocess` to each forest. `preprocess` may return an error \
     (essentially just a message contained in an error wrapper) or a modified/transformed \
     SWCForest, i.e., certain nodes have been filtered out, or certain components of the graph \
     deleted. If `preprocess` returns an error, write the error to the given log file `err_log` \
     together with the name of the cell that caused the error. \
-    
     Otherwise, if `preprocess` returns an SWCForest, write this SWCForest into the folder \
     `outfolder` with filename == cellname + suffix + '.swc'.
 
     :param infolder: Folder containing SWC files to process.
     :param outfolder: Folder where the results of the filtering will be written.
     :param err_log: A file name for a (currently nonexistent) \*.csv file. This file will \
-    be written to with a list of all the cells which were rejected by \
-    `preprocess` together with an explanation of why these cells could not be processed.
-
-    :param parallel_processes: Run this many Python processes in parallel. \
+        be written to with a list of all the cells which were rejected by \
+        `preprocess` together with an explanation of why these cells could not be processed.
+    :param parallel_processes: Run this many Python processes in parallel.
     :param suffix: If a file in infolder has the name "abc.swc" then the corresponding file \
-    written to outfolder will have the name "abc" + suffix + ".swc".
+        written to outfolder will have the name "abc" + suffix + ".swc".
     :param name_validate: A function which identifies the files in `infolder` which \
-    are \*.swc files. The default argument, :func:`swc.default_name_validate`, checks to see \
-    whether the filename has file extension ".swc", case insensitive, and discards files \
-    starting with '.', the marker for hidden files on Linux. The user may need \
-    to write their own function to ensure that various kinds of backup /autosave files \
-    and metadata files are not read into memory.
+        are \*.swc files. The default argument, :func:`swc.default_name_validate`, checks to see \
+        whether the filename has file extension ".swc", case insensitive, and discards files \
+        starting with '.', the marker for hidden files on Linux. The user may need \
+        to write their own function to ensure that various kinds of backup /autosave files \
+        and metadata files are not read into memory.
     """
 
     try:
