@@ -20,7 +20,7 @@ def pj(*paths):
 
 def read_gw(
     gw_dist_file_loc: str,
-) -> tuple[list[str], dict[tuple[str, str], float], list[float]]:
+) -> tuple[list[str], dict[tuple[str, str], float], npt.NDArray[np.float_]]:
     r"""
     Read a GW distance matrix into memory.
     
@@ -31,12 +31,11 @@ def read_gw(
     floating point real number.
     
     :returns: A triple (cell_names, gw_dist_dictionary, gw_dist_list), where \
-    cell_names is a list of cell names, gw_dist_dictionary \
+    cell_names is a list of cell names in alphabetical order, gw_dist_dictionary \
     is a dictionary of the GW distances  which can be read like \
     gw_dist_dictionary[(cell_name1, cell_name2)], where cell_name1 and cell_name2 \
-    are in alphabetical order, and gw_dist_list is a list of the GW distances in upper \
-    triangular format.
-
+    are in alphabetical order, and gw_dist_list is a vector-form array (rank 1) of the \
+    GW distances.
     """
     gw_dist_dict: dict[tuple[str, str], float] = {}
     with open(gw_dist_file_loc, "r", newline="") as gw_file:
@@ -55,7 +54,7 @@ def read_gw(
     dist_list: list[float] = []
     for first_cell, second_cell in it.combinations(all_cells, 2):
         dist_list.append(gw_dist_dict[(first_cell, second_cell)])
-    return all_cells, gw_dist_dict, dist_list
+    return all_cells, gw_dist_dict, np.array(dist_list,dtype=np.float_)
 
 
 def list_sort_files(data_dir, data_prefix=None, data_suffix=None):

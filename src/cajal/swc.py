@@ -767,9 +767,9 @@ def batch_filter_and_preprocess(
         infolder: str,
         outfolder : str,
         preprocess: Callable[[SWCForest], Err[T] | SWCForest],
-        err_log : str,
         parallel_processes: int,
-        suffix : str,
+        err_log : Optional[str],
+        suffix = "",
         name_validate : Callable[[str], bool] = default_name_validate
 ) -> None:
     r"""
@@ -790,6 +790,8 @@ def batch_filter_and_preprocess(
     :param err_log: A file name for a (currently nonexistent) \*.csv file. This file will \
         be written to with a list of all the cells which were rejected by \
         `preprocess` together with an explanation of why these cells could not be processed.
+    :param preprocess: A function to filter out bad SWC forests or transform them into a more \
+        manageable form.
     :param parallel_processes: Run this many Python processes in parallel.
     :param suffix: If a file in infolder has the name "abc.swc" then the corresponding file \
         written to outfolder will have the name "abc" + suffix + ".swc".
@@ -801,28 +803,30 @@ def batch_filter_and_preprocess(
         and metadata files are not read into memory.
     """
 
+
     try:
         os.mkdir(outfolder)
     except OSError as error:
         # print(error)
         pass
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
-    
+
     def rps(str_pair : tuple[str,str]) -> Err[T] | Literal["success"]:
         cell_name, file_path = str_pair
         outpath = os.path.join(outfolder,cell_name+suffix+".swc")
         return read_preprocess_save(file_path,outpath,preprocess)
-        
+
     pool = ProcessPool(nodes=parallel_processes)
     results = pool.imap(rps,zip(cell_names,file_paths))
-    
-    with open(err_log, 'w', newline='') as outfile:
-        for cell_name, result in zip(cell_names,results):
-            match result:
-                case "success":
-                    pass
-                case Err(code):
-                    outfile.write(cell_name + " " + str(code)+"\n")
+
+    if err_log is not None:
+        with open(err_log, 'w', newline='') as outfile:
+            for cell_name, result in zip(cell_names,results):
+                match result:
+                    case "success":
+                        pass
+                    case Err(code):
+                        outfile.write(cell_name + " " + str(code)+"\n")
 
     pool.close()
     pool.join()

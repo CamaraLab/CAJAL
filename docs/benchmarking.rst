@@ -138,35 +138,18 @@ neurons, and get their specimen ids and their Cre-driver lines.
 		
 
 We read the Gromov-Wasserstein distances into a square matrix, `gw_dist_mat`, which sklearn can
-use as a precomputed distance metric.
+use as a precomputed distance metric. We give two ways to access the data, one can either 
+look up the distances in a dictionary as `gw_dist_dictionary[(cell_name1, cell_name2)]`, or
+use indices, where we have `gw_dist_mat[i,j]` equal to the distance between cell_names[i] and
+cell_names[j].
 
 .. code-block:: python
 
-		import csv
+		from cajal.utilities import read_gw
 		from scipy.spatial.distance import squareform
 
-		gw_dist_dict = {}
-		with open("/home/patn/recon/swc_gwm.csv", "r", newline='') as csvfile:
-		    gw_reader = iter(csv.reader(csvfile, delimiter=','))
-		    header = next(gw_reader)
- 		    for a, b, c in gw_reader:
-		    cell_id_1 = int(a)
-		    cell_id_2 = int(b)
-		    gw_dist = float(c)
-		    if cell_id_1 < cell_id_2 :
-		        gw_dist_dict[(cell_id_1,cell_id_2)] = gw_dist
-		    else:
-		       gw_dist_dict[(cell_id_2,cell_id_1)] = gw_dist
-		gw_dist_list = []
-		for i in range(len(cell_ids)):
-		    for j in range(i+1, len(cell_ids)):
-		        cell_id_i = cell_ids[i]
-			cell_id_j = cell_ids[j]
-			if cell_id_i < cell_id_j:
-			    gw_dist_list.append(gw_dist_dict[(cell_id_i,cell_id_j)])
-			else:
-			    gw_dist_list.append(gw_dist_dict[(cell_id_j,cell_id_i)])
-		gw_dist_mat = squareform(np.array(gw_dist_list))
+		cell_names, gw_dist_dictionary, gw_dist_arr = read_gw("/home/jovyan/swc_gwm.csv")
+		gw_dist_mat = squareform(gw_dist_arr)
 
 Now we use the sklearn library to divide the data into 7 equally sized sets and
 classify each element of a given set based on the nearest 10 neighbors in the 6

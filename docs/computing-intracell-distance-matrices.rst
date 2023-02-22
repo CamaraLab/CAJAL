@@ -158,14 +158,16 @@ a geodesic distance between points can be defined.
 
 .. warning::
 
-   Modifying the data by adjoining new triangles to the mesh is changing its
-   topology. The user should keep this in mind while interpreting the data.
-   The functionality of "repairing" the cell is premised on the
-   assumption that the \*.obj file represents one single geometric object and
-   that it fails to be connected for trivial reasons, e. g. a scan of a neuron
-   that has missing segments along the dendrites due to measurement error.  If
-   an \*.obj file genuinely contains multiple distinct components then the
-   geodesic distances resulting from this process will not be meaningful.
+   Modifying the data by adjoining new triangles to the mesh is imputation of
+   data which changes its topology.  This presents the same thorny questions as
+   in any other scenario when data is imputed.  The user should keep this in
+   mind while interpreting the data. The functionality of "repairing" the cell
+   is premised on the assumption that the \*.obj file represents one single
+   geometric object and that it fails to be connected for trivial
+   reasons, e. g. a scan of a neuron that has missing segments along the
+   dendrites due to measurement error.  If an \*.obj file genuinely contains
+   multiple distinct components then the geodesic distances resulting from this
+   process will not be meaningful.
 
 Segmentation files 
 -------------------
