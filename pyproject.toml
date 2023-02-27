@@ -25,10 +25,8 @@ classifiers=[
 dependencies = [
 	"igraph",
         "leidenalg",
-        "matplotlib",
         "networkx~=2.8.8",
         "numpy",
-        "pandas",
 	"cython >= 0.23",
         "pathos",
         "pot~=0.7.0",

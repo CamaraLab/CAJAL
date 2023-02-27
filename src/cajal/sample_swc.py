@@ -360,7 +360,7 @@ def read_preprocess_compute_euclidean(
     r"""
     Read the \*.swc file `file_name` from disk as an `SWCForest`. \
     Apply the function `preprocess` to the forest. If it returns an error, return that error. \
-    Otherwise return the preprocessed forest.
+    Otherwise, return the intracell distance matrix in vector form.
     """
     mypid = str(os.getpid())
     loaded_forest, _ = read_swc(file_name)
@@ -381,6 +381,8 @@ def read_preprocess_compute_geodesic(
     Apply the function `preprocess` to the forest. If preprocessing returns an error,\
     return that error. \
     Otherwise return the preprocessed NeuronTree.
+
+    :param file_name: 
     """
     loaded_forest, _ = read_swc(file_name)
     tree = preprocess(loaded_forest)
@@ -388,20 +390,6 @@ def read_preprocess_compute_geodesic(
         return tree
     return icdm_geodesic(tree, n_sample)
 
-    # For each \*.swc file in infolder, read the \*.swc file into memory as an SWCForest, `forest`. Apply a preprocessing function `preprocess` to `forest`, which can return either an error message (because the file is for whatever reason unsuitable for processing or sampling) or a potentially modified SWCForest `processed_forest`. Sample n_sample many points from the neuron, evenly spaced, and compute the Euclidean intracell matrix. Write the resulting intracell distance matrices for all cells passing the preprocessing test to a csv file with path `out_csv`.
-    
-    # :param infolder: Directory of input \*.swc files.
-    # :param out_csv: Output file to write to.    
-    # :param n_sample: How many points to sample from each cell.
-    # :param preprocess:
-    #     `preprocess` is expected to be roughly of the following form:
-
-    #     #. Apply such-and-such tests of data quality and integrity to the SWCForest. (For example, check that the forest has only a single connected component, that it has only a single soma node, that it has at least one soma node, that it contains nodes from the axon, AG that it does not have any elements whose structure_id is 0 (for 'undefined'), etc.) If any of the tests are failed, return an instance of :class:`utilities.Err` with a message explaining why the \*.swc file was ineligible for sampling.
-    #     #. If all tests are passed, apply a transformation to `forest` and return the modified `new_forest`. (For example, filter out all axon nodes to focus on the dendrites, or filter out all undefined nodes, or filter out all components which have fewer than 10% of the nodes in the largest component.)
-    
-    #     If `preprocess(forest)` returns an instance of the :class:`utilities.Err` class, this file is not sampled from, and its name is added to a list together with the error returned by `preprocess`. If `preprocess(forest)` returns a SWCForest, this is what will be sampled. By default, no preprocessing is performed, and the neuron is processed as-is.
-    # :param num_cores: the intracell distance matrices will be computed in parallel processes, num_cores is the number of processes to run simultaneously. Recommended to set equal to the number of cores on your machine.
-    # :return: List of pairs (cell_name, error), where cell_name is the cell for which sampling failed, and `error` is a wrapper around a message indicating why the neuron was not sampled from.
 
 
 def compute_and_save_intracell_all_euclidean(
@@ -412,7 +400,20 @@ def compute_and_save_intracell_all_euclidean(
     num_cores: int = 8
 ) -> list[tuple[str, Err[T]]]:
     r"""
-    Hello, world!
+    For each \*.swc file in infolder, read the \*.swc file into memory as an SWCForest, `forest`. Apply a preprocessing function `preprocess` to `forest`, which can return either an error message (because the file is for whatever reason unsuitable for processing or sampling) or a potentially modified SWCForest `processed_forest`. Sample n_sample many points from the neuron, evenly spaced, and compute the Euclidean intracell matrix. Write the resulting intracell distance matrices for all cells passing the preprocessing test to a csv file with path `out_csv`.
+    
+    :param infolder: Directory of input \*.swc files.
+    :param out_csv: Output file to write to.    
+    :param n_sample: How many points to sample from each cell.
+    :param preprocess:
+        `preprocess` is expected to be roughly of the following form:
+
+        #. Apply such-and-such tests of data quality and integrity to the SWCForest. (For example, check that the forest has only a single connected component, that it has only a single soma node, that it has at least one soma node, that it contains nodes from the axon, AG that it does not have any elements whose structure_id is 0 (for 'undefined'), etc.) If any of the tests are failed, return an instance of :class:`utilities.Err` with a message explaining why the \*.swc file was ineligible for sampling.
+        #. If all tests are passed, apply a transformation to `forest` and return the modified `new_forest`. (For example, filter out all axon nodes to focus on the dendrites, or filter out all undefined nodes, or filter out all components which have fewer than 10% of the nodes in the largest component.)
+    
+        If `preprocess(forest)` returns an instance of the :class:`utilities.Err` class, this file is not sampled from, and its name is added to a list together with the error returned by `preprocess`. If `preprocess(forest)` returns a SWCForest, this is what will be sampled. By default, no preprocessing is performed, and the neuron is processed as-is.
+    :param num_cores: the intracell distance matrices will be computed in parallel processes, num_cores is the number of processes to run simultaneously. Recommended to set equal to the number of cores on your machine.
+    :return: List of pairs (cell_name, error), where cell_name is the cell for which sampling failed, and `error` is a wrapper around a message indicating why the neuron was not sampled from.
     """
     
     cell_names, file_paths = get_filenames(infolder, default_name_validate)

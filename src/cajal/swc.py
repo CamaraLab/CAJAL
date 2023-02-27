@@ -12,10 +12,14 @@ from copy import copy
 from dataclasses import dataclass
 from collections import deque
 import csv
-from typing import Callable, Iterator, Literal, Container
+from typing import Callable, Iterator, Literal, Container, Optional
 
 import numpy as np
 from scipy.spatial.distance import euclidean
+
+import dill
+dill.settings['recurse']=True
+
 from pathos.pools import ProcessPool
 
 from .utilities import Err, T
@@ -30,6 +34,9 @@ class NeuronNode:
     coord_triple: tuple[float, float, float]
     radius: float
     parent_sample_number: int
+
+    def is_soma_node(self) -> bool:
+        return self.structure_id == 1
 
 
 @dataclass(eq=False)
@@ -58,6 +65,36 @@ class NeuronTree:
             ]
         return not bool(treelist1)
 
+    def __iter__(self) -> Iterator[NeuronTree]:
+        """
+        Iterate over all descendants of this tree in breadth-first order. \
+        The first element of the iterator is just this tree. \
+        Recommended to use these methods for large SWC files as naive recursion on \
+        the graph structure may cause a stack overflow.
+        """
+        treelist = [self]
+        while bool(treelist):
+            new_treelist = []
+            for tree in treelist:
+                yield tree
+                new_treelist += tree.child_subgraphs
+            treelist = new_treelist
+
+
+    def dfs(self) -> Iterator[NeuronTree]:
+        """
+        Iterate over all descendants of this tree in preorder traversal order. \
+        The first element of the iterator is just this tree. \
+        Recommended to use these methods for large SWC files as naive recursion on \
+        the graph structure may cause a stack overflow.
+        """
+        stack = [self]
+        while bool(stack):
+            current_tree = stack.pop()
+            for tree in reversed(current_tree.child_subgraphs):
+                stack.append(tree)
+            yield current_tree
+
 
 # Convention: The *first element* of the SWC forest is always the
 # component containing the soma.
@@ -72,6 +109,7 @@ def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:
     :param file_path: A path to an \*.swc file. \
     The only validation performed on the file's contents is to ensure that each line has \
     at least seven whitespace-separated strings.
+    
     :return: A dictionary whose keys are sample numbers taken from \
     the first column of an SWC file and whose values are NeuronNodes.
     """
@@ -80,7 +118,7 @@ def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:
         for line in file:
             if line[0] == "#":
                 continue
-            row = re.split(r"\s|\t", line.strip())[0:7]
+            row = line.strip().split()[0:7]
             if len(row) < 7:
                 raise TypeError(
                     "Row"
@@ -338,16 +376,13 @@ def cell_iterator(infolder: str,
     return zip(cell_names, cell_stream)
 
 
-def _is_soma_node(node: NeuronNode) -> bool:
-    return node.structure_id == 1
-
-
-def _has_soma_node(tree: NeuronTree) -> bool:
-    return _is_soma_node(tree.root) or any(map(_has_soma_node, tree.child_subgraphs))
-
-
-def _validate_one_soma(forest: SWCForest) -> bool:
-    return list(map(_has_soma_node, forest)).count(True) == 1
+def has_soma_node(tree : NeuronTree) -> bool:
+    """
+    Returns true if any node is a soma node; else returns false.
+    """
+    def f(t : NeuronTree) -> bool:
+        return t.root.is_soma_node()
+    return any(map(f,tree))
 
 
 def _filter_forest_to_good_roots(
@@ -584,17 +619,12 @@ def total_length(tree: NeuronTree) -> float:
     Return the sum of lengths of all edges in the graph.
     """
     acc_length = 0.0
-    treelist = [tree]
-    while bool(treelist):
-        for tree0 in treelist:
-            for child_tree in tree0.child_subgraphs:
-                acc_length += euclidean(
+    for tree0 in tree:
+        for child_tree in tree0.child_subgraphs:
+            acc_length += euclidean(
                     np.array(tree0.root.coord_triple),
                     np.array(child_tree.root.coord_triple),
                 )
-        treelist = [
-            child_tree for tree0 in treelist for child_tree in tree0.child_subgraphs
-        ]
     return acc_length
 
 
@@ -721,6 +751,36 @@ def _depth_table(tree: NeuronTree) -> dict[int, int]:
         depth += 1
     return table
 
+def diagnostics(
+    infolder: str,
+    test : Callable[[SWCForest],Optional[Err[str]]],
+    parallel_processes : int,
+    name_validate: Callable[[str], bool] = default_name_validate
+) -> None:
+    """
+    Go through every SWC in infolder and apply `test` to the forest. \
+    Print the names of cells failing the tests.
+    """
+
+    cell_names, file_paths = get_filenames(infolder, name_validate)
+    def check_errs(file_path : str) -> Optional[Err[str]]:
+        loaded_forest, _ = read_swc(file_path)
+        return test(loaded_forest)
+
+    pool = ProcessPool(nodes=parallel_processes)
+    results = pool.imap(check_errs,file_paths)
+
+    for cell_name, result in zip(cell_names,results):
+        match result:
+            case Err(code):
+                print(cell_name + " " + str(code))
+            case None:
+                pass
+            
+    pool.close()
+    pool.join()
+    pool.clear()
+
 
 def read_preprocess_save(
         infile_name: str,
@@ -831,8 +891,3 @@ def batch_filter_and_preprocess(
     pool.close()
     pool.join()
     pool.clear()
-
-
-
-
-
