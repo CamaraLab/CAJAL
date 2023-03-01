@@ -2,6 +2,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import squareform
 from scipy.stats import rankdata
+from typing import Optional
 
 def pearson_coefficient(
         feature_arr : npt.NDArray[np.float_],
@@ -60,7 +61,6 @@ def pearson_coefficient(
         np.dot(feature_arr.T,X,out=means)
         # Normalize the features by subtracting the means.
         np.subtract(feature_arr,means[np.newaxis,:],out=f_tildes)
-
         # Compute the covariance of f(X1) with f(X2).
         np.matmul(f_tildes.T,joint_dist,out=tempvar1)
         np.multiply(tempvar1,f_tildes.T,out=tempvar2).sum(axis=1,out=covariance)
@@ -72,68 +72,44 @@ def pearson_coefficient(
 
     return np.stack(pearson_coefficient_list,axis=0)
 
+def _p_q_laplacians_w_covariates(
+    true_laplacians : npt.NDArray[np.float_],
+    random_laplacians : npt.NDArray[np.float_],
+    true_covariate_laplacians : npt.NDArray[np.float_],
+    random_covariate_laplacians : npt.NDArray[np.float_],
+    num_covariates : int,
+    num_features : int,
+    permutations : int
+) -> npt.NDArray[np.float_]:
+
+    regression_coefficients=np.linalg.lstsq(
+        random_covariate_laplacians,
+        random_laplacians,
+        rcond=None)[0]
+    assert regression_coefficients.shape == (num_covariates+1,num_features)
+    print(regression_coefficients)
+    regressed_random_laplacians =\
+        random_laplacians - np.matmul(random_covariate_laplacians,regression_coefficients)
+    regressed_true_laplacians =\
+        true_laplacians - np.matmul(true_covariate_laplacians,regression_coefficients)
+    assert regressed_random_laplacians.shape == (permutations-1,num_features)
+    p_values =\
+        np.less(
+            regressed_random_laplacians,
+            regressed_true_laplacians).astype(np.int_).sum(axis=0)/permutations
+    ranked_p_values = rankdata(p_values)
+    q_values = p_values * len(p_values)/ranked_p_values
+    q_values[q_values >= 1]=1
+    return np.stack((true_laplacians,p_values,q_values),axis=0)
+
 
 def graph_laplacian(
         feature_arr : npt.NDArray[np.float_],
         distance_matrix : npt.NDArray[np.float_],
         epsilon : float,
-        permutations : int
-) -> npt.NDArray[np.float_]:
-    """
-    :param feature_arr: An array of shape (N ,num_features), where N is the \
-    number of nodes in the graph, and num_features is \
-    the number of features. Each column represents a feature on N elements. \
-    Columns should be preprocessed to remove constant features.
-
-    :param distance_matrix: A vector-form distance matrix containing pairwise distances between \
-    points in a space. Can be any vector of length N * (N-1)/2 for some N.
-    :param epsilon: From `distance_matrix` we will build an undirected graph G such that nodes i,j \
-    are connected in G iff their distance in `distance_matrix` is strictly less than `epsilon`, and \
-    compute the graph laplacian of features on `G`.
-
-    :param permutations: Generate `permutations - 1` many random permutations `sigma` of the set \
-    of nodes of `G`, and \
-    compute the graph laplacians of the features `f \circ \sigma` for each permutation `sigma`. \
-    These additional laplacian scores are used to perform a non-parametric permutation test, \
-    returning a p-value \
-    representing the chance that the laplacian would be equally as high for a randomly \
-    selected permutation of the feature.
-
-    :return: A matrix of shape (num_features,3), where
-    - the first row contains the graph laplacians for the features `f`
-    - the second row contains the p-values from the permutation testing
-    - the third row contains q-values which result from adjusting the p-values by a \
-        Benjamini-Hochberg procedure
-    """
-
-    for i in range(feature_arr.shape[1]):
-        v = feature_arr[:,i]
-        if np.all(v == v[0]):
-            raise Exception("feature_arr[:," + \
-                            str(i) + \
-                            "] is constant. \
-                            This leads to divide-by-zero errors. \
-                            Please clean data by removing constant columns.")
-    
-    adjacency_matrix = (squareform(distance_matrix) < epsilon).astype(np.int_)
-    distribution = adjacency_matrix / np.sum(adjacency_matrix)
-    num_features = feature_arr.shape[1]
-    laplacians = np.negative(pearson_coefficient(feature_arr,distribution,permutations)) + 1
-    true_laplacians = laplacians[0,:]
-    random_laplacians = laplacians[1:,:]
-    p_values = np.less(random_laplacians, true_laplacians).astype(np.int_).sum(axis=0)/permutations
-    ranked_p_values = rankdata(p_values)
-    q_values = p_values * len(p_values)/ranked_p_values
-    q_values[q_values >= 1]=1
-    return np.stack((true_laplacians,p_values,q_values),axis=0)
-    
-
-def graph_laplacian_w_covariates(
-        feature_arr : npt.NDArray[np.float_],
-        distance_matrix : npt.NDArray[np.float_],
-        epsilon : float,
         permutations : int,
-        covariates : npt.NDArray[np.float_]):
+        covariates : Optional[npt.NDArray[np.float_]]
+) -> npt.NDArray[np.float_]:
     """
     :param feature_arr: An array of shape (N ,num_features), where N is the \
     number of nodes in the graph, and num_features is \
@@ -157,7 +133,7 @@ def graph_laplacian_w_covariates(
     :covariates: An optional (N, k) matrix of covariate features, where N is the number of nodes \
     in the graph and k is the number of covariates.
     
-    :return: A matrix of shape (num_features,3), where
+    :return: A matrix of shape (3,num_features), where
     - the first row contains the graph laplacians for the features `f`
     - the second row contains the p-values from the permutation testing
     - the third row contains q-values which result from adjusting the p-values by a \
@@ -172,51 +148,48 @@ def graph_laplacian_w_covariates(
                             "] is constant. \
                             This leads to divide-by-zero errors. \
                             Please clean data by removing constant columns.")
-    N = feature_arr.shape[0]
-    adjacency_matrix : npt.NDArray[np.float_] = (squareform(distance_matrix) < epsilon).astype(np.int_)
-    assert adjacency_matrix.shape == (N,N)
-    distribution : npt.NDArray[np.float_] = adjacency_matrix / np.sum(adjacency_matrix)
-    assert distribution.shape == (N,N)
-    num_features : int = feature_arr.shape[1]
-    if len(covariates.shape)==1:
-        covariates = covariates[:,np.newaxis]
-    num_covariates = covariates.shape[1]
 
-    A : npt.NDArray[np.float_] = np.concatenate((feature_arr,covariates),axis=1)
-    assert A.shape == (N, num_features + num_covariates)
-    pcs = pearson_coefficient(A,distribution,permutations)
-    for ell in pcs:
-        print(ell)
+    N = feature_arr.shape[0]
+    adjacency_matrix = (squareform(distance_matrix) < epsilon).astype(np.int_)
+    distribution : npt.NDArray[np.float_] = adjacency_matrix / np.sum(adjacency_matrix)
+    num_features : int = feature_arr.shape[1]
+    A : npt.NDArray[np.float_]
+    if covariates is not None:
+        if len(covariates.shape)==1:
+            covariates = covariates[:,np.newaxis]
+        num_covariates = covariates.shape[1]
+        A = np.concatenate((feature_arr,covariates),axis=1)
+        assert A.shape == (N, num_features + num_covariates)
+    else:
+        A = feature_arr
+
     laplacians : npt.NDArray[np.float_] =\
         np.negative(pearson_coefficient(A,distribution,permutations)) + 1.0
-    assert laplacians.shape == (permutations, num_features + num_covariates)
     true_laplacians = laplacians[0,:num_features]
     assert true_laplacians.shape == (num_features,)
     random_laplacians = laplacians[1:,:num_features]
     assert random_laplacians.shape == (permutations-1, num_features)
-    true_covariate_laplacians = np.concatenate((laplacians[0,num_features:], np.array([1.0])),
-                                               axis=0)
-    assert true_covariate_laplacians.shape == (num_covariates+1,)
-    random_covariate_laplacians =\
-        np.concatenate(
-            (laplacians[1:,num_features:],
-             np.full((permutations-1,1), fill_value=1,dtype=np.float_)),
-            axis=1)
-    assert random_covariate_laplacians.shape == (permutations-1,num_covariates+1)
-    regression_coefficients=np.linalg.lstsq(
-        random_covariate_laplacians,
-        random_laplacians,
-        rcond=None)[0]
-    assert regression_coefficients.shape == (num_covariates+1,num_features)
-    regressed_random_laplacians =\
-        random_laplacians - np.matmul(random_covariate_laplacians,regression_coefficients)
-    regressed_true_laplacians =\
-        true_laplacians - np.matmul(true_covariate_laplacians,regression_coefficients)
-    assert regressed_random_laplacians.shape == (permutations-1,num_features)
-    p_values =\
-        np.less(
-            regressed_random_laplacians,
-            regressed_true_laplacians).astype(np.int_).sum(axis=0)/permutations
+    if covariates is not None:
+        true_covariate_laplacians =\
+            np.concatenate((laplacians[0,num_features:], np.array([1.0])),
+                           axis=0)
+        assert true_covariate_laplacians.shape == (num_covariates+1,)
+        random_covariate_laplacians =\
+            np.concatenate(
+                (laplacians[1:,num_features:],
+                 np.full((permutations-1,1), fill_value=1,dtype=np.float_)),
+                axis=1)
+        assert random_covariate_laplacians.shape == (permutations-1,num_covariates+1)
+        p_q_after_covariate = _p_q_laplacians_w_covariates(
+            true_laplacians,
+            random_laplacians,
+            true_covariate_laplacians,
+            random_covariate_laplacians,
+            num_covariates,
+            num_features,
+            permutations)
+    # Else, no covariates.
+    p_values = np.less(random_laplacians, true_laplacians).astype(np.int_).sum(axis=0)/permutations
     ranked_p_values = rankdata(p_values)
     q_values = p_values * len(p_values)/ranked_p_values
     q_values[q_values >= 1]=1

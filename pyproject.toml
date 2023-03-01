@@ -45,6 +45,10 @@ dev = [
     "pytest >= 7.2.1"
 ]
 
+vis = [
+    "matplotlib >= 3.7.0"
+]
+
 [project.license]
 file="./LICENSE.md"
 
