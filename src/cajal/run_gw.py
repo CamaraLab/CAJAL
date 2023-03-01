@@ -33,23 +33,6 @@ def _is_sorted(int_list : List[int]) -> bool:
     return all(map(lambda tup : tup[0] <= tup[1],zip(int_list[:-1],int_list[1:])))
 
 
-def _convert_document(doc) -> Tuple[int,str, npt.NDArray[np.float64]]:
-    return(doc.doc_id,doc['name'],squareform(np.array(doc['cell'],dtype=np.float64)))
-
-
-GW_Record_W_CouplingMat = TypedDict('GW_Record_W_CouplingMat',
-                                    { "name_1" : str,
-                                      "name_2" : str,
-                                      "coupling_mat" : List[List[float]],
-                                      "gw_dist" : float
-                                     })
-
-GW_Record_WO_CouplingMat = TypedDict('GW_Record_WO_CouplingMat',
-                                    { "name_1" : str,
-                                      "name_2" : str,
-                                      "gw_dist" : float})
-
-
 def _batched_cell_list_iterator_csv(
         intracell_csv_loc : str,
         chunk_size : int
@@ -193,12 +176,9 @@ def compute_and_save_gw_distance_matrix(
 
 # def compute_and_save_gw_distance_matrix_w_coupling_mats(
 #         intracell_csv_loc : str,
-#         gw_csv_loc : str,
-#         save_mat : bool =False
+#         gw_csv_loc : str
 # ) -> None:
-
 #     chunk_size=100
-    
 #     with open(gw_csv_loc, 'a', newline='') as gw_csv_file:
 #         csvwriter = csv.writer(gw_csv_file, delimiter=',')
 #         with open(intracell_csv_loc, 'r', newline='') as icdm_csv:
