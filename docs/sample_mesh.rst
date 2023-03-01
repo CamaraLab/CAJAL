@@ -37,5 +37,4 @@ an \*.obj file and compute the geodesic distances between points.
 	  :value: numpy.typing.NDArray[numpy.int\_]
 
 .. autofunction:: cajal.sample_mesh.read_obj
-
-
+.. autofunction:: cajal.sample_mesh.compute_and_save_intracell_all

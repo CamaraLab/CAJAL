@@ -1,5 +1,9 @@
 # Functions for visualizing and clustering the GW morphology space
+from typing import Optional
+import warnings
+
 import numpy as np
+import numpy.typing as npt
 import matplotlib
 import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors
@@ -9,7 +13,6 @@ import igraph as ig
 import itertools as it
 import networkx as nx
 import umap
-import warnings
 
 
 def get_umap(gw_mat, **kwargs):
@@ -49,11 +52,35 @@ def plot_umap(embedding, step=1, figsize=10, **kwargs):
     fig = plt.figure(facecolor="white", figsize=(figsize, figsize))
     return plt.scatter(embedding[::step, 0], embedding[::step, 1], **kwargs)
 
+
+def to_colors(ell : list)-> tuple[list[int], list]:
+    """
+    :param ell: List of elements of some type A, where A has ==.
+    :return: (outlist, categories), where categories is the list of unique values of ell, ordered by their first appearance,
+    and outlist is a list of integers such that len(outlist)==len(ell) and categories[outlist[i]]==ell[i] for all i in the domain.
+    """
+    counter : int = 0
+    categories = []
+    outlist = []
+    mydict : dict = {}
+    for element in ell:
+        if element in mydict:
+            outlist.append(mydict[element])
+        else:
+            mydict[element]=counter
+            counter+=1
+            outlist.append(mydict[element])
+            categories.append(element)
+    return outlist, categories
+
+
 def plot_categorical_data(
     embedding : npt.NDArray[np.float_],
     categories : list,
+    size : int,
     names : Optional[list[str]],
-    savefile : Optional[str]
+    savefile : Optional[str],
+        
 ) -> None:
     """
     Generate a plot of categorical data with a colorcoded legend.
@@ -70,10 +97,9 @@ def plot_categorical_data(
     x_values : list[float] = list(embedding[:,0])
     y_values : list[float] = list(embedding[:,1])
     num_pts = len(x_values)
-    nested_pts_lists = []
-    if names is None:
-        names = it.repeat(None,num_pts)
-    for (name,x,y,color) in zip(names,x_values, y_values, colors):
+    nested_pts_lists : list[ list[tuple[Optional[str],float,float]]] = []
+    maybe_names = names if names is not None else it.repeat(None, num_pts)
+    for (name,x,y,color) in zip(maybe_names,x_values, y_values, colors):
         if color == len(nested_pts_lists):
             nested_pts_lists.append([ (name,x,y) ])
         elif color < len(nested_pts_lists):
@@ -97,9 +123,9 @@ def plot_categorical_data(
         y_arr = np.array(y_list,dtype=np.float_)
         length = len(x_list)
         color = matplotlib.colormaps['tab20'].colors[counter]
-        colors= np.tile(color,(length,1))
-        ax.scatter(x_arr, y_arr, s=200, 
-                   c=colors,
+        color_arr= np.tile(color,(length,1))
+        ax.scatter(x_arr, y_arr, s=size, 
+                   c=color_arr,
                    label=colorkey[counter],
                    edgecolors='none')
         counter +=1

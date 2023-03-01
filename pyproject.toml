@@ -46,7 +46,8 @@ dev = [
 ]
 
 vis = [
-    "matplotlib >= 3.7.0"
+    "matplotlib >= 3.7.0",
+    "networkx"
 ]
 
 [project.license]
