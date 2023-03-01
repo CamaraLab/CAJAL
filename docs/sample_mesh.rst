@@ -15,7 +15,7 @@ For examples of compatible mesh files see the folder /CAJAL/data/obj_files in th
 The sample_mesh.py file contains functions to help the user sample points from
 an \*.obj file and compute the geodesic distances between points.
 
-.. py:module:: cajal.sample_mesh
+.. py:module:: src.cajal.sample_mesh
 
 .. class:: cajal.sample_mesh.VertexArray
 
