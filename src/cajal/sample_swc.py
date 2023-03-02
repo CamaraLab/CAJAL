@@ -391,7 +391,6 @@ def read_preprocess_compute_geodesic(
     return icdm_geodesic(tree, n_sample)
 
 
-
 def compute_and_save_intracell_all_euclidean(
     infolder: str,
     out_csv: str,
