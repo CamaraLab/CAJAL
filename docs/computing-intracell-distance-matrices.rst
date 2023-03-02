@@ -1,29 +1,31 @@
 Computing Intracellular Distance Matrices
 =========================================
 
-*CAJAL* represents a cell as a finite set of points uniformly sampled from its outline, together with a notion of distance
+CAJAL represents a cell as a finite set of points uniformly sampled from its outline, together with a notion of distance
 between each pair of points. Internally this data is represented as a matrix
-(the "intracellular distance matrix") where the rows and columns correspond to
+(the intracellular distance matrix) where the rows and columns correspond to
 points in the cell, and the entry at position (i, j) corresponds to the distance between
-points x_i and x_j. In general, we find that 50 to 100 sampled points per cell is enough for most applications. In order to compute the Gromov-Wasserstein
+points x_i and x_j. In general, we find that 50 to 200 sampled points per cell is enough for most applications.
+
+In order to compute the Gromov-Wasserstein
 distance between two cells, the user must first convert their cell morphology
-data into intracellular distance matrices. This section discusses the functionality *CAJAL* provides
+data into intracellular distance matrices. This section discusses the functionality that CAJAL provides
 for this purpose. Currently, CAJAL is equipped to deal with three kinds of input data files:
 neuronal tracing data (SWC files), 3D meshes (OBJ files), and 2D cell segmentation files (TIFF files).
 
 Euclidean vs. geodesic distances
 --------------------------------
 
-*CAJAL* supports two types of intracellular distances:
+CAJAL supports two types of intracellular distances:
 
 1. the ordinary, straight-line Euclidean
-   distance through space ("as the crow flies")
+   distance through the ambient space ("as the crow flies")
 2. the geodesic distance, the length of the shortest path
-   through the surface or body of the cell.
+   through the surface of the cell.
 
 The choice between using Euclidean or geodesic distance will affect what kinds
-of deformations *CAJAL* regards as relevant when comparing the shape of two
-cells.  Using Euclidean distance to meassure intracellular distances leads to
+of deformations CAJAL regards as relevant when comparing the shape of two
+cells. Using Euclidean distance to measure intracellular distances leads to
 morphological distances that are insensitive to translations, rotations, or
 mirroring of a cell. However, bending or flexing a cell will change the
 morphological distance between that cell and other cells.  On the other hand,
@@ -37,13 +39,13 @@ whereas B is tightly coiled. If A and B are represented by Euclidean distance
 matrices, then the Gromov-Wasserstein distance between them will be nontrivial,
 because one must bend B to straighten it out into a line segment. However, if
 they are represented by their geodesic distance matrices, then the
-Gromov-Wasserstein distance will be zero.  One can deform A into B
+Gromov-Wasserstein distance will be zero. One can deform A into B
 without any stretching or elongating, as they are the same length. 
 
 Neuronal Tracing Data
 ---------------------
 
-CAJAL supports neuronal tracing data in the SWC spec as specified `here
+CAJAL supports neuronal tracing data in the SWC specification defined `here
 <http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html>`_.
 
 The function :func:`cajal.sample_swc.compute_and_save_intracell_all_euclidean`

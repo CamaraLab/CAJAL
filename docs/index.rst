@@ -3,13 +3,29 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-*CAJAL*: a python library for multimodal cell morphology analyses
-=================================================================
+CAJAL: a python package for multimodal analyses of single-cell morphological data
+=================================================================================
 
-*CAJAL* is a suite of tools to study cell morphology and its relationship with other single-cell data.
+CAJAL is a python package designed to explore and analyze the morphology of cells
+and its relationship with other single-cell data.
 
-*CAJAL* uses the Python Optimal Transport library (POT) to compute the Gromov-Wasserstein distance between every pair of cells in a given sample. The Gromov-Wasserstein distance is small
-if the cells are geometrically similar in the sense that the shape of one cell can be deformed into another without too much stretching or bending. Computing the Gromov-Wasserstein distance between cells does not rely on any models for the morphology of the cells. For example, to compare two neurons, one does not have to supply the length of the axon, the branching degree of the dendrites, or the number of branches. Thus, *CAJAL* can be used to study heterogeneous mixtures of cells, including cells whose morphology is highly complex and defies straightforward categorization.
+CAJAL leverages the Python Optimal Transport library to compute the
+Gromov-Wasserstein (GW) distance between every pair of cells in a given sample. This
+distance quantifies the degree to which the shape of one cell can
+be transformed into that of another with minimal stretching or bending. One of the
+key benefits of using the GW distance is that it does not require any prior
+knowledge or model for the morphology of the cells. This feature makes CAJAL suitable
+for studying arbitrarily heterogeneous mixtures of cells with highly complex and diverse
+morphologies that may defy straightforward classification.
+
+The morphological distance produced by CAJAL is a bona-fide mathematical distance
+in a latent space of cell morphologies. In this latent space, each cell is represented
+by a point, and distances between cells indicate the amount of physical deformation
+needed to change the morphology of one cell into that of another. By formulating the
+problem in this way, CAJAL can make use of standard statistical and machine learning approaches to
+define cell populations based on their morphology; dimensionally reduce and visualize
+cell morphology spaces; and integrate cell morphology spaces across tissues, technologies,
+and with other single-cell data modalities, among other analyses.
 
 .. toctree::
    :maxdepth: 2
