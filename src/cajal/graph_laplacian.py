@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import squareform
-from scipy.stats import rankdata
+from scipy.stats import rankdata, t, f
 from typing import Optional
 
 def pearson_coefficient(
@@ -98,13 +98,15 @@ def to_distribution(
     :return: an n x n probability matrix representing a joint distribution on
     two variables.
     """
-    adjacency_matrix = (squareform(distance_matrix) < epsilon).astype(np.int_)
+    adjacency_matrix = (squareform(dist_mat) < epsilon).astype(np.int_)
     return adjacency_matrix / np.sum(adjacency_matrix)
 
 def multilinear_regression(
         X: npt.NDArray[np.float_],
         Y: npt.NDArray[np.float_]
 ) -> tuple[npt.NDArray[np.float_],
+           npt.NDArray[np.float_],
+           npt.NDArray[np.float_],
            npt.NDArray[np.float_],
            npt.NDArray[np.float_]]:
     """
@@ -120,17 +122,19 @@ def multilinear_regression(
     * s2b, the sample variance-covariance matrix of the observed coefficient vector b.
     """
 
-    b, SSE =np.linalg.lstsq(X,Y,rcond=None)[0:1]
+    b, SSE = np.linalg.lstsq(X,Y,rcond=None)[0:2]
+    # b = lstsq_results[0]
+    # SSE = lstsq_results[1]
     hat_Y = np.matmul(X,b)
     Y_means = np.sum(Y,axis=0)/Y.shape[0]
     Ya = np.subtract(hat_Y, Y_means[np.newaxis,:])
     SSR = np.dot(Ya.T, Ya)
     assert SSR.shape == (Y.shape[1],)
-    XTX_inv = np.inv(np.matmul(X.T,X))
+    XTX_inv = np.linalg.inv(np.matmul(X.T,X))
     n = Y.shape[0]
     p = X.shape[1]
     s2b = XTX_inv/(n-p)
-    return b, np.sub(Y,hat_Y), SSE, SSR, s2b
+    return b, np.subtract(Y,hat_Y), SSE, SSR, s2b
 
 
 def benjamini_hochberg(p_values : npt.NDArray) -> npt.NDArray:
@@ -165,38 +169,39 @@ def graph_laplacian_w_covariates(
         permutations : int,
         covariates : npt.NDArray[np.float_],
         return_random_laplacians : bool
-) -> npt.NDArray[np.float_]:
+) -> dict[str,npt.NDArray[np.float_]]:
     """
     :param feature_arr: An array of shape (N ,num_features), where N is the \
     number of nodes in the graph, and num_features is \
     the number of features. Each column represents a feature on N elements. \
     Columns should be preprocessed to remove constant features.
 
-    :return: A dictionary d with
-    * d['feature_laplacians'] := the graph laplacians of f, shape (num_features,)
-    * d['covariate_laplacians'] := the graph laplacians of the covariates, shape (num_covariates,)
-    * d['laplacian_p_values'] := the p-values from the permutation test, shape (num_features,)
-    * d['laplacian_q_values'] := the q-values from the permutation test, shape (num_features,)
-    * d['regression_coefficients_beta_p_values'] := for i in range(1,covariates), the p-value that beta_i is not zero \
+    :return: A dictionary `data` with
+    * data['feature_laplacians'] := the graph laplacians of f, shape (num_features,)
+    * data['covariate_laplacians'] := the graph laplacians of the covariates, shape (num_covariates,)
+    * data['laplacian_p_values'] := the p-values from the permutation test, shape (num_features,)
+    * data['laplacian_q_values'] := the q-values from the permutation test, shape (num_features,)
+    * data['regression_coefficients_beta_p_values'] := for i in range(1,covariates), the p-value that beta_i is not zero \
       for that feature; see p. 228, 'Applied Linear Statistical Models', \
       Nachtsheim, Kutner, Neter, Li. Shape (num_features,num_covariates)
-    * d['regression_coefficients_fstat_p_values'] := the p-value that not all beta_i are zero, using the F-statistic, \
+    * data['regression_coefficients_fstat_p_values'] := the p-value that not all beta_i are zero, using the F-statistic, \
       see p. 226, 'Applied Linear Statistical Models', Nachtsheim, \
       Kutner, Neter, Li. Shape (num_features,)
-    * d['laplacian_p_values_post_regression'] := the p-value of the residual laplacian of the feature once the \
+    * data['laplacian_p_values_post_regression'] := the p-value of the residual laplacian of the feature once the \
       covariates have been regressed out.
-    * d['laplacian_q_values_post_regression'] := the q-values from the permutation test, shape (num_features,)
+    * data['laplacian_q_values_post_regression'] := the q-values from the permutation test, shape (num_features,)
     * (Optional, if `return_random_laplacians` is True) \
-      d['random_feature_laplacians'] := the matrix of randomly generated feature laplacians, \
+      data['random_feature_laplacians'] := the matrix of randomly generated feature laplacians, \
       shape (num_features, permutations).
     * (Optional, if `return_random_laplacians` is True) \
-      d['random_covariate_laplacians'] := the matrix of randomly generated covariate laplacians, \
+      data['random_covariate_laplacians'] := the matrix of randomly generated covariate laplacians, \
       shape (num_covariates, permutations)
     """
 
     validate(feature_arr)
+    distribution = to_distribution(distance_matrix,epsilon)
     N = feature_arr.shape[0]
-    num_features : int = feature_arr.shape[1]3
+    num_features : int = feature_arr.shape[1]
     if len(covariates.shape)==1:
         covariates = covariates[:,np.newaxis]
     num_covariates = covariates.shape[1]
@@ -222,6 +227,7 @@ def graph_laplacian_w_covariates(
          np.full((permutations,1), fill_value=1,dtype=np.float_)),
         axis=1)
     assert rcl.shape == (permutations,num_covariates+1)
+
     b, rfl_resids, SSE, SSR, s2b = multilinear_regression(rcl,rfl)
     assert b.shape == (num_covariates+1,num_features)
 
@@ -229,27 +235,33 @@ def graph_laplacian_w_covariates(
     if (permutations <= num_covariates):
         raise Exception("Must be more permutations than covariates.")
     MSE = SSE/(permutations - num_covariates)
-    sb = math.sqrt(np.diag(s2b))
-    t_stat = b/sb
-    p_betas = scipy.stats.t.sf(t_stat, permutations - num_covariates) * 2
+    sb = np.sqrt(np.diag(s2b))
+    # Compute the t-statistic to decide whether beta is 
+    t_stat = (b/sb)[:-1]
+    p_betas = t.sf(t_stat, permutations - num_covariates) * 2
     f_stat = MSR/MSE
-    p_all_betas = scipy.stats.f.sf(f_stat, num_covariates-1, permutations-num_covariates)
-    tfl_resid = tfl - np.matmul(tcl,regression_coefficients)
+    p_all_betas = f.sf(f_stat, num_covariates-1, permutations-num_covariates)
+    tfl_resid = tfl - np.matmul(tcl,b)
 
-    d = {}
-    d['feature_laplacians'] = tfl
-    d['covariate_laplacians'] = tcl
-    d['laplacian_p_values'] = percentile(tfl,rfl)
-    d['laplacian_q_values']= benjamini_hochberg[d['laplacian_p_values']]
-    d['regression_coefficients_beta_p_values']=p_betas
-    d['regression_coefficients_fstat_p_values']=p_all_betas
-    d['laplacian_p_values_post_regression']=percentile(tfl_resid,rfl_resids)
-    d['laplacian_q_values_post_regression']=\
-        benjamini_hochberg(d['laplacian_p_values_post_regression'])
+    data = {}
+    data['feature_laplacians'] = tfl
+    data['covariate_laplacians'] = tcl
+    data['laplacian_p_values'] = percentile(tfl,rfl)
+    data['laplacian_q_values']= benjamini_hochberg(data['laplacian_p_values'])
+    data['regression_coefficients_beta_p_values']=p_betas
+    data['regression_coefficients_fstat_p_values']=p_all_betas
+    data['laplacian_p_values_post_regression']=percentile(tfl_resid,rfl_resids)
+    data['laplacian_q_values_post_regression']=\
+        benjamini_hochberg(data['laplacian_p_values_post_regression'])
+    return data
 
-
-def graph_laplacian(
-
+def graph_laplacians(
+        feature_arr : npt.NDArray[np.float_],
+        distance_matrix : npt.NDArray[np.float_],
+        epsilon : float,
+        permutations : int,
+        return_random_laplacians : bool
+) -> npt.NDArray[np.float_]:
     """
     :param feature_arr: An array of shape (N ,num_features), where N is the \
     number of nodes in the graph, and num_features is \
@@ -279,21 +291,15 @@ def graph_laplacian(
     - the third row contains q-values which result from adjusting the p-values by a \
     Benjamini-Hochberg procedure
     """
-
-    if covariates is not None:
-        
-        p_q_after_covariate = _p_q_laplacians_w_covariates(
-            true_laplacians,
-            random_laplacians,
-            true_covariate_laplacians,
-            random_covariate_laplacians,
-            num_covariates,
-            num_features,
-            permutations)
-    # Else, no covariates.
-    p_values = np.less(random_laplacians, true_laplacians).astype(np.int_).sum(axis=0)/permutations
-    ranked_p_values = rankdata(p_values)
-    q_values = p_values * len(p_values)/ranked_p_values
-    q_values[q_values >= 1]=1
-    return np.stack((true_laplacians,p_values,q_values),axis=0)
-
+    
+    validate(feature_arr)
+    N = feature_arr.shape[0]
+    distribution = to_distribution(distance_matrix,epsilon)
+    num_features : int = feature_arr.shape[1]
+    laplacians : npt.NDArray[np.float_] =\
+        np.negative(pearson_coefficient(feature_arr,distribution,permutations)) + 1.0
+    true_laplacians = laplacians[0,:]
+    random_laplacians = laplacians[1:,:]
+    p_values = np.less(random_laplacians, laplacians).astype(np.int_).sum(axis=0)/permutations
+    q_values = benjamini_hochberg(p_values)
+    return np.stack((laplacians,p_values,q_values),axis=0)
