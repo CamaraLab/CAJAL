@@ -12,10 +12,24 @@ import numpy.typing as npt
 from scipy.spatial.distance import euclidean, pdist
 from pathos.pools import ProcessPool
 
-from .swc import NeuronNode, NeuronTree, SWCForest, read_swc, weighted_depth, \
-    filter_forest, default_name_validate, get_filenames
-from .weighted_tree import WeightedTree, WeightedTreeChild, WeightedTreeRoot, WeightedTree_of, \
-    weighted_dist_from_root, weighted_depth_wt
+from .swc import (
+    NeuronNode,
+    NeuronTree,
+    SWCForest,
+    read_swc,
+    weighted_depth,
+    filter_forest,
+    default_name_validate,
+    get_filenames,
+)
+from .weighted_tree import (
+    WeightedTree,
+    WeightedTreeChild,
+    WeightedTreeRoot,
+    WeightedTree_of,
+    weighted_dist_from_root,
+    weighted_depth_wt,
+)
 from .utilities import write_csv_block, Err, T
 
 # Warning: Of 509 neurons downloaded from the Allen Brain Initiative
@@ -23,6 +37,7 @@ from .utilities import write_csv_block, Err, T
 # about 1% of test cases, recursive graph traversal algorithms will
 # fail. For this reason we have tried to write our functions in an
 # iterative style when possible.
+
 
 def _count_nodes_helper(
     node_a: NeuronNode, node_b: NeuronNode, stepsize: float, offset: float
@@ -339,7 +354,7 @@ def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
         (num_samples \* num_samples - 1/2, ). Contains the entries in the intracell geodesic \
         distance matrix for `tree` lying strictly above the diagonal.
     """
-    
+
     pts_list = get_sample_pts_geodesic(tree, num_samples)
     dist_list = []
     for i in range(len(pts_list)):
@@ -395,28 +410,29 @@ def compute_and_save_intracell_all_euclidean(
     infolder: str,
     out_csv: str,
     n_sample: int,
-    preprocess: Callable[[SWCForest], Err[T] | SWCForest] = lambda forest : forest,
-    num_cores: int = 8
+    preprocess: Callable[[SWCForest], Err[T] | SWCForest] = lambda forest: forest,
+    num_cores: int = 8,
 ) -> list[tuple[str, Err[T]]]:
     r"""
     For each \*.swc file in infolder, read the \*.swc file into memory as an SWCForest, `forest`. Apply a preprocessing function `preprocess` to `forest`, which can return either an error message (because the file is for whatever reason unsuitable for processing or sampling) or a potentially modified SWCForest `processed_forest`. Sample n_sample many points from the neuron, evenly spaced, and compute the Euclidean intracell matrix. Write the resulting intracell distance matrices for all cells passing the preprocessing test to a csv file with path `out_csv`.
-    
+
     :param infolder: Directory of input \*.swc files.
-    :param out_csv: Output file to write to.    
+    :param out_csv: Output file to write to.
     :param n_sample: How many points to sample from each cell.
     :param preprocess:
         `preprocess` is expected to be roughly of the following form:
 
         #. Apply such-and-such tests of data quality and integrity to the SWCForest. (For example, check that the forest has only a single connected component, that it has only a single soma node, that it has at least one soma node, that it contains nodes from the axon, AG that it does not have any elements whose structure_id is 0 (for 'undefined'), etc.) If any of the tests are failed, return an instance of :class:`utilities.Err` with a message explaining why the \*.swc file was ineligible for sampling.
         #. If all tests are passed, apply a transformation to `forest` and return the modified `new_forest`. (For example, filter out all axon nodes to focus on the dendrites, or filter out all undefined nodes, or filter out all components which have fewer than 10% of the nodes in the largest component.)
-    
+
         If `preprocess(forest)` returns an instance of the :class:`utilities.Err` class, this file is not sampled from, and its name is added to a list together with the error returned by `preprocess`. If `preprocess(forest)` returns a SWCForest, this is what will be sampled. By default, no preprocessing is performed, and the neuron is processed as-is.
     :param num_cores: the intracell distance matrices will be computed in parallel processes, num_cores is the number of processes to run simultaneously. Recommended to set equal to the number of cores on your machine.
     :return: List of pairs (cell_name, error), where cell_name is the cell for which sampling failed, and `error` is a wrapper around a message indicating why the neuron was not sampled from.
     """
-    
+
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
     assert len(cell_names) == len(file_paths)
+
     def rpce(file_path: str) -> Err[T] | npt.NDArray[np.float_]:
         return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
 
@@ -424,7 +440,9 @@ def compute_and_save_intracell_all_euclidean(
     icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
     icdms = pool.imap(rpce, file_paths)
     failed_cells: list[tuple[str, Err[T]]]
-    failed_cells = write_csv_block(out_csv,n_sample,zip(cell_names,icdms),3 * num_cores)
+    failed_cells = write_csv_block(
+        out_csv, n_sample, zip(cell_names, icdms), 3 * num_cores
+    )
     pool.close()
     pool.join()
     pool.clear()
@@ -436,7 +454,7 @@ def compute_and_save_intracell_all_geodesic(
     out_csv: str,
     n_sample: int,
     num_cores: int = 8,
-    preprocess: Callable[[SWCForest], Err[T] | NeuronTree] = lambda forest : forest[0]
+    preprocess: Callable[[SWCForest], Err[T] | NeuronTree] = lambda forest: forest[0],
 ) -> list[tuple[str, Err[T]]]:
     """
     This function is substantially the same as \
@@ -452,13 +470,15 @@ def compute_and_save_intracell_all_geodesic(
     """
 
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
+
     def rpcg(file_path) -> Err[T] | npt.NDArray[np.float_]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
+
     pool = ProcessPool(nodes=num_cores)
     icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
     icdms = pool.imap(rpcg, file_paths)
     failed_cells: list[tuple[str, Err[T]]]
-    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names,icdms), 10)
+    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, icdms), 10)
     pool.close()
     pool.join()
     pool.clear()

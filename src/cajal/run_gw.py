@@ -6,39 +6,52 @@ using algorithms in Peyre et al. ICML 2016
 import itertools as it
 import time
 import csv
-from typing import List, Optional, Tuple, Iterable, Iterator, Dict, TypedDict, TypeVar, Callable
+from typing import (
+    List,
+    Optional,
+    Tuple,
+    Iterable,
+    Iterator,
+    Dict,
+    TypedDict,
+    TypeVar,
+    Callable,
+)
 from math import sqrt, ceil
 
 
-#external dependencies
+# external dependencies
 import ot
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import squareform
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
-def _batched(itera : Iterator[T], n: int) -> Iterator[List[T]]:
+def _batched(itera: Iterator[T], n: int) -> Iterator[List[T]]:
     "Batch data into tuples of length n. The last batch may be shorter."
     # batched('ABCDEFG', 3) --> ABC DEF G
     if n < 1:
-        raise ValueError('n must be at least one')
-    while (batch := list(it.islice(itera, n))):
+        raise ValueError("n must be at least one")
+    while batch := list(it.islice(itera, n)):
         yield batch
 
 
-def _is_sorted(int_list : List[int]) -> bool:
-    if (len(int_list) <= 1): return True
-    return all(map(lambda tup : tup[0] <= tup[1],zip(int_list[:-1],int_list[1:])))
+def _is_sorted(int_list: List[int]) -> bool:
+    if len(int_list) <= 1:
+        return True
+    return all(map(lambda tup: tup[0] <= tup[1], zip(int_list[:-1], int_list[1:])))
 
 
 def _batched_cell_list_iterator_csv(
-        intracell_csv_loc : str,
-        chunk_size : int
-) -> Iterator[tuple[
-        list[tuple[int,str, npt.NDArray[np.float_]]],
-        list[tuple[int,str, npt.NDArray[np.float_]]]]]:
+    intracell_csv_loc: str, chunk_size: int
+) -> Iterator[
+    tuple[
+        list[tuple[int, str, npt.NDArray[np.float_]]],
+        list[tuple[int, str, npt.NDArray[np.float_]]],
+    ]
+]:
     """
     :param intracell_csv_loc: A full file path to a csv file.
     :param chunk_size: A size parameter.
@@ -55,45 +68,57 @@ def _batched_cell_list_iterator_csv(
     under the hood so this is probably an irrelevant concern.
     """
 
-    with open(intracell_csv_loc, newline='') as icdm_csvfile_outer:
-        csv_outer_reader = enumerate(csv.reader(icdm_csvfile_outer,delimiter=','))
+    with open(intracell_csv_loc, newline="") as icdm_csvfile_outer:
+        csv_outer_reader = enumerate(csv.reader(icdm_csvfile_outer, delimiter=","))
         _, header = next(csv_outer_reader)
-        assert header[0]=="cell_id"
+        assert header[0] == "cell_id"
         line_length = len(header[1:])
-        side_length = ceil(sqrt(2*line_length))
-        assert(side_length * (side_length -1)== 2*line_length)
+        side_length = ceil(sqrt(2 * line_length))
+        assert side_length * (side_length - 1) == 2 * line_length
         batched_outer = _batched(csv_outer_reader, chunk_size)
         for outer_batch in batched_outer:
-            outer_list =\
-                [(cell_id, ell[0],
-                  squareform(np.array(
-                      [ float(x) for x in ell[1:]],dtype=np.float_)))
-                  for (cell_id, ell) in outer_batch]
+            outer_list = [
+                (
+                    cell_id,
+                    ell[0],
+                    squareform(np.array([float(x) for x in ell[1:]], dtype=np.float_)),
+                )
+                for (cell_id, ell) in outer_batch
+            ]
             first_outer_id = outer_list[0][0]
-            with open(intracell_csv_loc, newline='') as icdm_csvfile_inner:
-                csv_inner_reader = enumerate(csv.reader(icdm_csvfile_inner,delimiter=','))
-                while (next(csv_inner_reader)[0] < first_outer_id):
+            with open(intracell_csv_loc, newline="") as icdm_csvfile_inner:
+                csv_inner_reader = enumerate(
+                    csv.reader(icdm_csvfile_inner, delimiter=",")
+                )
+                while next(csv_inner_reader)[0] < first_outer_id:
                     pass
                 batched_inner = _batched(csv_inner_reader, chunk_size)
                 for inner_batch in batched_inner:
-                    inner_list =\
-                        [(cell_id, ell[0], squareform(np.array(
-                            [float(x) for x in ell[1:]],dtype=np.float64)))
-                          for (cell_id, ell) in inner_batch]
+                    inner_list = [
+                        (
+                            cell_id,
+                            ell[0],
+                            squareform(
+                                np.array([float(x) for x in ell[1:]], dtype=np.float64)
+                            ),
+                        )
+                        for (cell_id, ell) in inner_batch
+                    ]
                     yield outer_list, inner_list
 
 
 def cell_pair_iterator_csv(
-    intracell_csv_loc : str,
-    chunk_size : int) -> Iterator[tuple[
-        tuple[int,str,npt.NDArray[np.float_]],
-        tuple[int,str,npt.NDArray[np.float_]]]]:
-
+    intracell_csv_loc: str, chunk_size: int
+) -> Iterator[
+    tuple[
+        tuple[int, str, npt.NDArray[np.float_]], tuple[int, str, npt.NDArray[np.float_]]
+    ]
+]:
     batched_it = _batched_cell_list_iterator_csv(intracell_csv_loc, chunk_size)
-    return it.chain.from_iterable( (zip(t1,t2) for t1, t2 in batched_it) )
+    return it.chain.from_iterable((zip(t1, t2) for t1, t2 in batched_it))
 
 
-def gw(A : npt.NDArray, B : npt.NDArray) -> float:
+def gw(A: npt.NDArray, B: npt.NDArray) -> float:
     """
     Readability/convenience wrapper for ot.gromov.gromov_wasserstein.
     
@@ -106,18 +131,14 @@ def gw(A : npt.NDArray, B : npt.NDArray) -> float:
     A = squareform(A)
     B = squareform(B)
     _, log = ot.gromov.gromov_wasserstein(
-        A,
-        B,
-        ot.unif(A.shape[0]),
-        ot.unif(B.shape[0]),
-        'square_loss',
-        log=True)
-    return log['gw_dist']
+        A, B, ot.unif(A.shape[0]), ot.unif(B.shape[0]), "square_loss", log=True
+    )
+    return log["gw_dist"]
+
 
 def gw_with_coupling_mat(
-        A : npt.NDArray,
-        B : npt.NDArray
-) -> tuple[float,npt.NDArray[np.float_]]:
+    A: npt.NDArray, B: npt.NDArray
+) -> tuple[float, npt.NDArray[np.float_]]:
     """
     Readability/convenience wrapper for ot.gromov.gromov_wasserstein.
     
@@ -130,49 +151,49 @@ def gw_with_coupling_mat(
     A = squareform(A)
     B = squareform(B)
     coupling_mat, log = ot.gromov.gromov_wasserstein(
-        A,
-        B,
-        ot.unif(A.shape[0]),
-        ot.unif(B.shape[0]),
-        'square_loss',
-        log=True)
-    return log['gw_dict'], coupling_mat
+        A, B, ot.unif(A.shape[0]), ot.unif(B.shape[0]), "square_loss", log=True
+    )
+    return log["gw_dict"], coupling_mat
 
 
 def write_gw(
-    gw_csv_loc : str,
-    name_name_dist : Iterator[tuple[str,str,float]],
+    gw_csv_loc: str,
+    name_name_dist: Iterator[tuple[str, str, float]],
 ) -> None:
-    chunk_size=100
+    chunk_size = 100
     counter = 0
     start = time.time()
     batched = _batched(name_name_dist, chunk_size)
-    with open(gw_csv_loc, 'a', newline='') as gw_csv_file:
-        csvwriter = csv.writer(gw_csv_file, delimiter=',')
-        header = ["first_object","second_object","gw_dist"]
+    with open(gw_csv_loc, "a", newline="") as gw_csv_file:
+        csvwriter = csv.writer(gw_csv_file, delimiter=",")
+        header = ["first_object", "second_object", "gw_dist"]
         for batch in batched:
             counter += len(batch)
             csvwriter.writerows(batch)
             now = time.time()
-            print("Time elapsed: "+ str(now-start))
-            print("Cell pairs computed: "+ counter)
+            print("Time elapsed: " + str(now - start))
+            print("Cell pairs computed: " + counter)
     stop = time.time()
-    print("Computation finished. Computed " + \
-          str(counter) + \
-          " many cell pairs." + \
-          " Time elapsed: " + str(stop-start))
+    print(
+        "Computation finished. Computed "
+        + str(counter)
+        + " many cell pairs."
+        + " Time elapsed: "
+        + str(stop - start)
+    )
 
 
 def compute_and_save_gw_distance_matrix(
-        intracell_csv_loc : str,
-        gw_csv_loc : str
+    intracell_csv_loc: str, gw_csv_loc: str
 ) -> None:
-
     chunk_size = 100
     cell_pairs = cell_pair_iterator_csv(intracell_csv_loc, chunk_size)
-    gw_dists = ((name1, name2, gw(icdm1, icdm2))
-                 for (_, name1, icdm1), (_, name2, icdm2) in cell_pairs)
-    write_gw(gw_csv_loc,gw_dists)
+    gw_dists = (
+        (name1, name2, gw(icdm1, icdm2))
+        for (_, name1, icdm1), (_, name2, icdm2) in cell_pairs
+    )
+    write_gw(gw_csv_loc, gw_dists)
+
 
 # def compute_and_save_gw_distance_matrix_w_coupling_mats(
 #         intracell_csv_loc : str,

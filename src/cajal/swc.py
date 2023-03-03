@@ -18,11 +18,13 @@ import numpy as np
 from scipy.spatial.distance import euclidean
 
 import dill
-dill.settings['recurse']=True
+
+dill.settings["recurse"] = True
 
 from pathos.pools import ProcessPool
 
 from .utilities import Err, T
+
 
 @dataclass
 class NeuronNode:
@@ -79,7 +81,6 @@ class NeuronTree:
                 yield tree
                 new_treelist += tree.child_subgraphs
             treelist = new_treelist
-
 
     def dfs(self) -> Iterator[NeuronTree]:
         """
@@ -345,14 +346,14 @@ def default_name_validate(filename: str) -> bool:
     If the file name starts with a period '.', the standard hidden-file marker on Linux, return False.
     Otherwise, return True if and only if the file ends in ".swc" (case-insensitive).
     """
-    if filename[0] == '.':
+    if filename[0] == ".":
         return False
     return os.path.splitext(filename)[1].casefold() == ".swc".casefold()
 
 
-def cell_iterator(infolder: str,
-                  name_validate: Callable[[str], bool] = default_name_validate
-                  ) -> Iterator[tuple[str, SWCForest]]:
+def cell_iterator(
+    infolder: str, name_validate: Callable[[str], bool] = default_name_validate
+) -> Iterator[tuple[str, SWCForest]]:
     r"""
     Construct an iterator over all SWCs in a directory (all files ending in \*.swc or \*.SWC).
 
@@ -362,9 +363,7 @@ def cell_iterator(infolder: str,
          and "forest" is the forest contained in the SWC file.
     """
     file_names = [
-        file_name
-        for file_name in os.listdir(infolder)
-        if name_validate(file_name)
+        file_name for file_name in os.listdir(infolder) if name_validate(file_name)
     ]
     cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
     all_files = (
@@ -376,13 +375,15 @@ def cell_iterator(infolder: str,
     return zip(cell_names, cell_stream)
 
 
-def has_soma_node(tree : NeuronTree) -> bool:
+def has_soma_node(tree: NeuronTree) -> bool:
     """
     Returns true if any node is a soma node; else returns false.
     """
-    def f(t : NeuronTree) -> bool:
+
+    def f(t: NeuronTree) -> bool:
         return t.root.is_soma_node()
-    return any(map(f,tree))
+
+    return any(map(f, tree))
 
 
 def _filter_forest_to_good_roots(
@@ -516,7 +517,7 @@ def filter_forest(forest: SWCForest, test: Callable[[NeuronNode], bool]) -> SWCF
     return list_a + list_b
 
 
-def keep_only_eu(structure_ids : Container[int]) -> Callable[[SWCForest],SWCForest]:
+def keep_only_eu(structure_ids: Container[int]) -> Callable[[SWCForest], SWCForest]:
     """
     Given `structure_ids`, a (list, set, tuple, etc.) of integers, \
     return a filtering function which accepts an :class:`swc.SWCForest` and \
@@ -535,16 +536,17 @@ def keep_only_eu(structure_ids : Container[int]) -> Callable[[SWCForest],SWCFore
     `forest` containing only the node types in `structure_ids`.
     
     """
-    def filter_by_structure_ids(forest : SWCForest) -> SWCForest:
+
+    def filter_by_structure_ids(forest: SWCForest) -> SWCForest:
         return filter_forest(
-            forest,
-            lambda node : operator.contains(structure_ids, node.structure_id))
-    
+            forest, lambda node: operator.contains(structure_ids, node.structure_id)
+        )
+
     return filter_by_structure_ids
 
+
 def preprocessor_eu(
-        structure_ids : Container[int] | Literal["keep_all_types"],
-        soma_component_only : bool
+    structure_ids: Container[int] | Literal["keep_all_types"], soma_component_only: bool
 ) -> Callable[[SWCForest], Err[str] | SWCForest]:
     """    
     :param structure_ids: Either a collection of integers corresponding to structure ids in the \
@@ -568,36 +570,51 @@ def preprocessor_eu(
     root is a soma node, the function will return an error.
     """
     if soma_component_only:
-        if structure_ids == 'keep_all_types':
-            def filter1(forest : SWCForest) -> Err[str] | SWCForest:
-                soma_root_nodes =\
-                    sum( ((1 if tree.root.structure_id == 1 else 0) for tree in forest) )
+        if structure_ids == "keep_all_types":
+
+            def filter1(forest: SWCForest) -> Err[str] | SWCForest:
+                soma_root_nodes = sum(
+                    ((1 if tree.root.structure_id == 1 else 0) for tree in forest)
+                )
                 if soma_root_nodes != 1:
-                    return Err("Found " + str(soma_root_nodes) + " many soma root nodes, not 1.")
+                    return Err(
+                        "Found "
+                        + str(soma_root_nodes)
+                        + " many soma root nodes, not 1."
+                    )
                 return forest
+
             return filter1
+
         # This point in the code is reached only if structure_ids is not 'keep_all_types'.
-        def filter2(forest : SWCForest) -> Err[str] | SWCForest:
-            soma_root_nodes =\
-                sum( ((1 if tree.root.structure_id == 1 else 0) for tree in forest) )
+        def filter2(forest: SWCForest) -> Err[str] | SWCForest:
+            soma_root_nodes = sum(
+                ((1 if tree.root.structure_id == 1 else 0) for tree in forest)
+            )
             if soma_root_nodes != 1:
-                return Err("Found " + str(soma_root_nodes) + " many soma root nodes, not 1.")
+                return Err(
+                    "Found " + str(soma_root_nodes) + " many soma root nodes, not 1."
+                )
             soma_tree = next(tree for tree in forest if tree.root.structure_id == 1)
             return filter_forest(
                 [soma_tree],
-                lambda node : operator.contains(structure_ids, node.structure_id))
+                lambda node: operator.contains(structure_ids, node.structure_id),
+            )
+
         return filter2
     # soma_component_only is False.
-    if structure_ids == 'keep_all_types':
-        return lambda forest : forest
-    def filter3(forest : SWCForest) -> SWCForest:
+    if structure_ids == "keep_all_types":
+        return lambda forest: forest
+
+    def filter3(forest: SWCForest) -> SWCForest:
         return filter_forest(
-            forest,
-            lambda node : operator.contains(structure_ids, node.structure_id))
+            forest, lambda node: operator.contains(structure_ids, node.structure_id)
+        )
+
     return filter3
 
 
-def keep_only_geo(structure_ids : Container[int]) -> Callable[[SWCForest], NeuronTree]:
+def keep_only_geo(structure_ids: Container[int]) -> Callable[[SWCForest], NeuronTree]:
     """
     This is similar to :func:`swc.keep_only_eu` and the user should consult the documentation \
     for that function. The difference is that the returned function also trims the tree down to a \
@@ -607,10 +624,11 @@ def keep_only_geo(structure_ids : Container[int]) -> Callable[[SWCForest], Neuro
     :func:`sample_swc.compute_and_save_intracell_all_geodesic`.
     """
 
-    def filter_by_structure_ids(forest : SWCForest) -> NeuronTree:
+    def filter_by_structure_ids(forest: SWCForest) -> NeuronTree:
         return filter_forest(
-            forest,
-            lambda node : operator.contains(structure_ids, node.structure_id))[0]
+            forest, lambda node: operator.contains(structure_ids, node.structure_id)
+        )[0]
+
     return filter_by_structure_ids
 
 
@@ -622,9 +640,9 @@ def total_length(tree: NeuronTree) -> float:
     for tree0 in tree:
         for child_tree in tree0.child_subgraphs:
             acc_length += euclidean(
-                    np.array(tree0.root.coord_triple),
-                    np.array(child_tree.root.coord_triple),
-                )
+                np.array(tree0.root.coord_triple),
+                np.array(child_tree.root.coord_triple),
+            )
     return acc_length
 
 
@@ -661,7 +679,7 @@ def discrete_depth(tree: NeuronTree) -> int:
     :return: The height of the tree in the unweighted or discrete sense, i.e. the \
         longest path from the root to any leaf measured in the number of edges.
     """
-    
+
     depth: int = 0
     treelist = tree.child_subgraphs
     while bool(treelist):
@@ -751,11 +769,12 @@ def _depth_table(tree: NeuronTree) -> dict[int, int]:
         depth += 1
     return table
 
+
 def diagnostics(
     infolder: str,
-    test : Callable[[SWCForest],Optional[Err[str]]],
-    parallel_processes : int,
-    name_validate: Callable[[str], bool] = default_name_validate
+    test: Callable[[SWCForest], Optional[Err[str]]],
+    parallel_processes: int,
+    name_validate: Callable[[str], bool] = default_name_validate,
 ) -> None:
     """
     Go through every SWC in infolder and apply `test` to the forest. \
@@ -763,29 +782,30 @@ def diagnostics(
     """
 
     cell_names, file_paths = get_filenames(infolder, name_validate)
-    def check_errs(file_path : str) -> Optional[Err[str]]:
+
+    def check_errs(file_path: str) -> Optional[Err[str]]:
         loaded_forest, _ = read_swc(file_path)
         return test(loaded_forest)
 
     pool = ProcessPool(nodes=parallel_processes)
-    results = pool.imap(check_errs,file_paths)
+    results = pool.imap(check_errs, file_paths)
 
-    for cell_name, result in zip(cell_names,results):
+    for cell_name, result in zip(cell_names, results):
         match result:
             case Err(code):
                 print(cell_name + " " + str(code))
             case None:
                 pass
-            
+
     pool.close()
     pool.join()
     pool.clear()
 
 
 def read_preprocess_save(
-        infile_name: str,
-        outfile_name: str,
-        preprocess: Callable[[SWCForest], Err[T] | SWCForest],
+    infile_name: str,
+    outfile_name: str,
+    preprocess: Callable[[SWCForest], Err[T] | SWCForest],
 ) -> Err[T] | Literal["success"]:
     r"""
     Read the \*.swc file `file_name` from disk as an `SWCForest`.
@@ -801,12 +821,13 @@ def read_preprocess_save(
     tree = preprocess(loaded_forest)
     if isinstance(tree, Err):
         return tree
-    write_swc(outfile_name,tree)
+    write_swc(outfile_name, tree)
     return "success"
 
+
 def get_filenames(
-        infolder : str,
-        name_validate : Callable[[str], bool]) -> tuple[list[str],list[str]]:
+    infolder: str, name_validate: Callable[[str], bool]
+) -> tuple[list[str], list[str]]:
     """
     Get a list of all files in infolder. Filter the list by name_validate. \
 
@@ -818,19 +839,22 @@ def get_filenames(
     See :func:`swc.default_name_validate` for an example of a name validation function.
     """
 
-    file_names = [file_name for file_name in os.listdir(infolder) if name_validate(file_name)]
+    file_names = [
+        file_name for file_name in os.listdir(infolder) if name_validate(file_name)
+    ]
     file_paths = [os.path.join(infolder, file_name) for file_name in file_names]
     cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
-    return (cell_names,file_paths)
+    return (cell_names, file_paths)
+
 
 def batch_filter_and_preprocess(
-        infolder: str,
-        outfolder : str,
-        preprocess: Callable[[SWCForest], Err[T] | SWCForest],
-        parallel_processes: int,
-        err_log : Optional[str],
-        suffix = "",
-        name_validate : Callable[[str], bool] = default_name_validate
+    infolder: str,
+    outfolder: str,
+    preprocess: Callable[[SWCForest], Err[T] | SWCForest],
+    parallel_processes: int,
+    err_log: Optional[str],
+    suffix="",
+    name_validate: Callable[[str], bool] = default_name_validate,
 ) -> None:
     r"""
 
@@ -863,7 +887,6 @@ def batch_filter_and_preprocess(
         and metadata files are not read into memory.
     """
 
-
     try:
         os.mkdir(outfolder)
     except OSError as error:
@@ -871,22 +894,22 @@ def batch_filter_and_preprocess(
         pass
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
 
-    def rps(str_pair : tuple[str,str]) -> Err[T] | Literal["success"]:
+    def rps(str_pair: tuple[str, str]) -> Err[T] | Literal["success"]:
         cell_name, file_path = str_pair
-        outpath = os.path.join(outfolder,cell_name+suffix+".swc")
-        return read_preprocess_save(file_path,outpath,preprocess)
+        outpath = os.path.join(outfolder, cell_name + suffix + ".swc")
+        return read_preprocess_save(file_path, outpath, preprocess)
 
     pool = ProcessPool(nodes=parallel_processes)
-    results = pool.imap(rps,zip(cell_names,file_paths))
+    results = pool.imap(rps, zip(cell_names, file_paths))
 
     if err_log is not None:
-        with open(err_log, 'w', newline='') as outfile:
-            for cell_name, result in zip(cell_names,results):
+        with open(err_log, "w", newline="") as outfile:
+            for cell_name, result in zip(cell_names, results):
                 match result:
                     case "success":
                         pass
                     case Err(code):
-                        outfile.write(cell_name + " " + str(code)+"\n")
+                        outfile.write(cell_name + " " + str(code) + "\n")
 
     pool.close()
     pool.join()

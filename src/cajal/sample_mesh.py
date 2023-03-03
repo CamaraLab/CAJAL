@@ -13,7 +13,17 @@ from scipy.spatial.distance import squareform, cdist, euclidean, pdist
 import trimesh
 import itertools as it
 import warnings
-from typing import Tuple, List, Set, Dict, Optional, Iterator, Iterable, TypeAlias, Callable
+from typing import (
+    Tuple,
+    List,
+    Set,
+    Dict,
+    Optional,
+    Iterator,
+    Iterable,
+    TypeAlias,
+    Callable,
+)
 from multiprocessing import Pool
 from pathos.pools import ProcessPool
 from cajal.utilities import pj
@@ -21,14 +31,15 @@ from cajal.utilities import pj
 # We represent a mesh as a pair (vertices, faces) : Tuple[VertexArray,FaceArray].
 # A VertexArray is a numpy array of shape (n, 3), where n is the number of vertices in the mesh.
 # Each row of a VertexArray is an XYZ coordinate triple for a point in the mesh.
-VertexArray : TypeAlias = npt.NDArray[np.float_]
+VertexArray: TypeAlias = npt.NDArray[np.float_]
 # A FaceArray is a numpy array of shape (m, 3) where m is the number of faces in the mesh.
 # Each row of a FaceArray is a list of three natural numbers, corresponding to indices
 # in the corresponding VertexArray,
 # representing triangular faces joining those three points.
-FaceArray : TypeAlias = npt.NDArray[np.int_]
+FaceArray: TypeAlias = npt.NDArray[np.int_]
 
-def read_obj(file_path: str) -> Tuple[VertexArray,FaceArray]:
+
+def read_obj(file_path: str) -> Tuple[VertexArray, FaceArray]:
     """
     Reads in the vertices and triangular faces of a .obj file.
 
@@ -52,7 +63,8 @@ def read_obj(file_path: str) -> Tuple[VertexArray,FaceArray]:
             faces.append([float(x) for x in line[1:]])
         # Skipping over any vertex textures or normals
     obj_file.close()
-    return np.array(vertices), (np.array(faces)-1).astype("int64")
+    return np.array(vertices), (np.array(faces) - 1).astype("int64")
+
 
 def connect_mesh(vertices: VertexArray, faces: FaceArray) -> FaceArray:
     """
@@ -71,8 +83,9 @@ def connect_mesh(vertices: VertexArray, faces: FaceArray) -> FaceArray:
     graph = trimesh.graph.vertex_adjacency_graph(mesh)
     # The elements of connected_components[k] are nodes from "graph", i.e.,
     # natural number array indices.
-    connected_components : List[Set[int]] = \
-        [i[1] for i in enumerate(nx.connected_components(graph))]
+    connected_components: List[Set[int]] = [
+        i[1] for i in enumerate(nx.connected_components(graph))
+    ]
     if len(connected_components) == 1:
         return faces
 
@@ -95,38 +108,46 @@ def connect_mesh(vertices: VertexArray, faces: FaceArray) -> FaceArray:
     # straddling the two components.  Not all new faces in "connections" will
     # be added to the mesh - only the ones that lie along an edge in the
     # minimal spanning tree.
-    connections : Dict[Tuple[int,int],Tuple[int,int,int]]= {}
-
+    connections: Dict[Tuple[int, int], Tuple[int, int, int]] = {}
 
     # Add components as nodes in graph
-    for i in range(len(connected_components)): spt_graph.add_node(i)
+    for i in range(len(connected_components)):
+        spt_graph.add_node(i)
     # For every pair of components, find nearest points
     for i in range(len(connected_components)):
-        for j in range(i+1, len(connected_components)):
+        for j in range(i + 1, len(connected_components)):
             # Set bigger component as reference so we can make KDTree of that and loop over smaller
-            ref, query = (i, j) if len(connected_components[i]) > len(connected_components[j]) \
-                 else (j, i)
+            ref, query = (
+                (i, j)
+                if len(connected_components[i]) > len(connected_components[j])
+                else (j, i)
+            )
             ref_ids = list(connected_components[ref])
             query_ids = list(connected_components[query])
             # dist_ij is a rectangular matrix of floats.
             # dist_ij[i, j] is the distance between the i-th node of component ref_ids
             # and the j-th node of query_ids.
             dist_ij = cdist(vertices[ref_ids], vertices[query_ids])
-            nearest : Tuple[int,int]
-            nearest = np.unravel_index(dist_ij.argmin(), dist_ij.shape) # type: ignore[assignment]
-            next_nearest = np.argpartition(dist_ij[nearest[0]],1)[1]
-            face : Tuple[int,int,int] = \
-                (ref_ids[nearest[0]], query_ids[nearest[1]], query_ids[next_nearest])
+            nearest: Tuple[int, int]
+            nearest = np.unravel_index(dist_ij.argmin(), dist_ij.shape)  # type: ignore[assignment]
+            next_nearest = np.argpartition(dist_ij[nearest[0]], 1)[1]
+            face: Tuple[int, int, int] = (
+                ref_ids[nearest[0]],
+                query_ids[nearest[1]],
+                query_ids[next_nearest],
+            )
             # Save face so I know to add it if this edge is in SPT
             connections[(i, j)] = face
             spt_graph.add_edge(i, j, weight=dist_ij[nearest])
-    new_faces : List[Tuple[int,int,int]] = []
+    new_faces: List[Tuple[int, int, int]] = []
     for u, v, _ in nx.minimum_spanning_edges(spt_graph):
         new_faces.append(connections[(min(u, v), max(u, v))])
     return np.vstack([faces, np.array(new_faces)])
 
 
-def disconnect_mesh(vertices: VertexArray, faces: FaceArray) -> List[Tuple[VertexArray,FaceArray]]:
+def disconnect_mesh(
+    vertices: VertexArray, faces: FaceArray
+) -> List[Tuple[VertexArray, FaceArray]]:
     """
     Returns the list of connected submeshes of the given mesh, as\
      ordered pairs (vertices_i, faces_i).
@@ -152,18 +173,18 @@ def disconnect_mesh(vertices: VertexArray, faces: FaceArray) -> List[Tuple[Verte
         index = np.min(faces)
         v_ids = [v_id + index for v_id in v_ids]
         keep_faces = faces[np.sum(np.isin(faces, v_ids), axis=1) == 3]
-        convert_ids = dict(zip(v_ids, range(index, len(v_ids)+index)))
-        new_faces = np.array(
-               [convert_ids[x] for x in keep_faces.flatten()]
-            ).reshape(keep_faces.shape)
+        convert_ids = dict(zip(v_ids, range(index, len(v_ids) + index)))
+        new_faces = np.array([convert_ids[x] for x in keep_faces.flatten()]).reshape(
+            keep_faces.shape
+        )
         disconn_meshes.append((new_vertices, new_faces))
 
     return disconn_meshes
 
+
 def cell_generator(
-        directory_name : str,
-        segment: bool
-        ) -> Iterator[Tuple[str,VertexArray,FaceArray]]:
+    directory_name: str, segment: bool
+) -> Iterator[Tuple[str, VertexArray, FaceArray]]:
     r"""
     :param directory_name: The directory where the *.obj files are stored
     :param segment: if segment is True, each cell will be segmented into its \
@@ -173,23 +194,26 @@ def cell_generator(
     is a triple (cell_name, vertices, faces). 
     """
 
-    file_names = [file_name for file_name in os.listdir(directory_name)
-                  if os.path.splitext(file_name)[1] in [".obj", ".OBJ"]]
+    file_names = [
+        file_name
+        for file_name in os.listdir(directory_name)
+        if os.path.splitext(file_name)[1] in [".obj", ".OBJ"]
+    ]
     if segment:
         for file_name in file_names:
-            vertices, faces = read_obj(os.path.join(directory_name,file_name))
+            vertices, faces = read_obj(os.path.join(directory_name, file_name))
             mesh_list = disconnect_mesh(vertices, faces)
-            i=0
+            i = 0
             for mesh in mesh_list:
-                yield (os.path.splitext(file_name)[0] + "_" + str(i),
-                       mesh[0], mesh[1])
-                i = i+1
+                yield (os.path.splitext(file_name)[0] + "_" + str(i), mesh[0], mesh[1])
+                i = i + 1
     else:
         for file_name in file_names:
-            vertices, faces = read_obj(os.path.join(directory_name,file_name))
+            vertices, faces = read_obj(os.path.join(directory_name, file_name))
             yield (os.path.splitext(file_name)[0], vertices, faces)
 
-def sample_vertices(vertices: VertexArray, n_sample : int) -> Optional[VertexArray]:
+
+def sample_vertices(vertices: VertexArray, n_sample: int) -> Optional[VertexArray]:
     """
     Evenly samples n vertices. Most .obj vertices are ordered \
     counter-clockwise, so evenly sampling from vertex matrix \
@@ -200,16 +224,16 @@ def sample_vertices(vertices: VertexArray, n_sample : int) -> Optional[VertexArr
     :return: None, if there are fewer vertices than points to sample. \
     Otherwise, a numpy array of sampled vertices, of shape (n_sample, 3).
     """
-    
+
     if vertices.shape[0] < n_sample:
         warnings.warn("Fewer vertices than points to sample, skipping")
         return None
-    return vertices[np.linspace(0, vertices.shape[0]-1, n_sample).astype("uint32"), :]
+    return vertices[np.linspace(0, vertices.shape[0] - 1, n_sample).astype("uint32"), :]
 
-def get_geodesic_heat_one_mesh(vertices : VertexArray,
-                               faces : FaceArray,
-                               n_sample: int
-                               ) -> Optional[npt.NDArray[np.float_]]:
+
+def get_geodesic_heat_one_mesh(
+    vertices: VertexArray, faces: FaceArray, n_sample: int
+) -> Optional[npt.NDArray[np.float_]]:
     r"""
     Given a mesh, randomly sample n_sample points from the mesh, \
     compute the pairwise geodesic distances between the sampled points using the heat method, \
@@ -242,9 +266,8 @@ def get_geodesic_heat_one_mesh(vertices : VertexArray,
 
 
 def get_geodesic_networkx_one_mesh(
-        vertices : VertexArray,
-        faces : FaceArray,
-        n_sample : int) -> Optional[npt.NDArray[np.float_]]:
+    vertices: VertexArray, faces: FaceArray, n_sample: int
+) -> Optional[npt.NDArray[np.float_]]:
     """
     Given a mesh, randomly sample n_sample points from the \
     mesh, computes the pairwise geodesic distances between the sampled points \
@@ -274,14 +297,14 @@ def get_geodesic_networkx_one_mesh(
     for i in range(len(arguments)):
         pair = arguments[i]
         dist_vec[i] = nxsp.generic.shortest_path_length(
-            graph, source=pair[0], target=pair[1], weight="weight")
+            graph, source=pair[0], target=pair[1], weight="weight"
+        )
     return dist_vec
 
+
 def get_geodesic(
-        vertices : VertexArray,
-        faces : FaceArray,
-        n_sample : int,
-        method : str) -> Optional[npt.NDArray[np.float_]]:
+    vertices: VertexArray, faces: FaceArray, n_sample: int, method: str
+) -> Optional[npt.NDArray[np.float_]]:
     """
     Sample `n_sample` many points and compute an intracell distance matrix of pairwise \
     geodesic distances between points.
@@ -297,59 +320,57 @@ def get_geodesic(
 
 
 def _connect_helper(
-        t : Tuple[str,VertexArray,FaceArray]
-) -> Tuple[str,VertexArray,FaceArray]:
+    t: Tuple[str, VertexArray, FaceArray]
+) -> Tuple[str, VertexArray, FaceArray]:
     name, vertices, faces = t
-    return (t[0], t[1], connect_mesh(t[1],t[2]))
+    return (t[0], t[1], connect_mesh(t[1], t[2]))
+
 
 def compute_intracell_all(
-        infolder: str,
-        n_sample : int,        
-        metric: str,
-        pool : ProcessPool,
-        segment : bool = True,
-        method: str = "networkx"
-    ) -> Iterator[Tuple[str,Optional[npt.NDArray[np.float_]]]]:
-
+    infolder: str,
+    n_sample: int,
+    metric: str,
+    pool: ProcessPool,
+    segment: bool = True,
+    method: str = "networkx",
+) -> Iterator[Tuple[str, Optional[npt.NDArray[np.float_]]]]:
     if metric == "geodesic" and not segment:
         cell_gen = pool.imap(
-            _connect_helper,
-            cell_generator(infolder, segment),
-            chunksize=1)
+            _connect_helper, cell_generator(infolder, segment), chunksize=1
+        )
     else:
         cell_gen = cell_generator(infolder, segment)
 
     if metric == "geodesic":
         chunksize = 1 if method == "networkx" else 20
-        compute_geodesic : Callable[[Tuple[str,VertexArray,FaceArray]],\
-                                    Tuple[str,Optional[npt.NDArray[np.float_]]]]
-        compute_geodesic = lambda t :(t[0],get_geodesic(t[1],t[2],n_sample,method))
-        return(pool.imap( 
-                compute_geodesic,
-                cell_gen,
-                chunksize=chunksize))
+        compute_geodesic: Callable[
+            [Tuple[str, VertexArray, FaceArray]],
+            Tuple[str, Optional[npt.NDArray[np.float_]]],
+        ]
+        compute_geodesic = lambda t: (t[0], get_geodesic(t[1], t[2], n_sample, method))
+        return pool.imap(compute_geodesic, cell_gen, chunksize=chunksize)
 
     # metric is not "geodesic".
     if metric == "euclidean":
-        pt_clouds = \
-            pool.imap(
-                lambda t : (t[0], sample_vertices(t[1],n_sample)),
-                cell_gen,
-                chunksize=1000)
-        return(pool.imap(
-                lambda t : (t[0], None if t[1] is None else pdist(t[1])),
-                pt_clouds,
-                chunksize=1000))
+        pt_clouds = pool.imap(
+            lambda t: (t[0], sample_vertices(t[1], n_sample)), cell_gen, chunksize=1000
+        )
+        return pool.imap(
+            lambda t: (t[0], None if t[1] is None else pdist(t[1])),
+            pt_clouds,
+            chunksize=1000,
+        )
     raise Exception("Metric should be either 'geodesic' or 'euclidean'")
 
+
 def compute_and_save_intracell_all(
-        infolder: str,
-        out_csv: str,
-        metric: str,
-        n_sample : int = 50,
-        num_cores: int = 8,
-        segment : bool = True,
-        method: str = "heat"
+    infolder: str,
+    out_csv: str,
+    metric: str,
+    n_sample: int = 50,
+    num_cores: int = 8,
+    segment: bool = True,
+    method: str = "heat",
 ) -> List[str]:
     r"""
     Go through every Wavefront \*.obj file in the given input directory `infolder` \
@@ -385,13 +406,7 @@ def compute_and_save_intracell_all(
     """
 
     pool = ProcessPool(nodes=num_cores)
-    dist_mats = compute_intracell_all(
-        infolder,
-        n_sample,
-        metric,
-        pool,
-        segment,
-        method)
+    dist_mats = compute_intracell_all(infolder, n_sample, metric, pool, segment, method)
     batch_size = 1000
     failed_cells = write_csv_block(out_csv, dist_mats, batch_size)
     pool.close()

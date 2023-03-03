@@ -19,8 +19,7 @@ def pj(*paths):
 
 
 def read_gw(
-    gw_dist_file_loc: str,
-    header : bool
+    gw_dist_file_loc: str, header: bool
 ) -> tuple[list[str], dict[tuple[str, str], float]]:
     r"""
     Read a GW distance matrix into memory.
@@ -45,7 +44,7 @@ def read_gw(
     with open(gw_dist_file_loc, "r", newline="") as gw_file:
         csvreader = csv.reader(gw_file)
         if header:
-           _ = next(csvreader)
+            _ = next(csvreader)
         for first_cell, second_cell, gw_dist_str in csvreader:
             gw_dist = float(gw_dist_str)
             first_cell, second_cell = sorted([first_cell, second_cell])
@@ -57,9 +56,10 @@ def read_gw(
     all_cells = sorted(list(all_cells_set))
     return all_cells, gw_dist_dict
 
+
 def dist_mat_of_dict(
-        cell_names : list[str],
-        gw_dist_dictionary : dict[tuple[str,str],int]) -> npt.NDArray[np.float_]:
+    cell_names: list[str], gw_dist_dictionary: dict[tuple[str, str], int]
+) -> npt.NDArray[np.float_]:
     """
     Given a list of cell names and a distance dictionary, return a vectorform distance \
     matrix containing the pairwise GW distances between all cells in `cell_names`, and \
@@ -70,7 +70,7 @@ def dist_mat_of_dict(
     for first_cell, second_cell in it.combinations(cell_names, 2):
         first_cell, second_cell = sorted([first_cell, second_cell])
         dist_list.append(gw_dist_dictionary[(first_cell, second_cell)])
-    return np.array(dist_list,dtype=np.float_)
+    return np.array(dist_list, dtype=np.float_)
 
 
 def list_sort_files(data_dir, data_prefix=None, data_suffix=None):

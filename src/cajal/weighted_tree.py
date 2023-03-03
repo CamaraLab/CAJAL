@@ -15,6 +15,7 @@ from .swc import NeuronTree
 class WeightedTreeRoot:
     subtrees: list[WeightedTreeChild]
 
+
 @dataclass
 class WeightedTreeChild:
     subtrees: list[WeightedTreeChild]
@@ -23,7 +24,9 @@ class WeightedTreeChild:
     parent: WeightedTree
     dist: float
 
+
 WeightedTree = WeightedTreeRoot | WeightedTreeChild
+
 
 def WeightedTree_of(tree: NeuronTree) -> WeightedTreeRoot:
     """
@@ -85,6 +88,7 @@ def weighted_dist_from_root(wt: WeightedTree) -> float:
         x += wt.dist
         wt = wt.parent
     return x
+
 
 def weighted_depth_wt(tree: WeightedTree) -> float:
     """
