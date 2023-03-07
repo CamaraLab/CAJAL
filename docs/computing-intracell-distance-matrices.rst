@@ -19,7 +19,7 @@ matrices that enable users to perform Gromov-Wasserstein distance computations.
 Euclidean vs. geodesic distances
 --------------------------------
 
-CAJAL supports two types of intracellular distances matrices\: Euclidean distance,
+CAJAL supports two types of intracellular distances matrices: Euclidean distance,
 which is the ordinary straight-line distance through the ambient space,
 and geodesic distance, which is the length of the shortest path through the
 surface of the cell. The choice between using Euclidean or geodesic distance
@@ -51,14 +51,14 @@ CAJAL supports neuronal tracing data in the SWC specification defined `here
 You can find examples of \*.swc files compatible with CAJAL can be found in the CAJAL Github
 repository under ``CAJAL/data/swc_files``.
 
-The package provides two functions that operate on directories of *.swc files.
+The package provides two functions that operate on directories of \*.swc files.
 :func:`cajal.sample_swc.compute_and_save_intracell_all_euclidean` and :func:`cajal.sample_swc.compute_and_save_intracell_all_geodesic`. These functions
 generate intracellular distance matrices for each cell in the source directory
 and populate a \*.csv file with the results.
 
 For example, if you have a directory called `/home/jovyan/CAJAL/CAJAL/data/swc_files`
-that contains *.swc files and you want to write the intracellular distance
-matrices to a *.csv file called `/home/jovyan/CAJAL/CAJAL/data/swc_icdm.csv`,
+that contains \*.swc files and you want to write the intracellular distance
+matrices to a \*.csv file called `/home/jovyan/CAJAL/CAJAL/data/swc_icdm.csv`,
 you can use the following code.
 
 .. code-block:: python
