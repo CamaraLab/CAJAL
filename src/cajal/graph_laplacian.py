@@ -125,21 +125,21 @@ def multilinear_regression(
     * e, the matrix of residuals, shape (n,m)
     * SSE, the sum of squared errors (residuals), shape (m,)
     * SSR, the sum of squares of the regression, shape (m,)
-    * s2b, the sample variance-covariance matrix of the observed coefficient vector b.
+    * s2b, the sample variance-covariance matrices of the observed coefficient vectors b.
+      Shape (p,p,m), where s2b[i,j,k]
+      is the estimated covariance of b[i,k] with b[j,k].
     """
 
     b, SSE = np.linalg.lstsq(X, Y, rcond=None)[0:2]
-    # b = lstsq_results[0]
-    # SSE = lstsq_results[1]
     hat_Y = np.matmul(X, b)
     Y_means = np.sum(Y, axis=0) / Y.shape[0]
     Ya = np.subtract(hat_Y, Y_means[np.newaxis, :])
-    SSR = np.dot(Ya.T, Ya)
+    SSR = np.multiply(Ya, Ya).sum(axis=0)
     assert SSR.shape == (Y.shape[1],)
     XTX_inv = np.linalg.inv(np.matmul(X.T, X))
     n = Y.shape[0]
     p = X.shape[1]
-    s2b = XTX_inv / (n - p)
+    s2b = np.tensordot(XTX_inv, SSE, axes=0) / (n - p)
     return b, np.subtract(Y, hat_Y), SSE, SSR, s2b
 
 
@@ -181,6 +181,14 @@ def graph_laplacian_w_covariates(
     number of nodes in the graph, and num_features is \
     the number of features. Each column represents a feature on N elements. \
     Columns should be preprocessed to remove constant features.
+    :param distance_matrix: vectorform distance matrix
+    :param epsilon: connect nodes of graph if their distance is less than epsilon
+    :param permutations: how many permutations should be run
+    :param covariates: array of shape (N, num_covariates), where N is the number \
+    of nodes in the graph, and num_covariates is the number of covariates
+    :param return_random_laplacians: if True, the output dictionary will contain \
+    of all the generated laplacians. This will likely be the largest object in the \
+    dictionary.
 
     :return: A dictionary `data` with
     * data['feature_laplacians'] := the graph laplacians of f, shape (num_features,)
@@ -198,10 +206,10 @@ def graph_laplacian_w_covariates(
     * data['laplacian_q_values_post_regression'] := the q-values from the permutation test, shape (num_features,)
     * (Optional, if `return_random_laplacians` is True) \
       data['random_feature_laplacians'] := the matrix of randomly generated feature laplacians, \
-      shape (num_features, permutations).
+      shape (permutations,num_features).
     * (Optional, if `return_random_laplacians` is True) \
       data['random_covariate_laplacians'] := the matrix of randomly generated covariate laplacians, \
-      shape (num_covariates, permutations)
+      shape (permutations, num_covariates)
     """
 
     validate(feature_arr)
@@ -239,30 +247,35 @@ def graph_laplacian_w_covariates(
 
     b, rfl_resids, SSE, SSR, s2b = multilinear_regression(rcl, rfl)
     assert b.shape == (num_covariates + 1, num_features)
-
-    MSR = SSR / (num_covariates - 1)
-    if permutations <= num_covariates:
+    assert s2b.shape == (num_covariates + 1, num_covariates + 1, num_features)
+    MSR = SSR / (num_covariates)
+    if permutations <= num_covariates + 1:
         raise Exception("Must be more permutations than covariates.")
-    MSE = SSE / (permutations - num_covariates)
-    sb = np.sqrt(np.diag(s2b))
-    # Compute the t-statistic to decide whether beta is
-    t_stat = (b / sb)[:-1]
+    MSE = SSE / (permutations - (num_covariates + 1))
+    sb = np.sqrt(np.diagonal(s2b)).T
+
+    # Compute the t-statistic to decide whether beta is statistically significant
+    t_stat = (b / sb)[:-1, :]
     p_betas = t.sf(t_stat, permutations - num_covariates) * 2
     f_stat = MSR / MSE
-    p_all_betas = f.sf(f_stat, num_covariates - 1, permutations - num_covariates)
+    p_all_betas = f.sf(f_stat, num_covariates, permutations - num_covariates)
     tfl_resid = tfl - np.matmul(tcl, b)
 
     data = {}
     data["feature_laplacians"] = tfl
-    data["covariate_laplacians"] = tcl
+    data["covariate_laplacians"] = tcl[:-1]
     data["laplacian_p_values"] = percentile(tfl, rfl)
     data["laplacian_q_values"] = benjamini_hochberg(data["laplacian_p_values"])
+    data["regression_coefficients"] = b
     data["regression_coefficients_beta_p_values"] = p_betas
     data["regression_coefficients_fstat_p_values"] = p_all_betas
     data["laplacian_p_values_post_regression"] = percentile(tfl_resid, rfl_resids)
     data["laplacian_q_values_post_regression"] = benjamini_hochberg(
         data["laplacian_p_values_post_regression"]
     )
+    if return_random_laplacians:
+        data["random_feature_laplacians"] = rfl
+        data["random_covariate_laplacians"] = rcl[:, :-1]
     return data
 
 
@@ -313,8 +326,8 @@ def graph_laplacians(
     true_laplacians = laplacians[0, :]
     random_laplacians = laplacians[1:, :]
     p_values = (
-        np.less(random_laplacians, laplacians).astype(np.int_).sum(axis=0)
+        np.less(random_laplacians, true_laplacians).astype(np.int_).sum(axis=0)
         / permutations
     )
     q_values = benjamini_hochberg(p_values)
-    return np.stack((laplacians, p_values, q_values), axis=0)
+    return np.stack((true_laplacians, p_values, q_values), axis=0)
