@@ -177,5 +177,3 @@ We see that the average accuracy is between 27% and 30%. However, this number is
 
 So the class-weighted accuracy of the classifier is about 25%.
 
-Visualizing and Clustering Data
--------------------------------

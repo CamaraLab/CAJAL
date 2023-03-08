@@ -153,18 +153,21 @@ def benjamini_hochberg(p_values: npt.NDArray) -> npt.NDArray:
     return q_values
 
 
-def percentile(
+def permutation_pvalue(
     X: npt.NDArray[np.float_], A: npt.NDArray[np.float_]
 ) -> npt.NDArray[np.float_]:
     """
+    p-value is computed from Phipson and Smyth, "Permutation P-values should never be zero."
+
     :param X: shape (k,)
     :param A: shape (n,k)
 
-    :return: a vector V of shape (k,) where V[i] tells the percentile of \
-    X among elements of A (X[i] is greater than fraction V[i] of elements in A[i])
+    :return: a vector V of shape (k,) where V[i] tells the p-value that the given
+    position of X[i] relative to the elements of A[i] would arise from chance.
+
     """
-    return np.greater(X[np.newaxis, :], A).astype(np.int_).sum(axis=0) / (
-        A.shape[0] + 1
+    return (np.greater(X[np.newaxis, :], A).astype(np.int_).sum(axis=0) + 1) / (
+        (A.shape[0] + 1)
     )
 
 
@@ -264,12 +267,14 @@ def graph_laplacian_w_covariates(
     data = {}
     data["feature_laplacians"] = tfl
     data["covariate_laplacians"] = tcl[:-1]
-    data["laplacian_p_values"] = percentile(tfl, rfl)
+    data["laplacian_p_values"] = permutation_pvalue(tfl, rfl)
     data["laplacian_q_values"] = benjamini_hochberg(data["laplacian_p_values"])
     data["regression_coefficients"] = b
     data["regression_coefficients_beta_p_values"] = p_betas
     data["regression_coefficients_fstat_p_values"] = p_all_betas
-    data["laplacian_p_values_post_regression"] = percentile(tfl_resid, rfl_resids)
+    data["laplacian_p_values_post_regression"] = permutation_pvalue(
+        tfl_resid, rfl_resids
+    )
     data["laplacian_q_values_post_regression"] = benjamini_hochberg(
         data["laplacian_p_values_post_regression"]
     )
