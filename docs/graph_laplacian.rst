@@ -85,11 +85,12 @@ this folder. It is hopefully clear at this point from the other examples how to
 sample points from each cell and compute the pairwise distances between
 neurons. At a resolution of 100 points per cell this takes about 1 hour 45
 minutes on a machine with 20 cores. Let us name the file
-`c_elegans_gw_dists.csv`.  Download the precomputed Gromov-Wasserstein
-distances `here
-<https://www.dropbox.com/s/uwcgluux2r0dwvb/c_elegans_gw_dists.csv?dl=0>`_.
+`c_elegans_gw_dists.csv`.
+
+Download the precomputed Gromov-Wasserstein distances `here
+<https://www.dropbox.com/s/uwcgluux2r0dwvb/c_elegans_gw_dists.csv?dl=0>`__.
 Lastly, download the neuron features we want to analyze `here
-<https://www.dropbox.com/s/jli4hqbc9vuyd4f/c_elegans_features.csv?dl=0>`_. We
+<https://www.dropbox.com/s/jli4hqbc9vuyd4f/c_elegans_features.csv?dl=0>`__. We
 have eleven features we want to measure. Each feature is binary and corresponds
 to the expression of a certain gene.
 
