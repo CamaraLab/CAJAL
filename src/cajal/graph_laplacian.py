@@ -359,6 +359,7 @@ def graph_laplacians(
     dictionary.
 
     :return: A dictionary `data` with
+
     * data['feature_laplacians'] := the graph laplacians of f, shape (num_features,)
     * (Optional, if covariates is not None) data['covariate_laplacians'] := \
       the graph laplacians of the covariates, shape (num_covariates,)\
