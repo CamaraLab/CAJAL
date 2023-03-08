@@ -73,7 +73,7 @@ def pearson_coefficient(
     return np.stack(pearson_coefficient_list, axis=0)
 
 
-def validate(feature_arr: npt.NDArray[np.float_]):
+def _validate(feature_arr: npt.NDArray[np.float_]):
     for i in range(feature_arr.shape[1]):
         v = feature_arr[:, i]
         if np.all(v == v[0]):
@@ -86,7 +86,7 @@ def validate(feature_arr: npt.NDArray[np.float_]):
             )
 
 
-def to_distribution(
+def _to_distribution(
     dist_mat: npt.NDArray[np.float_], epsilon: float
 ) -> npt.NDArray[np.float_]:
     """
@@ -215,8 +215,7 @@ def graph_laplacian_w_covariates(
       shape (permutations, num_covariates)
     """
 
-    validate(feature_arr)
-    distribution = to_distribution(distance_matrix, epsilon)
+    distribution = _to_distribution(distance_matrix, epsilon)
     N = feature_arr.shape[0]
     num_features: int = feature_arr.shape[1]
     if len(covariates.shape) == 1:
@@ -284,13 +283,13 @@ def graph_laplacian_w_covariates(
     return data
 
 
-def graph_laplacians(
+def graph_laplacians_no_covariate(
     feature_arr: npt.NDArray[np.float_],
     distance_matrix: npt.NDArray[np.float_],
     epsilon: float,
     permutations: int,
     return_random_laplacians: bool,
-) -> npt.NDArray[np.float_]:
+) -> dict[str, npt.NDArray[np.float_]]:
     """
     :param feature_arr: An array of shape (N ,num_features), where N is the \
     number of nodes in the graph, and num_features is \
@@ -303,27 +302,19 @@ def graph_laplacians(
     are connected in G iff their distance in `distance_matrix` is strictly less than `epsilon`, and \
     compute the graph laplacian of features on `G`.
 
-    :param permutations: Generate `permutations - 1` many random permutations `sigma` of the set \
+    :param permutations: Generate `permutations` many random permutations `sigma` of the set \
     of nodes of `G`, and \
     compute the graph laplacians of the features `f \circ \sigma` for each permutation `sigma`. \
     These additional laplacian scores are used to perform a non-parametric permutation test, \
     returning a p-value \
-    representing the chance that the laplacian would be equally as high for a randomly \
+    representing the chance that the Laplacian would be equally as high for a randomly \
     selected permutation of the feature.
 
-    :covariates: An optional (N, k) matrix of covariate features, where N is the number of nodes \
-    in the graph and k is the number of covariates.
-    
-    :return: A matrix of shape (3,num_features), where
-    - the first row contains the graph laplacians for the features `f`
-    - the second row contains the p-values from the permutation testing
-    - the third row contains q-values which result from adjusting the p-values by a \
-    Benjamini-Hochberg procedure
+    :param return_random_laplacians: Whether to return the randomly generated Laplacians.
     """
 
-    validate(feature_arr)
     N = feature_arr.shape[0]
-    distribution = to_distribution(distance_matrix, epsilon)
+    distribution = _to_distribution(distance_matrix, epsilon)
     num_features: int = feature_arr.shape[1]
     laplacians: npt.NDArray[np.float_] = (
         np.negative(pearson_coefficient(feature_arr, distribution, permutations)) + 1.0
@@ -335,4 +326,82 @@ def graph_laplacians(
         / permutations
     )
     q_values = benjamini_hochberg(p_values)
-    return np.stack((true_laplacians, p_values, q_values), axis=0)
+
+    data = {}
+    data["feature_laplacians"] = true_laplacians
+    data["laplacian_p_values"] = permutation_pvalue(true_laplacians, random_laplacians)
+    data["laplacian_q_values"] = benjamini_hochberg(data["laplacian_p_values"])
+    if return_random_laplacians:
+        data["random_feature_laplacians"] = random_laplacians
+    return data
+
+
+def graph_laplacians(
+    feature_arr: npt.NDArray[np.float_],
+    distance_matrix: npt.NDArray[np.float_],
+    epsilon: float,
+    permutations: int,
+    covariates: Optional[npt.NDArray[np.float_]],
+    return_random_laplacians: bool,
+) -> dict[str, npt.NDArray[np.float_]]:
+    """
+    :param feature_arr: An array of shape (N ,num_features), where N is the \
+    number of nodes in the graph, and num_features is \
+    the number of features. Each column represents a feature on N elements. \
+    Columns should be preprocessed to remove constant features.
+    :param distance_matrix: vectorform distance matrix
+    :param epsilon: connect nodes of graph if their distance is less than epsilon
+    :param permutations: how many permutations should be run
+    :param covariates: (optional) array of shape (N, num_covariates), where N is the number \
+    of nodes in the graph, and num_covariates is the number of covariates
+    :param return_random_laplacians: if True, the output dictionary will contain \
+    of all the generated laplacians. This will likely be the largest object in the \
+    dictionary.
+
+    :return: A dictionary `data` with
+    * data['feature_laplacians'] := the graph laplacians of f, shape (num_features,)
+    * (Optional, if covariates is not None) data['covariate_laplacians'] := \
+      the graph laplacians of the covariates, shape (num_covariates,)\
+           (if a matrix of covariates was supplied, else this entry will be absent)
+    * data['laplacian_p_values'] := the p-values from the permutation test, shape (num_features,)
+    * data['laplacian_q_values'] := the q-values from the permutation test, shape (num_features,)
+    * (Optional, if covariates is not None) data['regression_coefficients_beta_p_values'] := 
+      for i in range(1,covariates), the p-value \
+      that beta_i is not zero for that feature; see p. 228, 'Applied Linear Statistical Models', \
+      Nachtsheim, Kutner, Neter, Li. Shape (num_features,num_covariates)
+    * (Optional, if covariates is not None) data['regression_coefficients_fstat_p_values'] :=
+      the p-value that not all beta_i are zero, using the F-statistic, \
+      see p. 226, 'Applied Linear Statistical Models', Nachtsheim, \
+      Kutner, Neter, Li. Shape (num_features,)
+    * (Optional, if covariates is not None) data['laplacian_p_values_post_regression'] :=
+      the p-value of the residual laplacian of the feature once the \
+      covariates have been regressed out.
+    * (Optional, if covariates is not None)
+      data['laplacian_q_values_post_regression'] :=
+      the q-values from the permutation test, shape (num_features,)
+    * (Optional, if `return_random_laplacians` is True) \
+      data['random_feature_laplacians'] := the matrix of randomly generated feature laplacians, \
+      shape (permutations,num_features).
+    * (Optional, if `covariates` is not None and `return_random_laplacians` is True) \
+      data['random_covariate_laplacians'] := the matrix of randomly generated covariate laplacians, \
+      shape (permutations, num_covariates)
+    """
+
+    _validate(feature_arr)
+    if covariates is None:
+        return graph_laplacians_no_covariate(
+            feature_arr,
+            distance_matrix,
+            epsilon,
+            permutations,
+            return_random_laplacians,
+        )
+
+    return graph_laplacian_w_covariates(
+        feature_arr,
+        distance_matrix,
+        epsilon,
+        permutations,
+        covariates,
+        return_random_laplacians,
+    )

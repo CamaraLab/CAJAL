@@ -64,4 +64,27 @@ lower tail end of the residuals, we conclude that :math:`f` respects the
 morphology graph structure in excess of what would be predicted given with
 :math:`C_G(g_1),\dots, C_G(g_n)`.
 
+.. autofunction:: cajal.graph_laplacian.graph_laplacians
+
+Example - C. Elegans Dataset
+============================
+
+We will illustrate how to use graph Laplacian to identify features in a C. elegans
+neuron SWC dataset which are correlated with cell morphology.
+
+First, download and unzip `this folder
+<https://www.dropbox.com/s/uwcgluux2r0dwvb/c_elegans_gw_dists.csv?dl=0>`_
+containing 799 \*.swc files, which are neurons from C. elegans sampled at
+different days throughout their development.
+
+We then compute the Gromov-Wasserstein distances between each pair of cells in
+this folder. It is hopefully clear at this point from the other examples how to
+sample points from each cell and compute the pairwise distances between
+neurons. At a resolution of 100 points per cell this takes about 1 hour 45
+minutes on a machine with 20 cores. Let us name the file
+`c_elegans_gw_dists.csv`.  Download the precomputed Gromov-Wasserstein
+distances `here
+<https://www.dropbox.com/s/uwcgluux2r0dwvb/c_elegans_gw_dists.csv?dl=0>`_.
+
+
 
