@@ -1,5 +1,5 @@
-Worked Examples
-===============
+Examples
+========
 
 Classifying the CRE-driver line of neurons
 ------------------------------------------
@@ -177,7 +177,7 @@ We see that the average accuracy is between 27% and 30%. However, this number is
 
 So the class-weighted accuracy of the classifier is about 25%.
 
-Use of the Graph Laplacian to identify features related to cell morphology
+Use of the graph Laplacian to identify features related to cell morphology
 --------------------------------------------------------------------------
 
 Suppose that we have a set of cells, :math:`G`, and a numerical feature
@@ -216,7 +216,7 @@ distinct nodes :math:`x,y` are connected if and only if
 
 
 where :math:`E(G)` is the set of edges in the graph `G`, :math:`i,j` range over
-nodes of :math:`G`, `n(i)` is the number of neighbors of :math:`i` in
+nodes of :math:`G`, :math:`n(i)` is the number of neighbors of :math:`i` in
 :math:`G`, and :math:`\operatorname{Var}_G(f)` is a weighted
 variance of `f` where the weight of node :math:`i` is proportional to :math:`n(i)`.
 
@@ -247,7 +247,7 @@ morphology graph structure in excess of what would be predicted given with
 :math:`C_G(g_1),\dots, C_G(g_n)`.
 
 Example - C. Elegans Dataset
-============================
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We will illustrate how to use graph Laplacian to identify features in a C. elegans
 neuron SWC dataset which are correlated with cell morphology.
@@ -414,4 +414,88 @@ Laplacians of randomly selected functions on the graph with the same range.
 
 The q-values represent the adjustment of the reported p-values by the
 Benjamini-Hochberg procedure. After this transformation we can see that some of
-the values are still reported as significant.
+the values are still reported as significant. For example, on day 5, after 5000
+permutations, none of the observed random permutations generated a Laplacian
+score for unc-97 that was as low as the true score.
+
+Through the C. elegans lifecycle the morphology of the neurons changes, so if
+we know that the level of expression of a certain gene is correlated with age,
+we might expect that the expression of this gene is correlated with cell
+morphology indirectly through age. A natural question then is whether the low
+Laplacian score for that gene is entirely explained by its correlation with
+age, or whether the gene is still correlated with cell morphology after
+controlling for the relationship with age.
+
+Let us write :math:`g` for the age of the worm and :math:`f` for the gene
+expression vector. For many choices of permutation :math:`\pi` we will sample
+points :math:`C_G(f\circ\pi), C_G(g\circ\pi)` and plot a line of best fit to
+identify whether there is a linear relationship between :math:`C_G(f\circ\pi)`
+and :math:`C_G(g\circ\pi)`. If there is, we will compare the residual
+:math:`C_G(f) - \widehat{C_G(f)}` to the other residuals, and reject the null
+hypothesis if we observe that this is on the lower tail end of the residuals.
+
+.. code-block:: python
+
+		import os
+		import pandas as pd
+		import numpy as np
+		from cajal.utilities import read_gw, list_sort_files,dist_mat_of_dict
+		from cajal.graph_laplacian import graph_laplacians
+
+		project_dir=os.getcwd()
+		gw_csv_loc=project_dir+"/c_elegans_gw_dists.csv"
+		# Get the binary features we're trying to classify from the features file.
+		# There are 11 binary features on the 799 neurons, and we want to identify the ones which are correlated with cell morphology.
+		features_file = project_dir+"/c_elegans_features.csv"
+		# Get the cell names and the GW distance dictionary from file.
+		cell_names, gw_dist_dict = read_gw(gw_csv_loc,header=True)
+		feature_matrix = pd.read_csv(features_file)
+		feature_matrix.index = feature_matrix['cell_name']
+		feature_matrix=feature_matrix.drop('cell_name',axis=1)
+		feature_arr = feature_matrix.to_numpy()
+		gw_dist_arr = dist_mat_of_dict(feature_matrix.index,gw_dist_dict)
+
+		covariates : list[float] = []
+		for a in feature_matrix.index:
+		    if "day1" in a:
+		        covariates.append(1.0)
+               	    elif "day2" in a:
+                        covariates.append(2.0)
+		    elif "day3" in a:
+           		covariates.append(3.0)
+		    elif "day5" in a:
+	        	covariates.append(5.0)
+                    else:
+                        raise exception("No day found.")
+
+
+		covariates = np.array(covariates, dtype=np.float_)
+		epsilon= statistics.median(gw_dist_arr) # 71.26842320321848
+		N = 799
+		T, other = graph_laplacians(
+		    feature_arr,
+		    gw_dist_arr,
+		    epsilon,
+		    5000,
+		    covariates,
+		    False)
+		
+		df = pd.DataFrame(T)
+		df.index = feature_matrix.columns
+		print(df)
+
+		feature_laplacians 	laplacian_p_values 	laplacian_q_values 	beta_0 	beta_1 	beta_1_p_value 	regression_coefficients_fstat_p_values 	laplacian_p_values_post_regression 	laplacian_q_values_post_regression
+		nrx-1 	0.995131 	0.012797 	0.023462 	0.042212 	0.956808 	0.002345 	0.002345 	0.092581 	0.145485
+		mir-1 	0.998708 	0.365527 	0.446755 	0.000739 	0.998223 	0.957958 	0.957958 	0.378124 	0.415937
+		unc-49 	0.995577 	0.020596 	0.032365 	-0.001557 	1.000537 	1.089476 	0.910524 	0.019396 	0.042671
+		nlg-1 	0.992440 	0.002799 	0.008798 	0.036378 	0.962621 	0.010534 	0.010534 	0.006599 	0.024195
+		unc-25 	0.993152 	0.002799 	0.008798 	0.048584 	0.950417 	0.000495 	0.000495 	0.022595 	0.041425
+		unc-97 	0.958901 	0.000200 	0.002200 	0.003547 	0.995376 	0.800473 	0.800473 	0.000200 	0.002200
+		lim-6 	0.999139 	0.514697 	0.566167 	-0.012694 	1.011591 	1.599642 	0.400358 	0.313737 	0.383457
+		lat-2 	0.990366 	0.000600 	0.003299 	-0.010153 	1.009086 	1.526260 	0.473740 	0.000600 	0.003299
+		ptp-3 	0.997769 	0.160768 	0.221056 	0.001804 	0.997123 	0.898661 	0.898661 	0.175165 	0.240852
+		sup-17 	0.994819 	0.012398 	0.027275 	0.008797 	0.990140 	0.532631 	0.532631 	0.017197 	0.047291
+		pkd-2 	0.999256 	0.565287 	0.565287 	0.013739 	0.985145 	0.364582 	0.364582 	0.801040 	0.801040
+
+We ignore the last two columns for any feature which does not have a small
+p-value for `regression_coefficients_fstat_p_values` as in this case the line of best fit and the residuals are meaningless.
