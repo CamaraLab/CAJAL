@@ -236,13 +236,13 @@ def graph_laplacian_w_covariates(
     rfl = laplacians[1:, :num_features]
     assert rfl.shape == (permutations, num_features)
     # true covariate laplacians
-    tcl = np.concatenate((laplacians[0, num_features:], np.array([1.0])), axis=0)
+    tcl = np.concatenate((np.array([1.0]), laplacians[0, num_features:]), axis=0)
     assert tcl.shape == (num_covariates + 1,)
     # random covariate laplacians
     rcl = np.concatenate(
         (
-            laplacians[1:, num_features:],
             np.full((permutations, 1), fill_value=1, dtype=np.float_),
+            laplacians[1:, num_features:],
         ),
         axis=1,
     )
@@ -258,8 +258,8 @@ def graph_laplacian_w_covariates(
     sb = np.sqrt(np.diagonal(s2b)).T
 
     # Compute the t-statistic to decide whether beta is statistically significant
-    t_stat = (b / sb)[:-1, :]
-    p_betas = t.cdf(t_stat, permutations - num_covariates)
+    t_stat = (b / sb)[1:, :]
+    p_betas = t.sf(t_stat, permutations - num_covariates)
     f_stat = MSR / MSE
     p_all_betas = f.sf(f_stat, num_covariates, permutations - num_covariates)
     tfl_resid = tfl - np.matmul(tcl, b)
@@ -280,10 +280,10 @@ def graph_laplacian_w_covariates(
         data["laplacian_p_values_post_regression"]
     )
     other = {}
-    other["covariate_laplacians"] = tcl[:-1]
+    other["covariate_laplacians"] = tcl[1:]
     if return_random_laplacians:
         other["random_feature_laplacians"] = rfl
-        other["random_covariate_laplacians"] = rcl[:, :-1]
+        other["random_covariate_laplacians"] = rcl[:, 1:]
     return (data, other)
 
 

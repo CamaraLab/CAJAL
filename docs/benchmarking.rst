@@ -484,18 +484,49 @@ hypothesis if we observe that this is on the lower tail end of the residuals.
 		df.index = feature_matrix.columns
 		print(df)
 
-		feature_laplacians 	laplacian_p_values 	laplacian_q_values 	beta_0 	beta_1 	beta_1_p_value 	regression_coefficients_fstat_p_values 	laplacian_p_values_post_regression 	laplacian_q_values_post_regression
-		nrx-1 	0.995131 	0.012797 	0.023462 	0.042212 	0.956808 	0.002345 	0.002345 	0.092581 	0.145485
-		mir-1 	0.998708 	0.365527 	0.446755 	0.000739 	0.998223 	0.957958 	0.957958 	0.378124 	0.415937
-		unc-49 	0.995577 	0.020596 	0.032365 	-0.001557 	1.000537 	1.089476 	0.910524 	0.019396 	0.042671
-		nlg-1 	0.992440 	0.002799 	0.008798 	0.036378 	0.962621 	0.010534 	0.010534 	0.006599 	0.024195
-		unc-25 	0.993152 	0.002799 	0.008798 	0.048584 	0.950417 	0.000495 	0.000495 	0.022595 	0.041425
-		unc-97 	0.958901 	0.000200 	0.002200 	0.003547 	0.995376 	0.800473 	0.800473 	0.000200 	0.002200
-		lim-6 	0.999139 	0.514697 	0.566167 	-0.012694 	1.011591 	1.599642 	0.400358 	0.313737 	0.383457
-		lat-2 	0.990366 	0.000600 	0.003299 	-0.010153 	1.009086 	1.526260 	0.473740 	0.000600 	0.003299
-		ptp-3 	0.997769 	0.160768 	0.221056 	0.001804 	0.997123 	0.898661 	0.898661 	0.175165 	0.240852
-		sup-17 	0.994819 	0.012398 	0.027275 	0.008797 	0.990140 	0.532631 	0.532631 	0.017197 	0.047291
-		pkd-2 	0.999256 	0.565287 	0.565287 	0.013739 	0.985145 	0.364582 	0.364582 	0.801040 	0.801040
+.. raw:: html
+
+	 <embed> <div style="overflow-x:auto;">
+	 <table border="1" class="dataframe"> <thead> <tr style="text-align:
+	 right;"> <th></th> <th>feature_laplacians</th> <th>laplacian_p_values</th>
+	 <th>laplacian_q_values</th> <th>beta_0</th> <th>beta_1</th>
+	 <th>beta_1_p_value</th> <th>regression_coefficients_fstat_p_values</th>
+	 <th>laplacian_p_values_post_regression</th>
+	 <th>laplacian_q_values_post_regression</th> </tr> </thead> <tbody> <tr>
+	 <th>nrx-1</th> <td>0.995131</td> <td>0.010398</td> <td>0.022875</td>
+	 <td>0.989490</td> <td>0.009513</td> <td>0.247961</td> <td>0.495922</td>
+	 <td>0.014597</td> <td>0.032114</td> </tr> <tr> <th>mir-1</th>
+	 <td>0.998708</td> <td>0.374125</td> <td>0.457264</td> <td>0.982360</td>
+	 <td>0.016585</td> <td>0.134405</td> <td>0.268809</td> <td>0.656669</td>
+	 <td>0.656669</td> </tr> <tr> <th>unc-49</th> <td>0.995577</td>
+	 <td>0.021396</td> <td>0.033622</td> <td>0.998180</td> <td>0.000788</td>
+	 <td>0.478283</td> <td>0.956566</td> <td>0.022595</td> <td>0.041425</td> </tr>
+	 <tr> <th>nlg-1</th> <td>0.992440</td> <td>0.001400</td> <td>0.005132</td>
+	 <td>0.961300</td> <td>0.037716</td> <td>0.004166</td> <td>0.008332</td>
+	 <td>0.005199</td> <td>0.019063</td> </tr> <tr> <th>unc-25</th>
+	 <td>0.993152</td> <td>0.003599</td> <td>0.009898</td> <td>0.933363</td>
+	 <td>0.065637</td> <td>0.000004</td> <td>0.000007</td> <td>0.048390</td>
+	 <td>0.076042</td> </tr> <tr> <th>unc-97</th> <td>0.958901</td>
+	 <td>0.000200</td> <td>0.002200</td> <td>0.984779</td> <td>0.014189</td>
+	 <td>0.154183</td> <td>0.308365</td> <td>0.000200</td> <td>0.002200</td> </tr>
+	 <tr> <th>lim-6</th> <td>0.999139</td> <td>0.519896</td> <td>0.571886</td>
+	 <td>1.009379</td> <td>-0.010522</td> <td>0.750707</td> <td>0.498587</td>
+	 <td>0.361528</td> <td>0.441867</td> </tr> <tr> <th>lat-2</th>
+	 <td>0.990366</td> <td>0.000800</td> <td>0.004399</td> <td>1.004542</td>
+	 <td>-0.005596</td> <td>0.648077</td> <td>0.703847</td> <td>0.000800</td>
+	 <td>0.004399</td> </tr> <tr> <th>ptp-3</th> <td>0.997769</td>
+	 <td>0.149570</td> <td>0.205659</td> <td>0.995700</td> <td>0.003274</td>
+	 <td>0.410331</td> <td>0.820663</td> <td>0.175365</td> <td>0.241127</td> </tr>
+	 <tr> <th>sup-17</th> <td>0.994819</td> <td>0.014397</td> <td>0.026395</td>
+	 <td>1.026308</td> <td>-0.027426</td> <td>0.966689</td> <td>0.066623</td>
+	 <td>0.005999</td> <td>0.016497</td> </tr> <tr> <th>pkd-2</th>
+	 <td>0.999256</td> <td>0.556689</td> <td>0.556689</td> <td>1.000614</td>
+	 <td>-0.001721</td> <td>0.543784</td> <td>0.912432</td> <td>0.525695</td>
+	 <td>0.578264</td> </tr> </tbody> </table> </embed>
 
 We ignore the last two columns for any feature which does not have a small
+value for `regression_coefficients_fstat_p_values`, which here represents the
+probability that we would observe this data given that the feature and the
+covariate are independent and normally distributed.
+
 p-value for `regression_coefficients_fstat_p_values` as in this case the line of best fit and the residuals are meaningless.
