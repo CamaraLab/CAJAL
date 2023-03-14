@@ -111,6 +111,7 @@ elements of smaller classes.
 		cvp = cross_val_predict(clf, X=gw_dist_mat, y=clusters, cv=cv)
 		print(matthews_corrcoef(cvp,clusters))
 		# 0.25205529424157797
+
 Our results show that the MCC is XYZ.
 
 Inferring Associations with Cell Morphology
