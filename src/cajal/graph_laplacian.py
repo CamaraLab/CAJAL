@@ -120,14 +120,13 @@ def multilinear_regression(
     :param X: shape (n, p)
     :param Y: shape (n, m)
 
-    :return: A tuple (b, SSE, SSR), where
+    :return: A tuple (b, e, SSE, SSR, s2b), where
     * b is coefficicient matrix minimizing the sum of squared errors ||Y - Xb||, shape (p,m)
     * e, the matrix of residuals, shape (n,m)
     * SSE, the sum of squared errors (residuals), shape (m,)
     * SSR, the sum of squares of the regression, shape (m,)
     * s2b, the sample variance-covariance matrices of the observed coefficient vectors b.
-      Shape (p,p,m), where s2b[i,j,k]
-      is the estimated covariance of b[i,k] with b[j,k].
+      Shape (p,p,m), where s2b[i,j,k] is the estimated covariance of b[i,k] with b[j,k].
     """
 
     b, SSE = np.linalg.lstsq(X, Y, rcond=None)[0:2]
@@ -178,7 +177,7 @@ def graph_laplacian_w_covariates(
     permutations: int,
     covariates: npt.NDArray[np.float_],
     return_random_laplacians: bool,
-) -> dict[str, npt.NDArray[np.float_]]:
+) -> tuple[dict[str, npt.NDArray[np.float_]], dict[str, npt.NDArray[np.float_]]]:
     """
     :param feature_arr: An array of shape (N ,num_features), where N is the \
     number of nodes in the graph, and num_features is \
@@ -193,25 +192,26 @@ def graph_laplacian_w_covariates(
     of all the generated laplacians. This will likely be the largest object in the \
     dictionary.
 
-    :return: A dictionary `data` with
-    * data['feature_laplacians'] := the graph laplacians of f, shape (num_features,)
-    * data['covariate_laplacians'] := the graph laplacians of the covariates, shape (num_covariates,)
-    * data['laplacian_p_values'] := the p-values from the permutation test, shape (num_features,)
-    * data['laplacian_q_values'] := the q-values from the permutation test, shape (num_features,)
-    * data['regression_coefficients_beta_p_values'] := for i in range(1,covariates), the p-value that beta_i is not zero \
+    :return: A tuple of two dictionaries, "feature_data" and "other", where
+    * All values in feature_data are arrays of shape (num_features,)
+    * feature_data['feature_laplacians'] := the graph laplacians of f
+    * feature_data['laplacian_p_values'] := the p-values from the permutation test
+    * feature_data['laplacian_q_values'] := the q-values from the permutation test
+    * (for i in range(1,covariates)) feature_data['beta_i'] := the p-value that beta_i is not zero \
       for that feature; see p. 228, 'Applied Linear Statistical Models', \
-      Nachtsheim, Kutner, Neter, Li. Shape (num_features,num_covariates)
-    * data['regression_coefficients_fstat_p_values'] := the p-value that not all beta_i are zero, using the F-statistic, \
+      Nachtsheim, Kutner, Neter, Li. Shape (num_features,)
+    * feature_data['regression_coefficients_fstat_p_values'] := the p-value that not all beta_i are zero, using the F-statistic, \
       see p. 226, 'Applied Linear Statistical Models', Nachtsheim, \
-      Kutner, Neter, Li. Shape (num_features,)
-    * data['laplacian_p_values_post_regression'] := the p-value of the residual laplacian of the feature once the \
+      Kutner, Neter, Li.
+    * feature_data['laplacian_p_values_post_regression'] := the p-value of the residual laplacian of the feature once the \
       covariates have been regressed out.
-    * data['laplacian_q_values_post_regression'] := the q-values from the permutation test, shape (num_features,)
+    * feature_data['laplacian_q_values_post_regression'] := the q-values from the permutation test.
+    * other['covariate_laplacians'] := the graph laplacians of the covariates, of shape (num_covariates,)
     * (Optional, if `return_random_laplacians` is True) \
-      data['random_feature_laplacians'] := the matrix of randomly generated feature laplacians, \
+      other['random_feature_laplacians'] := the matrix of randomly generated feature laplacians, \
       shape (permutations,num_features).
     * (Optional, if `return_random_laplacians` is True) \
-      data['random_covariate_laplacians'] := the matrix of randomly generated covariate laplacians, \
+      other['random_covariate_laplacians'] := the matrix of randomly generated covariate laplacians, \
       shape (permutations, num_covariates)
     """
 
@@ -235,13 +235,13 @@ def graph_laplacian_w_covariates(
     rfl = laplacians[1:, :num_features]
     assert rfl.shape == (permutations, num_features)
     # true covariate laplacians
-    tcl = np.concatenate((laplacians[0, num_features:], np.array([1.0])), axis=0)
+    tcl = np.concatenate((np.array([1.0]), laplacians[0, num_features:]), axis=0)
     assert tcl.shape == (num_covariates + 1,)
     # random covariate laplacians
     rcl = np.concatenate(
         (
-            laplacians[1:, num_features:],
             np.full((permutations, 1), fill_value=1, dtype=np.float_),
+            laplacians[1:, num_features:],
         ),
         axis=1,
     )
@@ -257,19 +257,20 @@ def graph_laplacian_w_covariates(
     sb = np.sqrt(np.diagonal(s2b)).T
 
     # Compute the t-statistic to decide whether beta is statistically significant
-    t_stat = (b / sb)[:-1, :]
-    p_betas = t.sf(t_stat, permutations - num_covariates) * 2
+    t_stat = (b / sb)[1:, :]
+    p_betas = t.sf(t_stat, permutations - num_covariates)
     f_stat = MSR / MSE
     p_all_betas = f.sf(f_stat, num_covariates, permutations - num_covariates)
     tfl_resid = tfl - np.matmul(tcl, b)
 
     data = {}
     data["feature_laplacians"] = tfl
-    data["covariate_laplacians"] = tcl[:-1]
     data["laplacian_p_values"] = permutation_pvalue(tfl, rfl)
     data["laplacian_q_values"] = benjamini_hochberg(data["laplacian_p_values"])
-    data["regression_coefficients"] = b
-    data["regression_coefficients_beta_p_values"] = p_betas
+    data["beta_0"] = b[0]
+    for i in range(1, b.shape[0]):
+        data["beta_" + str(i)] = b[i]
+        data["beta_" + str(i) + "_p_value"] = p_betas[i - 1]
     data["regression_coefficients_fstat_p_values"] = p_all_betas
     data["laplacian_p_values_post_regression"] = permutation_pvalue(
         tfl_resid, rfl_resids
@@ -277,10 +278,12 @@ def graph_laplacian_w_covariates(
     data["laplacian_q_values_post_regression"] = benjamini_hochberg(
         data["laplacian_p_values_post_regression"]
     )
+    other = {}
+    other["covariate_laplacians"] = tcl[1:]
     if return_random_laplacians:
-        data["random_feature_laplacians"] = rfl
-        data["random_covariate_laplacians"] = rcl[:, :-1]
-    return data
+        other["random_feature_laplacians"] = rfl
+        other["random_covariate_laplacians"] = rcl[:, 1:]
+    return (data, other)
 
 
 def graph_laplacians_no_covariate(
@@ -289,7 +292,7 @@ def graph_laplacians_no_covariate(
     epsilon: float,
     permutations: int,
     return_random_laplacians: bool,
-) -> dict[str, npt.NDArray[np.float_]]:
+) -> tuple[dict[str, npt.NDArray[np.float_]], dict[str, npt.NDArray[np.float_]]]:
     """
     :param feature_arr: An array of shape (N ,num_features), where N is the \
     number of nodes in the graph, and num_features is \
@@ -311,6 +314,8 @@ def graph_laplacians_no_covariate(
     selected permutation of the feature.
 
     :param return_random_laplacians: Whether to return the randomly generated Laplacians.
+
+    :return: a pair of dictionaries (feature_data,other)
     """
 
     N = feature_arr.shape[0]
@@ -331,9 +336,10 @@ def graph_laplacians_no_covariate(
     data["feature_laplacians"] = true_laplacians
     data["laplacian_p_values"] = permutation_pvalue(true_laplacians, random_laplacians)
     data["laplacian_q_values"] = benjamini_hochberg(data["laplacian_p_values"])
+    other = {}
     if return_random_laplacians:
-        data["random_feature_laplacians"] = random_laplacians
-    return data
+        other["random_feature_laplacians"] = random_laplacians
+    return other
 
 
 def graph_laplacians(
@@ -358,33 +364,36 @@ def graph_laplacians(
     of all the generated laplacians. This will likely be the largest object in the \
     dictionary.
 
-    :return: A dictionary `data` with
+    :return: A pair of dictionaries `(feature_data, other)` with
 
-    * data['feature_laplacians'] := the graph laplacians of f, shape (num_features,)
-    * (Optional, if covariates is not None) data['covariate_laplacians'] := \
-      the graph laplacians of the covariates, shape (num_covariates,)\
-           (if a matrix of covariates was supplied, else this entry will be absent)
-    * data['laplacian_p_values'] := the p-values from the permutation test, shape (num_features,)
-    * data['laplacian_q_values'] := the q-values from the permutation test, shape (num_features,)
-    * (Optional, if covariates is not None) data['regression_coefficients_beta_p_values'] := 
-      for i in range(1,covariates), the p-value \
-      that beta_i is not zero for that feature; see p. 228, 'Applied Linear Statistical Models', \
-      Nachtsheim, Kutner, Neter, Li. Shape (num_features,num_covariates)
-    * (Optional, if covariates is not None) data['regression_coefficients_fstat_p_values'] :=
+    * All values in feature_data are of shape (num_features,_)
+    * feature_data['feature_laplacians'] := the graph laplacians of f, shape (num_features,)
+    * feature_data['laplacian_p_values'] := the p-values from the permutation test, shape (num_features,)
+    * feature_data['laplacian_q_values'] := the q-values from the permutation test, shape (num_features,)
+    * (Optional, if covariates is not None) (for i in range(1, covariates.shape[0]))
+      feature_data['beta_i'] := the p-value that beta_i is not zero for that
+      feature; see p. 228, 'Applied Linear Statistical Models', \
+      Nachtsheim, Kutner, Neter, Li. Shape (num_features,)
+    * (Optional, if covariates is not None)
+      feature_data['regression_coefficients_fstat_p_values'] :=
       the p-value that not all beta_i are zero, using the F-statistic, \
       see p. 226, 'Applied Linear Statistical Models', Nachtsheim, \
       Kutner, Neter, Li. Shape (num_features,)
-    * (Optional, if covariates is not None) data['laplacian_p_values_post_regression'] :=
+    * (Optional, if covariates is not None)
+      feature_data['laplacian_p_values_post_regression'] :=
       the p-value of the residual laplacian of the feature once the \
       covariates have been regressed out.
     * (Optional, if covariates is not None)
-      data['laplacian_q_values_post_regression'] :=
+      feature_data['laplacian_q_values_post_regression'] :=
       the q-values from the permutation test, shape (num_features,)
+    * (Optional, if covariates is not None) feature_data['covariate_laplacians'] := \
+      the graph laplacians of the covariates, shape (num_covariates,)\
+           (if a matrix of covariates was supplied, else this entry will be absent)
     * (Optional, if `return_random_laplacians` is True) \
-      data['random_feature_laplacians'] := the matrix of randomly generated feature laplacians, \
+      other['random_feature_laplacians'] := the matrix of randomly generated feature laplacians, \
       shape (permutations,num_features).
     * (Optional, if `covariates` is not None and `return_random_laplacians` is True) \
-      data['random_covariate_laplacians'] := the matrix of randomly generated covariate laplacians, \
+      other['random_covariate_laplacians'] := the matrix of randomly generated covariate laplacians, \
       shape (permutations, num_covariates)
     """
 

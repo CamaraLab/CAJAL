@@ -206,7 +206,7 @@ The neuron samples are organized by the age of the worm on the date of the sampl
 		cell_names_day3 = [cell_name for cell_name in cell_names if "day3" in cell_name]
 		cell_names_day5 = [cell_name for cell_name in cell_names if "day5" in cell_name]
 		# print(len(cell_names_day1)+len(cell_names_day2)+len(cell_names_day3)+len(cell_names_day5)) # = 799
-		# print(len(cell_names)) # = 799 
+		# print(len(cell_names)) # = 799
 		df_day1 = feature_matrix.loc[cell_names_day1]
 		df_day2 = feature_matrix.loc[cell_names_day2]
 		df_day3 = feature_matrix.loc[cell_names_day3]
@@ -264,7 +264,7 @@ This gives us the information we need to compute the graph Laplacians: the featu
 the GW distance matrix, the distance between points to form the associated graph, and the number of permutations we want to carry out.
 
 .. code-block:: python
-		
+
 		results_df_day1 = pd.DataFrame(graph_laplacians(feature_arr_day1,gw_dists_day1,median1, 5000, None, False),index=day1_cols)
 		results_df_day2 = pd.DataFrame(graph_laplacians(feature_arr_day2,gw_dists_day2,median2, 5000, None, False),index=day2_cols)
 		results_df_day3 = pd.DataFrame(graph_laplacians(feature_arr_day3,gw_dists_day3,median3, 5000, None, False),index=df_day3.columns)
@@ -276,7 +276,7 @@ the GW distance matrix, the distance between points to form the associated graph
 		print("Day 3:")
 		print(results_df_day3)
 		print("Day 5:")
-		print(results_df_day5)		
+		print(results_df_day5)
 
 Output:
 
@@ -323,4 +323,117 @@ Laplacians of randomly selected functions on the graph with the same range.
 
 The q-values represent the adjustment of the reported p-values by the
 Benjamini-Hochberg procedure. After this transformation we can see that some of
-the values are still reported as significant.
+the values are still reported as significant. For example, on day 5, after 5000
+permutations, none of the observed random permutations generated a Laplacian
+score for unc-97 that was as low as the true score.
+
+Through the C. elegans lifecycle the morphology of the neurons changes, so if
+we know that the level of expression of a certain gene is correlated with age,
+we might expect that the expression of this gene is correlated with cell
+morphology indirectly through age. A natural question then is whether the low
+Laplacian score for that gene is entirely explained by its correlation with
+age, or whether the gene is still correlated with cell morphology after
+controlling for the relationship with age.
+
+Let us write :math:`g` for the age of the worm and :math:`f` for the gene
+expression vector. For many choices of permutation :math:`\pi` we will sample
+points :math:`C_G(f\circ\pi), C_G(g\circ\pi)` and plot a line of best fit to
+identify whether there is a linear relationship between :math:`C_G(f\circ\pi)`
+and :math:`C_G(g\circ\pi)`. If there is, we will compare the residual
+:math:`C_G(f) - \widehat{C_G(f)}` to the other residuals, and reject the null
+hypothesis if we observe that this is on the lower tail end of the residuals.
+
+.. code-block:: python
+
+		import os
+		import pandas as pd
+		import numpy as np
+		from cajal.utilities import read_gw, list_sort_files,dist_mat_of_dict
+		from cajal.graph_laplacian import graph_laplacians
+
+		project_dir=os.getcwd()
+		gw_csv_loc=project_dir+"/c_elegans_gw_dists.csv"
+		# Get the binary features we're trying to classify from the features file.
+		# There are 11 binary features on the 799 neurons, and we want to identify the ones which are correlated with cell morphology.
+		features_file = project_dir+"/c_elegans_features.csv"
+		# Get the cell names and the GW distance dictionary from file.
+		cell_names, gw_dist_dict = read_gw(gw_csv_loc,header=True)
+		feature_matrix = pd.read_csv(features_file)
+		feature_matrix.index = feature_matrix['cell_name']
+		feature_matrix=feature_matrix.drop('cell_name',axis=1)
+		feature_arr = feature_matrix.to_numpy()
+		gw_dist_arr = dist_mat_of_dict(feature_matrix.index,gw_dist_dict)
+
+		covariates : list[float] = []
+		for a in feature_matrix.index:
+		    if "day1" in a:
+		        covariates.append(1.0)
+               	    elif "day2" in a:
+                        covariates.append(2.0)
+		    elif "day3" in a:
+           		covariates.append(3.0)
+		    elif "day5" in a:
+	        	covariates.append(5.0)
+                    else:
+                        raise exception("No day found.")
+
+
+		covariates = np.array(covariates, dtype=np.float_)
+		epsilon= statistics.median(gw_dist_arr) # 71.26842320321848
+		N = 799
+		T, other = graph_laplacians(
+		    feature_arr,
+		    gw_dist_arr,
+		    epsilon,
+		    5000,
+		    covariates,
+		    False)
+
+		df = pd.DataFrame(T)
+		df.index = feature_matrix.columns
+		print(df)
+
+.. raw:: html
+
+	 <embed> <div style="overflow-x:auto;">
+	 <table border="1" class="dataframe"> <thead> <tr style="text-align:
+	 right;"> <th></th> <th>feature_laplacians</th> <th>laplacian_p_values</th>
+	 <th>laplacian_q_values</th> <th>beta_0</th> <th>beta_1</th>
+	 <th>beta_1_p_value</th> <th>regression_coefficients_fstat_p_values</th>
+	 <th>laplacian_p_values_post_regression</th>
+	 <th>laplacian_q_values_post_regression</th> </tr> </thead> <tbody> <tr>
+	 <th>nrx-1</th> <td>0.995131</td> <td>0.010398</td> <td>0.022875</td>
+	 <td>0.989490</td> <td>0.009513</td> <td>0.247961</td> <td>0.495922</td>
+	 <td>0.014597</td> <td>0.032114</td> </tr> <tr> <th>mir-1</th>
+	 <td>0.998708</td> <td>0.374125</td> <td>0.457264</td> <td>0.982360</td>
+	 <td>0.016585</td> <td>0.134405</td> <td>0.268809</td> <td>0.656669</td>
+	 <td>0.656669</td> </tr> <tr> <th>unc-49</th> <td>0.995577</td>
+	 <td>0.021396</td> <td>0.033622</td> <td>0.998180</td> <td>0.000788</td>
+	 <td>0.478283</td> <td>0.956566</td> <td>0.022595</td> <td>0.041425</td> </tr>
+	 <tr> <th>nlg-1</th> <td>0.992440</td> <td>0.001400</td> <td>0.005132</td>
+	 <td>0.961300</td> <td>0.037716</td> <td>0.004166</td> <td>0.008332</td>
+	 <td>0.005199</td> <td>0.019063</td> </tr> <tr> <th>unc-25</th>
+	 <td>0.993152</td> <td>0.003599</td> <td>0.009898</td> <td>0.933363</td>
+	 <td>0.065637</td> <td>0.000004</td> <td>0.000007</td> <td>0.048390</td>
+	 <td>0.076042</td> </tr> <tr> <th>unc-97</th> <td>0.958901</td>
+	 <td>0.000200</td> <td>0.002200</td> <td>0.984779</td> <td>0.014189</td>
+	 <td>0.154183</td> <td>0.308365</td> <td>0.000200</td> <td>0.002200</td> </tr>
+	 <tr> <th>lim-6</th> <td>0.999139</td> <td>0.519896</td> <td>0.571886</td>
+	 <td>1.009379</td> <td>-0.010522</td> <td>0.750707</td> <td>0.498587</td>
+	 <td>0.361528</td> <td>0.441867</td> </tr> <tr> <th>lat-2</th>
+	 <td>0.990366</td> <td>0.000800</td> <td>0.004399</td> <td>1.004542</td>
+	 <td>-0.005596</td> <td>0.648077</td> <td>0.703847</td> <td>0.000800</td>
+	 <td>0.004399</td> </tr> <tr> <th>ptp-3</th> <td>0.997769</td>
+	 <td>0.149570</td> <td>0.205659</td> <td>0.995700</td> <td>0.003274</td>
+	 <td>0.410331</td> <td>0.820663</td> <td>0.175365</td> <td>0.241127</td> </tr>
+	 <tr> <th>sup-17</th> <td>0.994819</td> <td>0.014397</td> <td>0.026395</td>
+	 <td>1.026308</td> <td>-0.027426</td> <td>0.966689</td> <td>0.066623</td>
+	 <td>0.005999</td> <td>0.016497</td> </tr> <tr> <th>pkd-2</th>
+	 <td>0.999256</td> <td>0.556689</td> <td>0.556689</td> <td>1.000614</td>
+	 <td>-0.001721</td> <td>0.543784</td> <td>0.912432</td> <td>0.525695</td>
+	 <td>0.578264</td> </tr> </tbody> </table> </embed>
+
+We ignore the last two columns for any feature which does not have a small
+value for `regression_coefficients_fstat_p_values`, which here represents the
+probability that we would observe this data given that the feature and the
+covariate are independent and the residuals are normally distributed.

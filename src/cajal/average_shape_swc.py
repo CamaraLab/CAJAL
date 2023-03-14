@@ -51,10 +51,12 @@ def get_spt(dist_mat):
 def get_avg_shape_spt(
     cluster_ids, clusters, data_dir, files_list, match_list, gw_dist, k=3
 ):
+    # pairs.shape == (n *(n-1)/2,2)
     pairs = np.array(list(it.combinations(range(len(files_list)), 2)))
 
     # Get cell indices in cluster
     indices = np.where(np.isin(np.array(clusters), cluster_ids))[0]
+    # indices is
 
     # Get medoid cell as one with lowest avg distance to others in cluster
     medoid = indices[np.argmin(np.sum(gw_dist[indices][:, indices], axis=0))]
@@ -65,13 +67,17 @@ def get_avg_shape_spt(
     d_avg_total = copy.deepcopy(d_avg)
     d_avg[d_avg > 2] = 2
     for i in indices[indices != medoid]:
+        # `pairs_index` is the index in `pairs` of the two-element array [i, medoid]
+        # or [medoid,i]
         pairs_index = np.where(
             np.logical_or(
                 np.logical_and(pairs[:, 0] == medoid, pairs[:, 1] == i),
                 np.logical_and(pairs[:, 1] == medoid, pairs[:, 0] == i),
             )
         )[0]
+        # Get the coupling matrix between the two cells
         match_mat = match_list[match_list.files[int(pairs_index)]]
+
         i_reorder = np.argmax(
             match_mat, axis=int(np.where(pairs[pairs_index] != medoid)[1])
         )

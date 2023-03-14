@@ -122,14 +122,11 @@ def gw(A: npt.NDArray, B: npt.NDArray) -> float:
     """
     Readability/convenience wrapper for ot.gromov.gromov_wasserstein.
     
-    :param A: Vectorform distance matrix.
-    :param B: Vectorform distance matrix.
+    :param A: Squareform distance matrix.
+    :param B: Squareform distance matrix.
     :return: GW distance between them with square_loss optimization and \
     uniform distribution on points.
     """
-
-    A = squareform(A)
-    B = squareform(B)
     _, log = ot.gromov.gromov_wasserstein(
         A, B, ot.unif(A.shape[0]), ot.unif(B.shape[0]), "square_loss", log=True
     )
@@ -164,7 +161,7 @@ def write_gw(
     counter = 0
     start = time.time()
     batched = _batched(name_name_dist, chunk_size)
-    with open(gw_csv_loc, "a", newline="") as gw_csv_file:
+    with open(gw_csv_loc, "w", newline="") as gw_csv_file:
         csvwriter = csv.writer(gw_csv_file, delimiter=",")
         header = ["first_object", "second_object", "gw_dist"]
         for batch in batched:
@@ -172,7 +169,7 @@ def write_gw(
             csvwriter.writerows(batch)
             now = time.time()
             print("Time elapsed: " + str(now - start))
-            print("Cell pairs computed: " + counter)
+            print("Cell pairs computed: " + str(counter))
     stop = time.time()
     print(
         "Computation finished. Computed "

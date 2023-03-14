@@ -532,9 +532,7 @@ def keep_only_eu(structure_ids: Container[int]) -> Callable[[SWCForest], SWCFore
     
     :param structure_ids: A container of integers representing types of neuron nodes.
     :return: A filtering function taking as an argument an SWCForest `forest` and \
-    returning the subforest of \
-    `forest` containing only the node types in `structure_ids`.
-    
+    returning the subforest of `forest` containing only the node types in `structure_ids`.
     """
 
     def filter_by_structure_ids(forest: SWCForest) -> SWCForest:
@@ -550,22 +548,21 @@ def preprocessor_eu(
 ) -> Callable[[SWCForest], Err[str] | SWCForest]:
     """    
     :param structure_ids: Either a collection of integers corresponding to structure ids in the \
-        SWC spec, or the literal string 'keep_all_types'.
+    SWC spec, or the literal string 'keep_all_types'.
     :param soma_component_only: Indicate whether to sample from the whole SWC file, or only \
-        from the connected component containing the soma. Whether this flag is appropriate \
-        depends on the technology used to construct the SWC files. Some technologies generate \
-        SWC files in which there are many unrelated connected components which are "noise" \
-        contributed by other overlapping neurons. In other technologies, all components are \
-        significant and the authors of the SWC file were simply unable to determine exactly where \
-        the branch should be connected to the main tree. In order to get sensible results from \
-        the data, the user should visually inspect neurons with multiple connected components \
-        using a tool such as Vaa3D https://github.com/Vaa3D/release/releases/tag/v1.1.2 to \
-        determine whether the extra components should be regarded as signal or noise.
-
+    from the connected component containing the soma. Whether this flag is appropriate \
+    depends on the technology used to construct the SWC files. Some technologies generate \
+    SWC files in which there are many unrelated connected components which are "noise" \
+    contributed by other overlapping neurons. In other technologies, all components are \
+    significant and the authors of the SWC file were simply unable to determine exactly where \
+    the branch should be connected to the main tree. In order to get sensible results from \
+    the data, the user should visually inspect neurons with multiple connected components \
+    using a tool such as Vaa3D https://github.com/Vaa3D/release/releases/tag/v1.1.2 to \
+    determine whether the extra components should be regarded as signal or noise.
     :return: A preprocessing function which accepts as argument an SWCForest `forest` and \
     returns a filtered forest containing only the nodes listed in `structure_ids`. If \
     `soma_component_only` is True, only nodes from the component containing the soma will be \
-    returned; otherwise nodes will be drawn from across the whole forest.
+    returned; otherwise nodes will be drawn from across the whole forest.\
     If `soma_component_only` is True and there is not a unique connected component whose \
     root is a soma node, the function will return an error.
     """
@@ -614,11 +611,14 @@ def preprocessor_eu(
     return filter3
 
 
-def keep_only_geo(structure_ids: Container[int]) -> Callable[[SWCForest], NeuronTree]:
+def preprocessor_geo(
+    structure_ids: Container[int],
+) -> Callable[[SWCForest], NeuronTree]:
     """
+    This preprocessor strips the tree down to only the components listed in `structure_ids` and \
+    also trims the tree down to a single connected component.
     This is similar to :func:`swc.keep_only_eu` and the user should consult the documentation \
-    for that function. The difference is that the returned function also trims the tree down to a \
-    single connected component. Observe that the type signature is also different. The callable \
+    for that function. Observe that the type signature is also different. The callable \
     returned by this function is suitable as a preprocessing function for \
     :func:`sample_swc.read_preprocess_compute_geodesic` or \
     :func:`sample_swc.compute_and_save_intracell_all_geodesic`.
