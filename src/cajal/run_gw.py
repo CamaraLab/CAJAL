@@ -161,7 +161,7 @@ def write_gw(
     counter = 0
     start = time.time()
     batched = _batched(name_name_dist, chunk_size)
-    with open(gw_csv_loc, "a", newline="") as gw_csv_file:
+    with open(gw_csv_loc, "w", newline="") as gw_csv_file:
         csvwriter = csv.writer(gw_csv_file, delimiter=",")
         header = ["first_object", "second_object", "gw_dist"]
         for batch in batched:
@@ -169,7 +169,7 @@ def write_gw(
             csvwriter.writerows(batch)
             now = time.time()
             print("Time elapsed: " + str(now - start))
-            print("Cell pairs computed: " + counter)
+            print("Cell pairs computed: " + str(counter))
     stop = time.time()
     print(
         "Computation finished. Computed "
