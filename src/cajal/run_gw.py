@@ -122,14 +122,11 @@ def gw(A: npt.NDArray, B: npt.NDArray) -> float:
     """
     Readability/convenience wrapper for ot.gromov.gromov_wasserstein.
     
-    :param A: Vectorform distance matrix.
-    :param B: Vectorform distance matrix.
+    :param A: Squareform distance matrix.
+    :param B: Squareform distance matrix.
     :return: GW distance between them with square_loss optimization and \
     uniform distribution on points.
     """
-
-    A = squareform(A)
-    B = squareform(B)
     _, log = ot.gromov.gromov_wasserstein(
         A, B, ot.unif(A.shape[0]), ot.unif(B.shape[0]), "square_loss", log=True
     )
