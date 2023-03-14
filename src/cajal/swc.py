@@ -614,11 +614,14 @@ def preprocessor_eu(
     return filter3
 
 
-def keep_only_geo(structure_ids: Container[int]) -> Callable[[SWCForest], NeuronTree]:
+def preprocessor_geo(
+    structure_ids: Container[int],
+) -> Callable[[SWCForest], NeuronTree]:
     """
+    This preprocessor strips the tree down to only the components listed in `structure_ids` and \
+    also trims the tree down to a single connected component.
     This is similar to :func:`swc.keep_only_eu` and the user should consult the documentation \
-    for that function. The difference is that the returned function also trims the tree down to a \
-    single connected component. Observe that the type signature is also different. The callable \
+    for that function. Observe that the type signature is also different. The callable \
     returned by this function is suitable as a preprocessing function for \
     :func:`sample_swc.read_preprocess_compute_geodesic` or \
     :func:`sample_swc.compute_and_save_intracell_all_geodesic`.

@@ -138,7 +138,7 @@ def write_csv_block(
     vector-form array (rank 1) or an error code.
     """
     failed_cells: list[tuple[str, Err[T]]] = []
-    with open(out_csv, "a", newline="") as csvfile:
+    with open(out_csv, "w", newline="") as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=",")
         firstline = ["cell_id"] + [
             "d_%d_%d" % (i, j) for i, j in it.combinations(range(sidelength), 2)
