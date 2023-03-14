@@ -120,14 +120,13 @@ def multilinear_regression(
     :param X: shape (n, p)
     :param Y: shape (n, m)
 
-    :return: A tuple (b, SSE, SSR), where
+    :return: A tuple (b, e, SSE, SSR, s2b), where
     * b is coefficicient matrix minimizing the sum of squared errors ||Y - Xb||, shape (p,m)
     * e, the matrix of residuals, shape (n,m)
     * SSE, the sum of squared errors (residuals), shape (m,)
     * SSR, the sum of squares of the regression, shape (m,)
     * s2b, the sample variance-covariance matrices of the observed coefficient vectors b.
-      Shape (p,p,m), where s2b[i,j,k]
-      is the estimated covariance of b[i,k] with b[j,k].
+      Shape (p,p,m), where s2b[i,j,k] is the estimated covariance of b[i,k] with b[j,k].
     """
 
     b, SSE = np.linalg.lstsq(X, Y, rcond=None)[0:2]
