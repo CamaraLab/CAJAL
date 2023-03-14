@@ -245,7 +245,7 @@ We can use matplotlib to view the image from an interactive environment like Jup
 .. image:: images/cleanedfile.png
 
 This image is representative of the type of images that CAJAL is meant to
-process\: a 2D array of integers, where each cell is represented by a connected
+process: a 2D array of integers, where each cell is represented by a connected
 block of integers with the same value. Two distinct cells should have different
 values, and each cell should have a different value than the background.
 
@@ -312,7 +312,7 @@ database containing the intracellular distance matrices through the argument
 file specified by the argument `gw_csv`.
 .. code-block:: python
 
-        run_gw.compute_gw_distance_matrix(
+        run_gw.compute_and_save_gw_distance_matrix(
             intracell_db_loc = "/home/jovyan/CAJAL/CAJAL/data/swc_icd.csv",
             gw_csv = "/home/jovyan/CAJAL/CAJAL/data/gw_dists.csv",
             save_mat = False)
