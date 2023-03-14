@@ -194,7 +194,7 @@ informally:
 - Does cell morphology have explanatory power with regards to the value of :math:`f`?
 
 We implement and offer a statistical test which represents one formalization of
-these ideas, the *graph Laplacian*, building on work by He, Cai and Niyogi
+these ideas, the *Laplacian score*, building on work by He, Cai and Niyogi
 (`Laplacian Score for Feature Selection
 <https://proceedings.neurips.cc/paper/2005/hash/b5b03f06271f8917685d14cea7c6c50a-Abstract.html>`_);
 see also `Multi-modal analysis and integration of single-cell morphological data <https://www.biorxiv.org/content/10.1101/2022.05.19.492525v3.full>`_.
@@ -206,9 +206,9 @@ number :math:`varepsilon` which is much less than the maximum distance between
 two cells; for example, one could take the median observed difference. Now from
 this point forward we will view :math:`G` as an undirected graph, where two
 distinct nodes :math:`x,y` are connected if and only if
-:math:`d_{GW}(x,y)\lt\varepsilon`.
+:math:`d_{GW}(x,y) < \varepsilon`.
 
- The graph Laplacian of :math:`f` with respect to the graph :math:`G` is defined by
+ The Laplacian score of :math:`f` with respect to the graph :math:`G` is defined by
 
 .. math::
 
@@ -220,14 +220,14 @@ nodes of :math:`G`, :math:`n(i)` is the number of neighbors of :math:`i` in
 :math:`G`, and :math:`\operatorname{Var}_G(f)` is a weighted
 variance of `f` where the weight of node :math:`i` is proportional to :math:`n(i)`.
 
-The graph Laplacian takes values between 0 and 2. When the Laplacian is near
+The Laplacian score takes values between 0 and 2. When the Laplacian score is near
 zero we interpret it as showing that the values of :math:`f(i)` and
 :math:`f(j)` are linearly correlated when :math:`i,j` are connected by an edge
 in the graph. If the Laplacian is close to 1, they are uncorrelated.
 
 In cases where it is unreasonable to expect a strong linear correlation, (for
 example, :math:`f` is not continuous or not modelled by any reasonable
-distribution) the graph Laplacian cannot be interpreted directly. We provide a
+distribution) the Laplacian score cannot be interpreted directly. We provide a
 permutation test which compares :math:`C_G(f)` to :math:`C_G(f\circ\pi)` for
 many randomly chosen permutations :math:`\pi : G\to G` of the set of nodes of
 the graph. If :math:`C_G(f) < C_G(f\circ\pi)` for all but a small fraction
@@ -249,7 +249,7 @@ morphology graph structure in excess of what would be predicted given with
 Example - C. Elegans Dataset
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-We will illustrate how to use graph Laplacian to identify features in a C. elegans
+We will illustrate how to use the graph Laplacian score to identify features in a C. elegans
 neuron SWC dataset which are correlated with cell morphology.
 
 First, download and unzip `this folder
@@ -304,7 +304,7 @@ The neuron samples are organized by the age of the worm on the date of the sampl
 		df_day5 = feature_matrix.loc[cell_names_day5]
 
 Before we can apply our analysis tool we have to remove any constant features, otherwise there is
-a divide-by-zero error in the computation of the graph Laplacian.
+a divide-by-zero error in the computation of the Laplacian score.
 
 .. code-block:: python
 
@@ -351,7 +351,7 @@ restrict to the columns for which there is nonzero data.
 		gw_dists_day5 = dist_mat_of_dict(cell_names_day5,gw_dist_dict)
 		median5=statistics.median(gw_dists_day5)
 
-This gives us the information we need to compute the graph Laplacians: the features we want to assess,
+This gives us the information we need to compute the graph Laplacian scores: the features we want to assess,
 the GW distance matrix, the distance between points to form the associated graph, and the number of permutations we want to carry out.
 
 .. code-block:: python
@@ -406,11 +406,11 @@ Output:
    nlg-1             0.934330            0.000800            0.001200
    unc-97            0.829818            0.000200            0.000600
 
-As you can see, from an absolute perspective the Laplacians are not much
+As you can see, from an absolute perspective the Laplacian scores are not much
 smaller than 1; but this is to be expected as the data is 0-1 valued and so we
 will not get a nice linear correlation between values. However, for the
 nonparametric permutation test, some of the Laplacians are low relative to the
-Laplacians of randomly selected functions on the graph with the same range.
+Laplacian scores of randomly selected functions on the graph with the same range.
 
 The q-values represent the adjustment of the reported p-values by the
 Benjamini-Hochberg procedure. After this transformation we can see that some of
