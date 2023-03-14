@@ -52,7 +52,7 @@ You can find examples of \*.swc files compatible with CAJAL can be found in the 
 repository under ``CAJAL/data/swc_files``.
 
 The package provides two functions that operate on directories of \*.swc files.
-:func:`cajal.sample_swc.compute_and_save_intracell_all_euclidean` and :func:`cajal.sample_swc.compute_and_save_intracell_all_geodesic`. These functions
+:func:`cajal.sample_swc.compute_icdm_all_euclidean` and :func:`cajal.sample_swc.compute_icdm_all_geodesic`. These functions
 generate intracellular distance matrices for each cell in the source directory
 and populate a \*.csv file with the results.
 
@@ -63,7 +63,7 @@ you can use the following code.
 
 .. code-block:: python
 
-		failed_cells = sample_swc.compute_and_save_intracell_all_euclidean(
+		failed_cells = sample_swc.compute_icdm_all_euclidean(
                     infolder = "/home/jovyan/CAJAL/CAJAL/data/swc_files",
 		    out_csv= "/home/jovyan/CAJAL/CAJAL/data/swc_icdm.csv",
 		    n_sample = 50,
@@ -102,7 +102,7 @@ the cells for which sampling was unsuccessful (i.e., the preprocessing function
 returned an error) together with the error itself. If the sampling is successful,
 the results are silently written to a file.
 
-A similar functionality is implemented in :func:`cajal.sample_swc.compute_and_save_intracell_all_geodesic`
+A similar functionality is implemented in :func:`cajal.sample_swc.compute_icdm_all_geodesic`
 with respect to the computation of intracellular geodesic distances.
 		    
 3D meshes

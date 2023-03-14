@@ -449,7 +449,7 @@ def compute_icdm_all_euclidean(
     return failed_cells
 
 
-def compute_all_icdm_geodesic(
+def compute_icdm_all_geodesic(
     infolder: str,
     out_csv: str,
     n_sample: int,
