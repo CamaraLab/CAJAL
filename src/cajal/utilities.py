@@ -19,16 +19,22 @@ def pj(*paths):
 
 
 def read_gw(
-    gw_dist_file_loc: str, header: bool
-) -> tuple[list[str], dict[tuple[str, str], float]]:
+    gw_dist_file_loc: str, header: bool, couplings: bool = False
+) -> tuple[
+    list[str],
+    dict[tuple[str, str], float],
+    Optional[dict[tuple[str, str], npt.NDArray[np.float_]]],
+]:
     r"""
     Read a GW distance matrix into memory.
-    
+
     :param gw_dist_file_loc: A file path to a Gromov-Wasserstein distance matrix. \
-    The distance matrix should be a CSV file with exactly three columns and possibly \
+    The distance matrix should be a CSV file with three or more columns and possibly \
     a single header line (which is ignored). All \
-    following lines should be two strings cell_name1, cell_name2 followed by a \
-    floating point real number.
+    following lines should be
+    * two strings cell_name1, cell_name2, followed by
+    * a floating point real number (the GW distance), possibly followed by
+    * a series of N x N floating point real numbers (the coupling matrix between the two cells)
 
     :param header: If `header` is True, the very first line of the file is discarded. \
     If `header` is False, all lines are assumed to be relevant.
@@ -40,21 +46,41 @@ def read_gw(
     are in alphabetical order. gw_dist_list is a vector-form array (rank 1) of the \
     GW distances.
     """
+    # TODO - Update this function to account for the case
+    # where cells are of different sizes.
     gw_dist_dict: dict[tuple[str, str], float] = {}
+    if couplings:
+        gw_coupling_dict: dict[tuple[str, str], npt.NDArray[np.float_]] = {}
     with open(gw_dist_file_loc, "r", newline="") as gw_file:
         csvreader = csv.reader(gw_file)
         if header:
             _ = next(csvreader)
-        for first_cell, second_cell, gw_dist_str in csvreader:
+        for line in csvreader:
+            first_cell, second_cell, gw_dist_str = line[0:2]
+            if couplings:
+                coupling = np.array([float(x) for x in line[2:]])
+                side_length = round(math.sqrt(len(coupling)))
+                if side_length**2 != len(coupling):
+                    raise Exception(
+                        "Gromov-Wasserstein matrix is not a perfect square."
+                    )
+                coupling = np.reshape(coupling, (side_length, side_length))
             gw_dist = float(gw_dist_str)
-            first_cell, second_cell = sorted([first_cell, second_cell])
+            if second_cell > first_cell:
+                first_cell, second_cell = (second_cell, first_cell)
+                if couplings:
+                    coupling = coupling.T
             gw_dist_dict[(first_cell, second_cell)] = gw_dist
+            if couplings:
+                gw_coupling_dict[(first_cell, second_cell)] = coupling
     all_cells_set = set()
     for cell_1, cell_2 in gw_dist_dict:
         all_cells_set.add(cell_1)
         all_cells_set.add(cell_2)
     all_cells = sorted(list(all_cells_set))
-    return all_cells, gw_dist_dict
+    if couplings:
+        return all_cells, gw_dist_dict, gw_coupling_dict
+    return all_cells, gw_dist_dict, None
 
 
 def dist_mat_of_dict(
@@ -71,51 +97,6 @@ def dist_mat_of_dict(
         first_cell, second_cell = sorted([first_cell, second_cell])
         dist_list.append(gw_dist_dictionary[(first_cell, second_cell)])
     return np.array(dist_list, dtype=np.float_)
-
-
-def list_sort_files(data_dir, data_prefix=None, data_suffix=None):
-    """
-    Get sorted list of files in the data_dir directory.
-
-    Args:
-        data_dir (string): path to folder containing files to list
-        data_prefix (string, or None): if not None, only list files starting with this prefix
-        data_suffix (string, or None): if not None, only list files starting with this prefix
-    Returns:
-        alphabetically sorted list of files from given folder
-    """
-    files_list = os.listdir(data_dir)
-    if data_prefix is not None:
-        if data_suffix is not None:
-            files_list = [
-                data_file
-                for data_file in files_list
-                if data_file.startswith(data_prefix) and data_file.endswith(data_suffix)
-            ]
-        else:
-            files_list = [
-                data_file
-                for data_file in files_list
-                if data_file.startswith(data_prefix)
-            ]
-    elif data_suffix is not None:
-        files_list = [
-            data_file for data_file in files_list if data_file.endswith(data_suffix)
-        ]
-
-    files_list.sort()
-    return files_list
-
-
-def read_mp_array(np_array):
-    """
-    Convert a numpy array into an object which can be shared within multiprocessing.
-    """
-    # https://research.wmz.ninja/articles/2018/03/on-sharing-large-arrays-when-using-pythons-multiprocessing.html
-    mp_array = RawArray("d", np_array.shape[0] * np_array.shape[1])
-    np_wrapper = np.frombuffer(mp_array, dtype=np.float64).reshape(np_array.shape)
-    np.copyto(np_wrapper, np_array)
-    return mp_array
 
 
 T = TypeVar("T")

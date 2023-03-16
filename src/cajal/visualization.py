@@ -156,7 +156,9 @@ def plot_categorical_data(
         plt.show()
 
 
-def louvain_clustering(gw_mat, nn=5):
+def louvain_clustering(
+    gw_mat: npt.NDArray[np.float_], nn: int = 5
+) -> npt.NDArray[np.int_]:
     """
     Compute clustering of cells based on GW distance, using Louvain clustering on a KNN graph
 
@@ -165,7 +167,7 @@ def louvain_clustering(gw_mat, nn=5):
         nn (integer): number of neighbors in KNN graph
 
     Returns:
-        numpy array of cluster assignment for each cell
+        numpy array of shape (num_cells,) the cluster assignment for each cell
     """
     nn = NearestNeighbors(n_neighbors=nn, metric="precomputed")
     nn.fit(gw_mat)
@@ -173,6 +175,8 @@ def louvain_clustering(gw_mat, nn=5):
     np.fill_diagonal(adj_mat, 0)
 
     graph = nx.convert_matrix.from_numpy_matrix(adj_mat)
+    # louvain_clus_dict is a dictionary whose keys are nodes of `graph` and whose
+    # values are natural numbers indicating communities.
     louvain_clus_dict = community_louvain.best_partition(graph)
     louvain_clus = np.array([louvain_clus_dict[x] for x in range(gw_mat.shape[0])])
     return louvain_clus

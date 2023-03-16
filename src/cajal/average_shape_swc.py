@@ -1,4 +1,5 @@
 # Compute average graph shape of neurons based on geodesic GW clusters
+from typing import Collection
 import copy
 import os
 import numpy as np
@@ -49,14 +50,30 @@ def get_spt(dist_mat):
 
 
 def get_avg_shape_spt(
-    cluster_ids, clusters, data_dir, files_list, match_list, gw_dist, k=3
+    cluster_ids: Collection[int],
+    clusters: npt.NDArray[np.int_],
+    data_dir: str,
+    files_list: list[str],
+    match_list,
+    gw_dist,
+    k=3,
 ):
+    """
+    :param cluster_ids: A (possibly restricted) collection of the clusters that we want\
+    to compute the average shape of. In the case where you want to compute the average shape of\
+    a single cluster, this set should only contain one element, the index of the cluster.
+    :param clusters: Shape (num_cells,). Indices represent cells; the entry at index k \
+    is an integer representing the cluster to which cell k belongs.
+    """
+
     # pairs.shape == (n *(n-1)/2,2)
     pairs = np.array(list(it.combinations(range(len(files_list)), 2)))
 
-    # Get cell indices in cluster
+    # Clusters is an array of shape (num_cells,).
+    # np.isin(clusters, cluster_ids) is of shape (num_cells,).
+    # At index k, it is True if clusters[k] is in cluster_ids, else False.
+    # indices is then a vector of indices for the cells which lie in the cluster.
     indices = np.where(np.isin(np.array(clusters), cluster_ids))[0]
-    # indices is
 
     # Get medoid cell as one with lowest avg distance to others in cluster
     medoid = indices[np.argmin(np.sum(gw_dist[indices][:, indices], axis=0))]
@@ -67,8 +84,9 @@ def get_avg_shape_spt(
     d_avg_total = copy.deepcopy(d_avg)
     d_avg[d_avg > 2] = 2
     for i in indices[indices != medoid]:
-        # `pairs_index` is the index in `pairs` of the two-element array [i, medoid]
-        # or [medoid,i]
+        pairs_index: npt.NDArray[np.int_]
+        # `pairs_index` should be an array containing exactly one element,
+        # which is the row of (medoid,i) or (i, medoid)
         pairs_index = np.where(
             np.logical_or(
                 np.logical_and(pairs[:, 0] == medoid, pairs[:, 1] == i),
@@ -78,11 +96,42 @@ def get_avg_shape_spt(
         # Get the coupling matrix between the two cells
         match_mat = match_list[match_list.files[int(pairs_index)]]
 
+        # Because pairs_index is an _array, pairs[pairs_index] is subscripting
+        # by that array, i.e., it returns [ pairs[x] ] for x in pairs_index.
+        # Since pairs_index contains one element, this is just [[i,medoid]]
+        # (note the nesting).
+        # Thus pairs[pairs_index] != medoid is either [[True, False]] or
+        # [[False, True]] is of shape (1,2).
+        # Now, np.where() will return an ordered pair (arr0, arr1),
+        # where both are of rank 1.
+        # arr0 contains the indices of the nonzero matrices along the 0th axis
+        # and arr1 contains the indices of the nonzero matrices along the 1st axis.
+        # In our case we care about which columns are nonzero,
+        # because the columns are either [T] or [F].
+        # Thus, we want arr1 = np.where(...)[1].
+        # This will return the array of all indices where this is nonzero,
+        # which is again a single element, which in our case is either zero or one.
+        # Ultimately, axis is 0 if i is the 0th element of the pair,
+        # and 1 if i is the 1st element of the pair.
+
+        # Now, in the coupling matrix, if i < medoid so the coupling
+        # matrix is a coupling from i to medoid,
+        # we get the index along the 0th axis (along rows, i.e. within columns)
+        # of the max value of the coupling.
+        # If i_reorder[j]=k, then it means that in column j, the
+        # mode of the distribution is at index k, i.e., we are most likely to
+        # send j to k.
         i_reorder = np.argmax(
             match_mat, axis=int(np.where(pairs[pairs_index] != medoid)[1])
         )
+
+        # pairs_
         di = load_dist_mat(pj(data_dir, files_list[i]))
         di = di / np.min(di[di != 0])  # normalize step size
+        # The new distribution is given by reordering the labels
+        # according to this map, with the possibility that nodes are repeated.
+        # Note that the new matrix will not represent a metric space,
+        # as there may be repeated points with zero distance.
         di = di[i_reorder][:, i_reorder]
         d_avg_total = d_avg_total + di
         di[di > 2] = 2
