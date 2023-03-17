@@ -6,11 +6,7 @@ using algorithms in Peyre et al. ICML 2016
 import itertools as it
 import time
 import csv
-from typing import (
-    List,
-    Iterator,
-    TypeVar,
-)
+from typing import List, Iterator, TypeVar, Optional
 from math import sqrt, ceil
 
 
@@ -133,13 +129,13 @@ def cell_pair_iterator_csv(
     ]
 ]:
     batched_it = _batched_cell_list_iterator_csv(intracell_csv_loc, chunk_size)
-    return it.chain.from_iterable((zip(t1, t2) for t1, t2 in batched_it))
+    return it.chain.from_iterable((it.product(t1, t2) for t1, t2 in batched_it))
 
 
 def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
     """
     Readability/convenience wrapper for ot.gromov.gromov_wasserstein.
-    
+
     :param A: Squareform distance matrix.
     :param B: Squareform distance matrix.
     :return: GW distance between them with square_loss optimization and \
@@ -156,34 +152,14 @@ def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
     return log["gw_dist"]
 
 
-def gw_with_coupling_mat(
-    A: npt.NDArray, B: npt.NDArray
-) -> tuple[float, npt.NDArray[np.float_]]:
-    """
-    Readability/convenience wrapper for ot.gromov.gromov_wasserstein.
-    
-    :param A: Vectorform distance matrix.
-    :param B: Vectorform distance matrix.
-    :return: Pair (gw_dist, coupling_mat), where gw_dist is the GW distance between A and B \
-       with square_loss optimization and \
-       uniform distribution on points, and coupling_mat is the best-fit coupling matrix.
-    """
-    A = squareform(A)
-    B = squareform(B)
-    coupling_mat, log = ot.gromov.gromov_wasserstein(
-        A, B, ot.unif(A.shape[0]), ot.unif(B.shape[0]), "square_loss", log=True
-    )
-    return log["gw_dict"], coupling_mat
-
-
-def write_gw(
-    gw_csv_loc: str, name_name_dist_coupling: Iterator[List[str | float | int]]
+def write_gw_dists(
+    gw_dist_csv_loc: str, name_name_dist: Iterator[tuple[str, str, float]]
 ) -> None:
     chunk_size = 100
     counter = 0
     start = time.time()
-    batched = _batched(name_name_dist_coupling, chunk_size)
-    with open(gw_csv_loc, "w", newline="") as gw_csv_file:
+    batched = _batched(name_name_dist, chunk_size)
+    with open(gw_dist_csv_loc, "w", newline="") as gw_csv_file:
         csvwriter = csv.writer(gw_csv_file, delimiter=",")
         header = ["first_object", "second_object", "gw_dist"]
         csvwriter.writerow(header)
@@ -203,62 +179,107 @@ def write_gw(
     )
 
 
-def gw_linear(
+def write_dists_and_coupling_mats(
+    gw_dist_csv_loc: str,
+    gw_coupling_mat_csv_loc: str,
+    name_name_dist_coupling: Iterator[
+        tuple[tuple[str, int, str, int, list[float]], tuple[str, str, float]]
+    ],
+) -> None:
+    chunk_size = 100
+    counter = 0
+    start = time.time()
+    batched = _batched(name_name_dist_coupling, chunk_size)
+    with open(gw_dist_csv_loc, "w", newline="") as gw_dist_csv_file, open(
+        gw_coupling_mat_csv_loc, "w", newline=""
+    ) as gw_coupling_mat_csv_file:
+        dist_writer = csv.writer(gw_dist_csv_file, delimiter=",")
+        coupling_writer = csv.writer(gw_coupling_mat_csv_file, delimiter=",")
+        dist_header = ["first_object", "second_object", "gw_dist"]
+        dist_writer.writerow(dist_header)
+        coupling_header = [
+            "first_object",
+            "first_object_sidelength",
+            "second_object",
+            "second_object_sidelength",
+            "coupling",
+        ]
+        coupling_writer.writerow(coupling_header)
+        for batch in batched:
+            couplings, dists = [list(tup) for tup in zip(*batch)]
+            couplings = [
+                [A_name, A_sidelength, B_name, B_sidelength] + coupling_mat
+                for (
+                    A_name,
+                    A_sidelength,
+                    B_name,
+                    B_sidelength,
+                    coupling_mat,
+                ) in couplings
+            ]
+            counter += len(batch)
+            dist_writer.writerows(dists)
+            coupling_writer.writerows(couplings)
+            now = time.time()
+            print("Time elapsed: " + str(now - start))
+            print("Cell pairs computed: " + str(counter))
+    stop = time.time()
+    print(
+        "Computation finished. Computed "
+        + str(counter)
+        + " many cell pairs."
+        + " Time elapsed: "
+        + str(stop - start)
+    )
+
+
+def _coupling_mat_reformat(coupling_mat: npt.NDArray[np.float_]) -> list[float]:
+    return [x for ell in coupling_mat for x in ell]
+
+
+def _gw_dist_coupling(
     cellA_name: str,
     cellA_icdm: npt.NDArray[np.float_],
     cellB_name: str,
     cellB_icdm: npt.NDArray[np.float_],
-    save_mat: bool,
-) -> List[int | float | str]:
-    """
-    Compute the Gromov-Wasserstein distance between cells A and B.
-    Return all relevant information in a single list of strings which can be written
-    to file directly.
-
-    :param cellA_icdm: expected to be in vector form.
-    :param cellB_icdm: expected to be in vector form.
-    
-    :param save_mat: if True, the coupling matrix will be included in the return list.\
-    Otherwise, false.
-    :return: a list
-    [cellA_name, cellA_sidelength, cellB_name, cellB_sidelength, \
-    gw_dist(, gw coupling matrix entries)]
-    where the gw coupling matrix entries are optional.
-    """
-    cellA_square = squareform(cellA_icdm)
-    cellA_sidelength = cellA_square.shape[0]
-    cellB_square = squareform(cellB_icdm)
-    cellB_sidelength = cellB_square.shape[0]
+) -> tuple[tuple[str, int, str, int, list[float]], tuple[str, str, float]]:
+    cellA_sidelength = cellA_icdm.shape[0]
+    cellB_sidelength = cellB_icdm.shape[0]
     coupling_mat, log = ot.gromov.gromov_wasserstein(
-        cellA_square,
-        cellB_square,
+        cellA_icdm,
+        cellB_icdm,
         ot.unif(cellA_sidelength),
         ot.unif(cellB_sidelength),
         "square_loss",
         log=True,
     )
-
-    retlist = [
+    coupling_mat = _coupling_mat_reformat(coupling_mat)
+    return (cellA_name, cellA_sidelength, cellB_name, cellB_sidelength, coupling_mat), (
         cellA_name,
-        cellA_sidelength,
         cellB_name,
-        cellB_sidelength,
         log["gw_dist"],
-    ]
-    if save_mat:
-        coupling_mat_list: list[float] = [x for ell in list(coupling_mat) for x in ell]
-        retlist += coupling_mat_list
-    return retlist
+    )
 
 
 def compute_and_save_gw_distance_matrix(
-    intracell_csv_loc: str, gw_csv_loc: str, save_mat: bool
+    intracell_csv_loc: str,
+    gw_dist_csv_loc: str,
+    gw_coupling_mat_csv_loc: Optional[str] = None,
 ) -> None:
     chunk_size = 100
     cell_pairs = cell_pair_iterator_csv(intracell_csv_loc, chunk_size)
-    gw_dists: Iterator[List[str | float | int]]
-    gw_dists = (
-        gw_linear(cellA_name, cellA_icdm, cellB_name, cellB_icdm, save_mat)
-        for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
-    )
-    write_gw(gw_csv_loc, gw_dists)
+
+    if gw_coupling_mat_csv_loc is not None:
+        write_data = (
+            _gw_dist_coupling(cellA_name, cellA_icdm, cellB_name, cellB_icdm)
+            for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
+        )
+        write_dists_and_coupling_mats(
+            gw_dist_csv_loc, gw_coupling_mat_csv_loc, write_data
+        )
+    else:
+        write_dists = (
+            (cellA_name, cellB_name, gw(cellA_icdm, cellB_icdm))
+            for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
+        )
+        write_gw_dists(gw_dist_csv_loc, write_dists)

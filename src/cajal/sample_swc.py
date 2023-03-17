@@ -458,7 +458,7 @@ def compute_icdm_all_geodesic(
 ) -> list[tuple[str, Err[T]]]:
     """
     This function is substantially the same as \
-    :func:`sample_swc.compute_and_save_intracell_all_euclidean` and the user should \
+    :func:`sample_swc.compute_icdm_all_euclidean` and the user should \
     consult the documentation for that function. However, note that \
     `preprocess`  has a different type signature, it is expected to return a `NeuronTree` \
     rather than an `SWCForest`. There is not a meaningful notion of geodesic distance \

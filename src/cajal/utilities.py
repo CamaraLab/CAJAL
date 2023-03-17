@@ -32,6 +32,7 @@ def read_gw(
     The distance matrix should be a CSV file with three or more columns and possibly \
     a single header line (which is ignored). All \
     following lines should be
+    
     * two strings cell_name1, cell_name2, followed by
     * a floating point real number (the GW distance), possibly followed by
     * a series of N x N floating point real numbers (the coupling matrix between the two cells)
@@ -84,7 +85,7 @@ def read_gw(
 
 
 def dist_mat_of_dict(
-    cell_names: list[str], gw_dist_dictionary: dict[tuple[str, str], int]
+    cell_names: list[str], gw_dist_dictionary: dict[tuple[str, str], float]
 ) -> npt.NDArray[np.float_]:
     """
     Given a list of cell names and a distance dictionary, return a vectorform distance \
