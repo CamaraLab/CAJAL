@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from multiprocessing import RawArray
 import csv
 from scipy.spatial.distance import squareform
-from scipy.sparse import coo_array, transpose
+from scipy.sparse import coo_array
 import itertools as it
 import math
 from typing import Tuple, List, Iterator, Optional, TypeVar, Generic
@@ -77,22 +77,34 @@ def dist_mat_of_dict(
 
 def read_gw_couplings(
     gw_couplings_file_loc: str, header: bool
-) -> dict[tuple[str, str], float]:
+) -> dict[tuple[str, str], npt.NDArray[np.float_]]:
+    """
+    Read a list of Gromov-Wasserstein coupling matrices into memory.
+    :param header: If True, the first line of the file will be ignored.
+    :param gw_couplings_file_loc: name of a file holding a list of GW coupling matrices in \
+    COO form. The files should be in csv format. Each line should be of the form
+    `cellA_name, cellA_sidelength, cellB_name, cellB_sidelength, num_nonzero, (data), (row), (col)`
+    where `data` is a sequence of `num_nonzero` many floating point real numbers,
+    `row` is a sequence of `num_nonzero` many integers (row indices), and
+    `col` is a sequence of `num_nonzero` many integers (column indices).
+    :return: A dictionary mapping pairs of names (firstcell, secondcell) to the GW \
+    matrix of the coupling. `firstcell` and `secondcell` are in alphabetical order.
+    """
+
     gw_coupling_mat_dict: dict[tuple[str, str], npt.NDArray[np.float_]] = {}
     with open(gw_couplings_file_loc, "r", newline="") as gw_file:
         csvreader = csv.reader(gw_file)
-        linenum = 0
+        linenum = 1
         if header:
             _ = next(csvreader)
             linenum += 1
         for line in csvreader:
-            linenum += 1
             cellA_name = line[0]
             cellA_sidelength = int(line[1])
             cellB_name = line[2]
             cellB_sidelength = int(line[3])
             num_non_zero = int(line[4])
-            rest = line[:4]
+            rest = line[5:]
             if 3 * num_non_zero != len(rest):
                 raise Exception(
                     "On line " + str(linenum) + " data not in COO matrix form."
@@ -103,10 +115,13 @@ def read_gw_couplings(
             coo = coo_array(
                 (data, (rows, cols)), shape=(cellA_sidelength, cellB_sidelength)
             )
+            linenum += 1
             if cellA_name < cellB_name:
                 gw_coupling_mat_dict[(cellA_name, cellB_name)] = coo
             else:
-                gw_coupling_mat_dict[(cellB_name, cellA_name)] = transpose(coo)
+                gw_coupling_mat_dict[(cellB_name, cellA_name)] = coo_array.transpose(
+                    coo
+                )
     return gw_coupling_mat_dict
 
 

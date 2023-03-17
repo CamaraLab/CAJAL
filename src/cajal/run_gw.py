@@ -130,7 +130,12 @@ def cell_pair_iterator_csv(
     ]
 ]:
     batched_it = _batched_cell_list_iterator_csv(intracell_csv_loc, chunk_size)
-    return it.chain.from_iterable((it.product(t1, t2) for t1, t2 in batched_it))
+    return it.chain.from_iterable(
+        (
+            filter(lambda tup: tup[0][0] < tup[1][0], it.product(t1, t2))
+            for t1, t2 in batched_it
+        )
+    )
 
 
 def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
@@ -174,7 +179,7 @@ def write_gw_dists(
     print(
         "Computation finished. Computed "
         + str(counter)
-        + " many cell pairs."
+        + " cell pairs."
         + " Time elapsed: "
         + str(stop - start)
     )
