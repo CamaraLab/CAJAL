@@ -232,6 +232,8 @@ def write_gw_dists(
 #         + " Time elapsed: "
 #         + str(stop - start)
 #     )
+
+
 def write_dists_and_coupling_mats(
     gw_dist_csv_loc: str,
     gw_coupling_mat_csv_loc: str,
@@ -255,6 +257,7 @@ def write_dists_and_coupling_mats(
             "first_object_sidelength",
             "second_object",
             "second_object_sidelength",
+            "num_non_zero",
             "coupling",
         ]
         coupling_writer.writerow(coupling_header)

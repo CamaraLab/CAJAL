@@ -6,9 +6,11 @@ from dataclasses import dataclass
 from multiprocessing import RawArray
 import csv
 from scipy.spatial.distance import squareform
+from scipy.sparse import coo_array, transpose
 import itertools as it
 import math
 from typing import Tuple, List, Iterator, Optional, TypeVar, Generic
+
 
 import numpy as np
 import numpy.typing as npt
@@ -18,24 +20,17 @@ def pj(*paths):
     return os.path.abspath(os.path.join(*paths))
 
 
-def read_gw(
-    gw_dist_file_loc: str, header: bool, couplings: bool = False
-) -> tuple[
-    list[str],
-    dict[tuple[str, str], float],
-    Optional[dict[tuple[str, str], npt.NDArray[np.float_]]],
-]:
+def read_gw_dists(
+    gw_dist_file_loc: str, header: bool
+) -> tuple[list[str], dict[tuple[str, str], float]]:
     r"""
     Read a GW distance matrix into memory.
-
-    :param gw_dist_file_loc: A file path to a Gromov-Wasserstein distance matrix. \
-    The distance matrix should be a CSV file with three or more columns and possibly \
-    a single header line (which is ignored). All \
-    following lines should be
     
-    * two strings cell_name1, cell_name2, followed by
-    * a floating point real number (the GW distance), possibly followed by
-    * a series of N x N floating point real numbers (the coupling matrix between the two cells)
+    :param gw_dist_file_loc: A file path to a Gromov-Wasserstein distance matrix. \
+    The distance matrix should be a CSV file with exactly three columns and possibly \
+    a single header line (which is ignored). All \
+    following lines should be two strings cell_name1, cell_name2 followed by a \
+    floating point real number.
 
     :param header: If `header` is True, the very first line of the file is discarded. \
     If `header` is False, all lines are assumed to be relevant.
@@ -47,45 +42,25 @@ def read_gw(
     are in alphabetical order. gw_dist_list is a vector-form array (rank 1) of the \
     GW distances.
     """
-    # TODO - Update this function to account for the case
-    # where cells are of different sizes.
     gw_dist_dict: dict[tuple[str, str], float] = {}
-    if couplings:
-        gw_coupling_dict: dict[tuple[str, str], npt.NDArray[np.float_]] = {}
     with open(gw_dist_file_loc, "r", newline="") as gw_file:
         csvreader = csv.reader(gw_file)
         if header:
             _ = next(csvreader)
-        for line in csvreader:
-            first_cell, second_cell, gw_dist_str = line[0:2]
-            if couplings:
-                coupling = np.array([float(x) for x in line[2:]])
-                side_length = round(math.sqrt(len(coupling)))
-                if side_length**2 != len(coupling):
-                    raise Exception(
-                        "Gromov-Wasserstein matrix is not a perfect square."
-                    )
-                coupling = np.reshape(coupling, (side_length, side_length))
+        for first_cell, second_cell, gw_dist_str in csvreader:
             gw_dist = float(gw_dist_str)
-            if second_cell > first_cell:
-                first_cell, second_cell = (second_cell, first_cell)
-                if couplings:
-                    coupling = coupling.T
+            first_cell, second_cell = sorted([first_cell, second_cell])
             gw_dist_dict[(first_cell, second_cell)] = gw_dist
-            if couplings:
-                gw_coupling_dict[(first_cell, second_cell)] = coupling
     all_cells_set = set()
     for cell_1, cell_2 in gw_dist_dict:
         all_cells_set.add(cell_1)
         all_cells_set.add(cell_2)
     all_cells = sorted(list(all_cells_set))
-    if couplings:
-        return all_cells, gw_dist_dict, gw_coupling_dict
-    return all_cells, gw_dist_dict, None
+    return all_cells, gw_dist_dict
 
 
 def dist_mat_of_dict(
-    cell_names: list[str], gw_dist_dictionary: dict[tuple[str, str], float]
+    cell_names: list[str], gw_dist_dictionary: dict[tuple[str, str], int]
 ) -> npt.NDArray[np.float_]:
     """
     Given a list of cell names and a distance dictionary, return a vectorform distance \
@@ -98,6 +73,41 @@ def dist_mat_of_dict(
         first_cell, second_cell = sorted([first_cell, second_cell])
         dist_list.append(gw_dist_dictionary[(first_cell, second_cell)])
     return np.array(dist_list, dtype=np.float_)
+
+
+def read_gw_couplings(
+    gw_couplings_file_loc: str, header: bool
+) -> dict[tuple[str, str], float]:
+    gw_coupling_mat_dict: dict[tuple[str, str], npt.NDArray[np.float_]] = {}
+    with open(gw_couplings_file_loc, "r", newline="") as gw_file:
+        csvreader = csv.reader(gw_file)
+        linenum = 0
+        if header:
+            _ = next(csvreader)
+            linenum += 1
+        for line in csvreader:
+            linenum += 1
+            cellA_name = line[0]
+            cellA_sidelength = int(line[1])
+            cellB_name = line[2]
+            cellB_sidelength = int(line[3])
+            num_non_zero = int(line[4])
+            rest = line[:4]
+            if 3 * num_non_zero != len(rest):
+                raise Exception(
+                    "On line " + str(linenum) + " data not in COO matrix form."
+                )
+            data = [float(x) for x in rest[:num_non_zero]]
+            rows = [int(x) for x in rest[num_non_zero : (2 * num_non_zero)]]
+            cols = [int(x) for x in rest[(2 * num_non_zero) :]]
+            coo = coo_array(
+                (data, (rows, cols)), shape=(cellA_sidelength, cellB_sidelength)
+            )
+            if cellA_name < cellB_name:
+                gw_coupling_mat_dict[(cellA_name, cellB_name)] = coo
+            else:
+                gw_coupling_mat_dict[(cellB_name, cellA_name)] = transpose(coo)
+    return gw_coupling_mat_dict
 
 
 T = TypeVar("T")
