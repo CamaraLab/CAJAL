@@ -156,8 +156,23 @@ def plot_categorical_data(
         plt.show()
 
 
+def knn_graph(dmat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
+    """
+    :param dmat: squareform distance matrix
+    :param nn: (nearest neighbors) - in the returned graph, nodes v and w will be \
+    connected if v is one of the `nn` nearest neighbors of w, or conversely.
+    :return: A (1,0)-valued adjacency matrix for a nearest neighbors graph.
+    """
+    a = np.argpartition(dmat, nn, axis=0)
+    sidelength = dmat.shape[0]
+    graph = np.zeros((sidelength, sidelength), dtype=np.int_)
+    graph[a[1 : (nn + 1), :]] = 1
+    graph = np.max(graph, graph.T)
+    return graph
+
+
 def louvain_clustering(
-    gw_mat: npt.NDArray[np.float_], nn: int = 5
+    gw_mat: npt.NDArray[np.float_], k: int = 5
 ) -> npt.NDArray[np.int_]:
     """
     Compute clustering of cells based on GW distance, using Louvain clustering on a KNN graph
@@ -169,7 +184,7 @@ def louvain_clustering(
     Returns:
         numpy array of shape (num_cells,) the cluster assignment for each cell
     """
-    nn = NearestNeighbors(n_neighbors=nn, metric="precomputed")
+    nn = NearestNeighbors(n_neighbors=k, metric="precomputed")
     nn.fit(gw_mat)
     adj_mat = nn.kneighbors_graph(gw_mat).todense()
     np.fill_diagonal(adj_mat, 0)

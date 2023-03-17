@@ -60,14 +60,24 @@ def read_gw_dists(
 
 
 def dist_mat_of_dict(
-    cell_names: list[str], gw_dist_dictionary: dict[tuple[str, str], int]
+    gw_dist_dictionary: dict[tuple[str, str], int],
+    cell_names: Optional[list[str]] = None,
 ) -> npt.NDArray[np.float_]:
     """
-    Given a list of cell names and a distance dictionary, return a vectorform distance \
+    Given a distance dictionary and a list of cell names, return a vectorform distance \
     matrix containing the pairwise GW distances between all cells in `cell_names`, and \
     in the same order. \
-    It is assumed that the keys in distance_dictionary are in alphabetical order.
+    If no list is given, then the distance matrix will represent all GW distances between all cells, \
+    indexed in alphabetical order.
+
+    It is assumed that the keys in `gw_dist_dictionary` are in alphabetical order.
     """
+    if cell_names is None:
+        names = set()
+        for key in gw_dist_dictionary:
+            names.add(key[0])
+            names.add(key[1])
+        cell_names = sorted(names)
     dist_list: list[float] = []
     for first_cell, second_cell in it.combinations(cell_names, 2):
         first_cell, second_cell = sorted([first_cell, second_cell])
