@@ -1,4 +1,6 @@
-# Compute average graph shape of neurons based on geodesic GW clusters
+"""
+Compute average graph shape of neurons based on geodesic GW clusters
+"""
 from typing import Collection
 import copy
 import os

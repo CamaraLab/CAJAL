@@ -60,7 +60,7 @@ def read_gw_dists(
 
 
 def dist_mat_of_dict(
-    gw_dist_dictionary: dict[tuple[str, str], int],
+    gw_dist_dictionary: dict[tuple[str, str], float],
     cell_names: Optional[list[str]] = None,
 ) -> npt.NDArray[np.float_]:
     """

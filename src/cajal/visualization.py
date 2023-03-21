@@ -38,17 +38,16 @@ def get_umap(gw_mat, **kwargs):
     return embedding
 
 
-def plot_umap(embedding, step=1, figsize=10, **kwargs):
+def plot_umap(
+    embedding: npt.NDArray[np.float_], step: int = 1, figsize: int = 10, **kwargs
+) -> matplotlib.collections.PathCollection:
     """
-    Plot scatter plot of points/cells in 2D UMAP embedding
+    Use matplotlib to create a scatter plot of points/cells in 2D UMAP embedding.
 
-    Args:
-        embedding (numpy array): 2D UMAP embedding of cells
-        step (integer): plot only 1/step points, useful for visualizing large datasets
-        figsize (integer): useful for Jupyter Notebooks, where the default figsize is too small
-
-    Returns:
-        None (plot using matplotlib)
+    :param embedding: 2D UMAP embedding of cells
+    :param step: plot only 1/step points, useful for visualizing large datasets
+    :param figsize: useful for Jupyter Notebooks, where the default figsize is too small
+    :return: A matplotlib scatterplot of the data.
     """
     fig = plt.figure(facecolor="white", figsize=(figsize, figsize))
     return plt.scatter(embedding[::step, 0], embedding[::step, 1], **kwargs)
@@ -57,8 +56,10 @@ def plot_umap(embedding, step=1, figsize=10, **kwargs):
 def to_colors(ell: list) -> tuple[list[int], list]:
     """
     :param ell: List of elements of some type A, where A has ==.
-    :return: (outlist, categories), where categories is the list of unique values of ell, ordered by their first appearance,
-    and outlist is a list of integers such that len(outlist)==len(ell) and categories[outlist[i]]==ell[i] for all i in the domain.
+    :return: (outlist, categories), where categories is the list of unique values of ell, \
+    ordered by their first appearance,
+    and outlist is a list of integers such that len(outlist)==len(ell) and \
+    categories[outlist[i]]==ell[i] for all i in the domain.
     """
     counter: int = 0
     categories = []
@@ -161,19 +162,19 @@ def knn_graph(dmat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
     :param dmat: squareform distance matrix
     :param nn: (nearest neighbors) - in the returned graph, nodes v and w will be \
     connected if v is one of the `nn` nearest neighbors of w, or conversely.
-    :return: A (1,0)-valued adjacency matrix for a nearest neighbors graph.
+    :return: A (1,0)-valued adjacency matrix for a nearest neighbors graph, same shape as dmat.
     """
-    a = np.argpartition(dmat, nn, axis=0)
+    a = np.argpartition(dmat, nn + 1, axis=0)
     sidelength = dmat.shape[0]
     graph = np.zeros((sidelength, sidelength), dtype=np.int_)
-    graph[a[1 : (nn + 1), :]] = 1
-    graph = np.max(graph, graph.T)
+    for i in range(graph.shape[1]):
+        graph[a[0 : (nn + 1), i], i] = 1
+    graph = np.maximum(graph, graph.T)
+    np.fill_diagonal(graph, 0)
     return graph
 
 
-def louvain_clustering(
-    gw_mat: npt.NDArray[np.float_], k: int = 5
-) -> npt.NDArray[np.int_]:
+def louvain_clustering(gw_mat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
     """
     Compute clustering of cells based on GW distance, using Louvain clustering on a KNN graph
 
@@ -184,9 +185,9 @@ def louvain_clustering(
     Returns:
         numpy array of shape (num_cells,) the cluster assignment for each cell
     """
-    nn = NearestNeighbors(n_neighbors=k, metric="precomputed")
-    nn.fit(gw_mat)
-    adj_mat = nn.kneighbors_graph(gw_mat).todense()
+    nn_model = NearestNeighbors(n_neighbors=nn, metric="precomputed")
+    nn_model.fit(gw_mat)
+    adj_mat = nn_model.kneighbors_graph(gw_mat).todense()
     np.fill_diagonal(adj_mat, 0)
 
     graph = nx.convert_matrix.from_numpy_matrix(adj_mat)
@@ -210,9 +211,9 @@ def leiden_clustering(gw_mat, nn=5, resolution=None):
     Returns:
         numpy array of cluster assignment for each cell
     """
-    nn = NearestNeighbors(n_neighbors=nn, metric="precomputed")
-    nn.fit(gw_mat)
-    adj_mat = nn.kneighbors_graph(gw_mat).todense()
+    nn_model = NearestNeighbors(n_neighbors=nn, metric="precomputed")
+    nn_model.fit(gw_mat)
+    adj_mat = nn_model.kneighbors_graph(gw_mat).todense()
     np.fill_diagonal(adj_mat, 0)
 
     graph = ig.Graph.Adjacency((adj_mat > 0).tolist())

@@ -122,6 +122,23 @@ def _batched_cell_list_iterator_csv(
                     yield outer_list, inner_list
 
 
+def cell_iterator_csv(
+    intracell_csv_loc: str,
+) -> Iterator[tuple[str, npt.NDArray[np.float_]]]:
+    """
+    Return an iterator over cells in a directory.
+    """
+    icdm_csv_validate(intracell_csv_loc)
+    with open(intracell_csv_loc, "r", newline="") as icdm_csvfile:
+        csv_reader = csv.reader(icdm_csvfile, delimiter=",")
+        # Assume a header
+        next(csv_reader)
+        while ell := next(csv_reader, None):
+            cell_name = ell[0]
+            arr = np.array([float(x) for x in ell[1:]], dtype=np.float64)
+            yield cell_name, arr
+
+
 def cell_pair_iterator_csv(
     intracell_csv_loc: str, chunk_size: int
 ) -> Iterator[
