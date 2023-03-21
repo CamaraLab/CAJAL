@@ -10,6 +10,11 @@ from scipy.sparse import coo_array
 import itertools as it
 import math
 from typing import Tuple, List, Iterator, Optional, TypeVar, Generic
+from sklearn.neighbors import NearestNeighbors
+import leidenalg
+import community as community_louvain
+import igraph as ig
+import networkx as nx
 
 
 import numpy as np
