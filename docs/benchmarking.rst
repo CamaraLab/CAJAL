@@ -39,12 +39,37 @@ the code:
 
 		cajal.run_gw.compute_and_save_gw_distance_matrix(
 		    "CAJAL/data/swc_icdm.csv",
-		    "CAJAL/data/swc_gwm.csv")
+		    "CAJAL/data/swc_gwm.csv",
+		    verbose = False)
 
 
-The computation will take a few minutes in a standard desktop computer.
+The computation will take 10-20 minutes in a standard desktop computer.
 
 We can visualize the resulting space of cell morphologies using UMAP:
+
+.. code-block:: python
+
+		import cajal.utilities
+		import umap
+		import plotly.express
+		from scipy.spatial.distance import squareform
+
+		# Read GW distance matrix
+		cells, gw_dist = cajal.utilities.read_gw_dists("CAJAL/data/swc_gwm.csv", header=True)
+		gw_dist = cajal.utilities.dist_mat_of_dict(gw_dist)
+		gw_dist = squareform(gw_dist)
+
+		# Compute UMAP representation
+		reducer = umap.UMAP(metric="precomputed")
+		embedding = reducer.fit_transform(gw_dist)
+
+		# Visualize UMAP
+		plotly.express.scatter(x=embedding[:,0],
+		                       y=embedding[:,1],
+		                       template="simple_white",
+		                       hover_name=cells)
+
+.. image:: docs/images/UMAP_a10.png
 
 The file ``CAJAL/data/cell_types_specimen_details.csv`` in the GitHub repository of CAJAL
 contains metadata for each of the neurons, including the layer, Cre line, etc.
