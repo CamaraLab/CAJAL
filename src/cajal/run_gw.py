@@ -176,7 +176,7 @@ def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
 
 
 def write_gw_dists(
-    gw_dist_csv_loc: str, name_name_dist: Iterator[tuple[str, str, float]]
+    gw_dist_csv_loc: str, name_name_dist: Iterator[tuple[str, str, float]], verbose: bool = True
 ) -> None:
     chunk_size = 100
     counter = 0
@@ -190,8 +190,9 @@ def write_gw_dists(
             counter += len(batch)
             csvwriter.writerows(batch)
             now = time.time()
-            print("Time elapsed: " + str(now - start))
-            print("Cell pairs computed: " + str(counter))
+            if verbose:
+                print("Time elapsed: " + str(now - start))
+                print("Cell pairs computed: " + str(counter))
     stop = time.time()
     print(
         "Computation finished. Computed "
@@ -263,6 +264,7 @@ def write_dists_and_coupling_mats(
         tuple[tuple[str, int, str, int, list[float]], tuple[str, str, float]]
     ],
     chunk_size: int = 500,
+    verbose: bool = True
 ) -> None:
     counter = 0
     start = time.time()
@@ -299,8 +301,9 @@ def write_dists_and_coupling_mats(
             dist_writer.writerows(dists)
             coupling_writer.writerows(couplings)
             now = time.time()
-            print("Time elapsed: " + str(now - start))
-            print("Cell pairs computed: " + str(counter))
+            if verbose:
+                print("Time elapsed: " + str(now - start))
+                print("Cell pairs computed: " + str(counter))
     stop = time.time()
     print(
         "Computation finished. Computed "
@@ -349,6 +352,7 @@ def compute_and_save_gw_distance_matrix(
     intracell_csv_loc: str,
     gw_dist_csv_loc: str,
     gw_coupling_mat_csv_loc: Optional[str] = None,
+    verbose: bool = True
 ) -> None:
     chunk_size = 100
     cell_pairs = cell_pair_iterator_csv(intracell_csv_loc, chunk_size)
@@ -359,11 +363,11 @@ def compute_and_save_gw_distance_matrix(
             for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
         )
         write_dists_and_coupling_mats(
-            gw_dist_csv_loc, gw_coupling_mat_csv_loc, write_data
+            gw_dist_csv_loc, gw_coupling_mat_csv_loc, write_data, verbose = verbose
         )
     else:
         write_dists = (
             (cellA_name, cellB_name, gw(cellA_icdm, cellB_icdm))
             for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
         )
-        write_gw_dists(gw_dist_csv_loc, write_dists)
+        write_gw_dists(gw_dist_csv_loc, write_dists, verbose = verbose)

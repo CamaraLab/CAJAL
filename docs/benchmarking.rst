@@ -2,40 +2,45 @@ Example: Predicting the Molecular Type of Neurons
 =================================================
 
 To demonstrate some of the main functionalities of CAJAL,
-we will perform some basic data analysis on a set of neuron
+here we perform some basic analysis on a set of neuron
 morphological reconstructions obtained from the
 `Allen Brain Atlas <https://celltypes.brain-map.org/>`_. To facilitate
-the analysis, we provided a compressed \*.tar.gz file containing the \*.SWC
+the analysis, we provide a compressed \*.tar.gz file containing the \*.SWC
 files of 509 neurons used in this example, which can be downloaded directly from this
 `link <https://www.dropbox.com/s/aq0ovetjtqihf4f/allen_brain_atlas_509_SWCs_mouse_full_or_dendrite_only.tar.gz?dl=0>`_.
 
 For this analysis, we focus on the morphology of the dendrites and exclude the
 axons of the neurons. To achieve this, we set `structure_ids = [1,3,4]`,
 which tells CAJAL to only sample points from the soma and the basal and apical
-dendrites. We sample 50 points from each neuron and compute the geodesic distance
-between each pair of points in that neuron using the following function:
+dendrites. We sample 50 points from each neuron and compute the Euclidean distance
+between each pair of points in that neuron using the following code:
 
 .. code-block:: python
 
-		from cajal import *
-		sample_swc.compute_and_save_intracell_all_geodesic(
-		    infolder="/home/jovyan/CAJAL/CAJAL/data/swc/",
-		    out_csv="/home/jovyan/CAJAL/CAJAL/data/swc_icdm.csv",
-		    preprocess=swc.preprocessor_eu(
- 		       structure_ids=[1,3,4],
-	           soma_component_only=False),
+		import cajal.sample_swc
+		import cajal.swc
+
+		cajal.sample_swc.compute_icdm_all_euclidean(
+		    infolder="CAJAL/data/swc/",
+		    out_csv="CAJAL/data/swc_icdm.csv",
+		    preprocess=cajal.swc.preprocessor_eu(
+		        structure_ids=[1,3,4],
+		        soma_component_only=False),
 		    n_sample=50,
 		    num_cores=8)
 
 Once the sampling is completed, we compute the Gromov-Wasserstein distance
 between each pair of neurons. To compute the Gromov-Wasserstein distance matrix we use
-the following function:
+the code:
 
 .. code-block:: python
 
-		run_gw.compute_and_save_gw_distance_matrix(
-		    "/home/jovyan/CAJAL/CAJAL/data/swc_icdm.csv",
-		    "/home/jovyan/CAJAL/CAJAL/data/swc_gwm.csv")
+		import cajal.run_gw
+
+		cajal.run_gw.compute_and_save_gw_distance_matrix(
+		    "CAJAL/data/swc_icdm.csv",
+		    "CAJAL/data/swc_gwm.csv")
+
 
 The computation will take a few minutes in a standard desktop computer.
 
