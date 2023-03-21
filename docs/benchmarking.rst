@@ -55,8 +55,8 @@ We can visualize the resulting space of cell morphologies using UMAP:
 		from scipy.spatial.distance import squareform
 
 		# Read GW distance matrix
-		cells, gw_dist = cajal.utilities.read_gw_dists("CAJAL/data/swc_gwm.csv", header=True)
-		gw_dist = cajal.utilities.dist_mat_of_dict(gw_dist)
+		cells, gw_dist_dict = cajal.utilities.read_gw_dists("CAJAL/data/swc_gwm.csv", header=True)
+		gw_dist = cajal.utilities.dist_mat_of_dict(gw_dist_dict)
 		gw_dist = squareform(gw_dist)
 
 		# Compute UMAP representation
@@ -119,11 +119,29 @@ morphologies present in the cluster), and visualize it:
 
 The file ``CAJAL/data/cell_types_specimen_details.csv`` in the GitHub repository of CAJAL
 contains metadata for each of the neurons in this example, including the layer, Cre line, etc.
-Here we color the above UMAP representation by the neuronal type (excitatory/inhibitory)
-and cortical layer of each neuron:
+Here we color the above UMAP representation by the cortical layer of each neuron:
 
-As shown in the visualization, different cortical layers and neuronal types are
-associated with specific regions of the cell morphology space.
+.. code-block:: python
+
+		import pandas
+
+		metadata = pandas.read_csv("CAJAL/data/cell_types_specimen_details.csv")
+		metadata.index = [str(m) for m in metadata["specimen__id"]]
+		metadata = metadata.loc[cells]
+
+		plotly.express.scatter(x=embedding[:,0],
+		                       y=embedding[:,1],
+		                       template="simple_white",
+		                       hover_name=[m + ".swc" for m in cells],
+		                       color = metadata["structure__layer"])
+
+.. image:: images/a10_layers.png
+
+As shown in the visualization, different cortical layers seem to be
+associated with specific regions of the cell morphology space. We can quantify
+statistically the association using the Laplacian score:
+
+
 
 Each neuron is the dataset is derived from a specific Cre driver line, which preferentially labels
 distinct neuronal types. Due to this, neurons from the same Cre driver line tend to have
@@ -342,10 +360,10 @@ the GW distance matrix, the distance between points to form the associated graph
 
 .. code-block:: python
 
-		results_df_day1 = pd.DataFrame(graph_laplacians(feature_arr_day1,gw_dists_day1,median1, 5000, None, False),index=day1_cols)
-		results_df_day2 = pd.DataFrame(graph_laplacians(feature_arr_day2,gw_dists_day2,median2, 5000, None, False),index=day2_cols)
-		results_df_day3 = pd.DataFrame(graph_laplacians(feature_arr_day3,gw_dists_day3,median3, 5000, None, False),index=df_day3.columns)
-		results_df_day5 = pd.DataFrame(graph_laplacians(feature_arr_day5,gw_dists_day5,median5, 5000, None, False),index=day5_cols)
+		results_df_day1 = pd.DataFrame(laplacian_scores(feature_arr_day1,gw_dists_day1,median1, 5000, None, False),index=day1_cols)
+		results_df_day2 = pd.DataFrame(laplacian_scores(feature_arr_day2,gw_dists_day2,median2, 5000, None, False),index=day2_cols)
+		results_df_day3 = pd.DataFrame(laplacian_scores(feature_arr_day3,gw_dists_day3,median3, 5000, None, False),index=df_day3.columns)
+		results_df_day5 = pd.DataFrame(laplacian_scores(feature_arr_day5,gw_dists_day5,median5, 5000, None, False),index=day5_cols)
 		print("Day 1:")
 		print(results_df_day1)
 		print("Day 2:")
@@ -426,7 +444,7 @@ hypothesis if we observe that this is on the lower tail end of the residuals.
 		import pandas as pd
 		import numpy as np
 		from cajal.utilities import read_gw, list_sort_files,dist_mat_of_dict
-		from cajal.graph_laplacian import graph_laplacians
+		from cajal.graph_laplacian import laplacian_scores
 
 		project_dir=os.getcwd()
 		gw_csv_loc=project_dir+"/c_elegans_gw_dists.csv"
@@ -458,7 +476,7 @@ hypothesis if we observe that this is on the lower tail end of the residuals.
 		covariates = np.array(covariates, dtype=np.float_)
 		epsilon= statistics.median(gw_dist_arr) # 71.26842320321848
 		N = 799
-		T, other = graph_laplacians(
+		T, other = laplacian_scores(
 		    feature_arr,
 		    gw_dist_arr,
 		    epsilon,
