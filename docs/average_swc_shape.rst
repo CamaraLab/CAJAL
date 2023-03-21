@@ -1,3 +1,5 @@
+.. _cluster_and_visualize:
+
 Clustering and Visualization
 ============================
 
@@ -50,6 +52,9 @@ interpolating between them in the latent space. We implement an algorithm
 - Construct a shortest-path tree through the weighted graph encoded by the average distance
   matrix. This tree is our proxy for a representative neuron of the cluster; its morphology \
   is the morphology of the average neuron in the cluster.
+
+.. autofunction:: cajal.utilities.avg_shape
+.. autofunction:: cajal.utilities.avg_shape_spt
 
 
 .. [#] Speaking precisely, it is incorrect to say that the coupling matrix
