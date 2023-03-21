@@ -45,6 +45,7 @@ and with other single-cell data modalities, among other analyses.
    sample_seg
    run_gw
    graph_laplacian
+   average_swc_shape
 
 .. This is a comment.
    \\:hidden:
