@@ -85,7 +85,7 @@ We can use the Leiden algorithm to cluster the neurons based on their morphology
 .. image:: images/UMAP_a10_clusters.png
 
 As expected, cells belonging to the same cluster have similar morphology. For example,
-let us visualize some of the cells in cluster "14" using the Python package `NAVis <https://navis.readthedocs.io/en/latest/index.html>`_:
+let us visualize some of the cells in the pink cluster (cluster 14) using the Python package `NAVis <https://navis.readthedocs.io/en/latest/index.html>`_:
 
 .. code-block:: python
 
@@ -108,7 +108,14 @@ We can also compute the medoid of the cluster, i. e. the most central
 neuron of the cluster (and therefore a good representative of the
 morphologies present in the cluster), and visualize it:
 
+.. code-block:: python
 
+		medoid = navis.read_swc("CAJAL/data/swc/" +
+		                        cajal.utilities.identify_medoid([n for m, n in zip(clusters, cells) if m==12], gw_dist_dict) +
+		                        ".swc")
+		medoid.plot2d()
+
+.. image:: images/neuron_c14_medoid.png
 
 The file ``CAJAL/data/cell_types_specimen_details.csv`` in the GitHub repository of CAJAL
 contains metadata for each of the neurons in this example, including the layer, Cre line, etc.
