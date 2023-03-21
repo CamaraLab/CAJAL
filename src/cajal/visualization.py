@@ -15,6 +15,44 @@ import networkx as nx
 import umap
 
 
+def get_umap(gw_mat, **kwargs):
+    """
+    Compute UMAP embedding of points using GW distance
+
+    Args:
+        gw_mat (numpy array): NxN distance matrix of GW distance between cells
+        **kwargs: arguments passed into umap.UMAP
+
+    Returns:
+        UMAP embedding
+    """
+    if "metric" in kwargs:
+        warnings.warn("Do not specify a 'metric' argument for UMAP, running without")
+        del kwargs["metric"]
+    if "n_components" in kwargs and kwargs["n_components"] != 2:
+        warnings.warn(
+            "Provided plotting functions assume a 2-dimensional UMAP embedding"
+        )
+    reducer = umap.UMAP(**kwargs, metric="precomputed")
+    embedding = reducer.fit_transform(gw_mat)
+    return embedding
+
+
+def plot_umap(
+    embedding: npt.NDArray[np.float_], step: int = 1, figsize: int = 10, **kwargs
+) -> matplotlib.collections.PathCollection:
+    """
+    Use matplotlib to create a scatter plot of points/cells in 2D UMAP embedding.
+
+    :param embedding: 2D UMAP embedding of cells
+    :param step: plot only 1/step points, useful for visualizing large datasets
+    :param figsize: useful for Jupyter Notebooks, where the default figsize is too small
+    :return: A matplotlib scatterplot of the data.
+    """
+    fig = plt.figure(facecolor="white", figsize=(figsize, figsize))
+    return plt.scatter(embedding[::step, 0], embedding[::step, 1], **kwargs)
+
+
 def to_colors(ell: list) -> tuple[list[int], list]:
     """
     :param ell: List of elements of some type A, where A has ==.
@@ -68,7 +106,7 @@ def plot_categorical_data(
         elif color < len(nested_pts_lists):
             nested_pts_lists[color].append((name, x, y))
         else:
-            raise Exception("This branch is not supposed to occur.")
+            raise Exception("Wah")
 
     fig, ax = plt.subplots(figsize=(10, 10), facecolor="white")
     counter = 0
@@ -134,90 +172,3 @@ def knn_graph(dmat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
     graph = np.maximum(graph, graph.T)
     np.fill_diagonal(graph, 0)
     return graph
-
-
-def plot_networkx(d, ax, color=None, layout="spring"):
-    # Color is a vector of values for each node - edges will be colored based on their end node
-    nx_graph = nx.convert_matrix.from_numpy_matrix(d)
-    layout_dict = {
-        "circular": nx.circular_layout,
-        "kamada_kawai": nx.kamada_kawai_layout,
-        "planar": nx.planar_layout,
-        "random": nx.random_layout,
-        "shell": nx.shell_layout,
-        "spectral": nx.spectral_layout,
-        "spring": nx.spring_layout,
-    }
-    layout_func = layout_dict.get(layout)
-    pos = layout_func(nx_graph)
-    if color is None:
-        color = range(len(nx_graph.nodes))
-    edge_end = [i[1] for i in nx_graph.edges]
-    plot_color = np.array(color)[edge_end]
-    nx.draw_networkx_edges(
-        nx_graph, pos, alpha=1, width=2, ax=ax, edge_color=plot_color
-    )
-    nx.draw_networkx_nodes(
-        nx_graph, pos, nodelist=nx_graph.nodes, node_color=color, node_size=2, ax=ax
-    )
-
-
-def louvain_clustering(gw_mat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
-    """
-    Compute clustering of cells based on GW distance, using Louvain clustering on a KNN graph
-
-    Args:
-        gw_mat (numpy array): NxN distance matrix of GW distance between cells
-        nn (integer): number of neighbors in KNN graph
-
-    Returns:
-        numpy array of shape (num_cells,) the cluster assignment for each cell
-    """
-    nn_model = NearestNeighbors(n_neighbors=nn, metric="precomputed")
-    nn_model.fit(gw_mat)
-    adj_mat = nn_model.kneighbors_graph(gw_mat).todense()
-    np.fill_diagonal(adj_mat, 0)
-
-    graph = nx.convert_matrix.from_numpy_matrix(adj_mat)
-    # louvain_clus_dict is a dictionary whose keys are nodes of `graph` and whose
-    # values are natural numbers indicating communities.
-    louvain_clus_dict = community_louvain.best_partition(graph)
-    louvain_clus = np.array([louvain_clus_dict[x] for x in range(gw_mat.shape[0])])
-    return louvain_clus
-
-
-def leiden_clustering(gw_mat, nn=5, resolution=None):
-    """
-    Compute clustering of cells based on GW distance, using Leiden clustering on a KNN graph
-
-    Args:
-        gw_mat (numpy array): NxN distance matrix of GW distance between cells
-        nn (integer): number of neighbors in KNN graph
-        resolution (float, or None): If None, use modularity to get optimal partition.
-            If float, get partition at set resolution.
-
-    Returns:
-        numpy array of cluster assignment for each cell
-    """
-    nn_model = NearestNeighbors(n_neighbors=nn, metric="precomputed")
-    nn_model.fit(gw_mat)
-    adj_mat = nn_model.kneighbors_graph(gw_mat).todense()
-    np.fill_diagonal(adj_mat, 0)
-
-    graph = ig.Graph.Adjacency((adj_mat > 0).tolist())
-    graph.es["weight"] = adj_mat[adj_mat.nonzero()]
-    graph.vs["label"] = range(adj_mat.shape[0])
-
-    if resolution is None:
-        leiden_clus = np.array(
-            leidenalg.find_partition_multiplex(
-                [graph], leidenalg.ModularityVertexPartition
-            )[0]
-        )
-    else:
-        leiden_clus = np.array(
-            leidenalg.find_partition_multiplex(
-                [graph], leidenalg.CPMVertexPartition, resolution_parameter=resolution
-            )[0]
-        )
-    return leiden_clus
