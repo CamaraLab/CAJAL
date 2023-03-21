@@ -171,3 +171,65 @@ def write_csv_block(
                         good_cells.append([name] + cell.tolist())
             csvwriter.writerows(good_cells)
     return failed_cells
+
+
+def louvain_clustering(gw_mat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
+    """
+    Compute clustering of cells based on GW distance, using Louvain clustering on a KNN graph
+
+    Args:
+        gw_mat (numpy array): NxN distance matrix of GW distance between cells
+        nn (integer): number of neighbors in KNN graph
+
+    Returns:
+        numpy array of shape (num_cells,) the cluster assignment for each cell
+    """
+    nn_model = NearestNeighbors(n_neighbors=nn, metric="precomputed")
+    nn_model.fit(gw_mat)
+    adj_mat = nn_model.kneighbors_graph(gw_mat).todense()
+    np.fill_diagonal(adj_mat, 0)
+
+    graph = nx.convert_matrix.from_numpy_matrix(adj_mat)
+    # louvain_clus_dict is a dictionary whose keys are nodes of `graph` and whose
+    # values are natural numbers indicating communities.
+    louvain_clus_dict = community_louvain.best_partition(graph)
+    louvain_clus = np.array([louvain_clus_dict[x] for x in range(gw_mat.shape[0])])
+    return louvain_clus
+
+
+def leiden_clustering(gw_mat, nn=5, resolution=None):
+    """
+    Compute clustering of cells based on GW distance, using Leiden clustering on a KNN graph
+
+    Args:
+        gw_mat (numpy array): NxN distance matrix of GW distance between cells
+        nn (integer): number of neighbors in KNN graph
+        resolution (float, or None): If None, use modularity to get optimal partition.
+            If float, get partition at set resolution.
+
+    Returns:
+        numpy array of cluster assignment for each cell
+    """
+    nn_model = NearestNeighbors(n_neighbors=nn, metric="precomputed")
+    nn_model.fit(gw_mat)
+    adj_mat = nn_model.kneighbors_graph(gw_mat).todense()
+    np.fill_diagonal(adj_mat, 0)
+
+    graph = ig.Graph.Adjacency((adj_mat > 0).tolist())
+    graph.es["weight"] = adj_mat[adj_mat.nonzero()]
+    graph.vs["label"] = range(adj_mat.shape[0])
+
+    if resolution is None:
+        leiden_clus = np.array(
+            leidenalg.find_partition_multiplex(
+                [graph], leidenalg.ModularityVertexPartition
+            )[0]
+        )
+    else:
+        leiden_clus = np.array(
+            leidenalg.find_partition_multiplex(
+                [graph], leidenalg.CPMVertexPartition, resolution_parameter=resolution
+            )[0]
+        )
+    return leiden_clus
+
