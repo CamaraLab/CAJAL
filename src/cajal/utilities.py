@@ -386,7 +386,7 @@ def avg_shape_spt(
     :param iodms: (intra-object distance matrices) - \
     Maps object names to intra-object distance matrices. Matrices are assumed to be given \
     in vector form rather than squareform.
-    :gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to
+    :gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to \
     Gromov-Wasserstein coupling matrices from cellA to cellB.
     :param k: how many neighbors in the nearest-neighbors graph.
     """

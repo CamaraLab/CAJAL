@@ -325,7 +325,7 @@ of cells. When the cells are neurons, CAJAL can display this average cell
 shape, providing a visual representation of the prototypical features of
 neurons in a given cluster. Currently, this average cell morphology is the only
 part of CAJAL which depends on the coupling matrices. For details, see
-`Clustering and Visualization`_.
+`cluster_and_visualize`_.
 
 Numpy should automatically parallelize the computation across multiple cores.
 Users on Windows can check the process
