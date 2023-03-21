@@ -69,10 +69,49 @@ We can visualize the resulting space of cell morphologies using UMAP:
 		                       template="simple_white",
 		                       hover_name=cells)
 
-.. image:: docs/images/UMAP_a10.png
+.. image:: images/UMAP_a10.png
+
+We can use the Leiden algorithm to cluster the neurons based on their morphology:
+
+.. code-block:: python
+
+		clusters = cajal.utilities.leiden_clustering(gw_dist)
+		plotly.express.scatter(x=embedding[:,0],
+		                       y=embedding[:,1],
+		                       template="simple_white",
+		                       hover_name=[m + ".swc" for m in cells],
+		                       color = [str(m) for m in clusters])
+
+.. image:: images/UMAP_a10_clusters.png
+
+As expected, cells belonging to the same cluster have similar morphology. For example,
+let us visualize some of the cells in cluster "14" using the Python package `NAVis <https://navis.readthedocs.io/en/latest/index.html>`_:
+
+.. code-block:: python
+
+		import navis
+
+		cluster_14 = [navis.read_swc("CAJAL/data/swc/" + n + ".swc")
+		              for m, n in zip(clusters, cells) if m==14]
+
+		cluster_14[1].plot2d()
+		cluster_14[2].plot2d()
+		cluster_14[3].plot2d()
+
+.. image:: images/neuron_c14_1.png
+
+.. image:: images/neuron_c14_2.png
+
+.. image:: images/neuron_c14_3.png
+
+We can also compute the medoid of the cluster, i. e. the most central
+neuron of the cluster (and therefore a good representative of the
+morphologies present in the cluster), and visualize it:
+
+
 
 The file ``CAJAL/data/cell_types_specimen_details.csv`` in the GitHub repository of CAJAL
-contains metadata for each of the neurons, including the layer, Cre line, etc.
+contains metadata for each of the neurons in this example, including the layer, Cre line, etc.
 Here we color the above UMAP representation by the neuronal type (excitatory/inhibitory)
 and cortical layer of each neuron:
 
