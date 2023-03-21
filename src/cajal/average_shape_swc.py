@@ -3,7 +3,9 @@ from .visualization import knn_graph
 from scipy.spatial.distance import squareform
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import dijkstra
+from scipy.fft import fft, fftfreq
 import numpy as np
+import math
 import numpy.typing as npt
 
 
@@ -27,6 +29,23 @@ def cap(a: npt.NDArray[np.float_], c: float) -> npt.NDArray[np.float_]:
     return a1
 
 
+def step_size(icdm: npt.NDArray[np.float_]) -> float:
+    """
+    Heuristic to estimate the step size a neuron was sampled at.
+    :param icdm: Vectorform distance matrix.
+    """
+    assert len(icdm.shape) == 1
+    side_length = int(math.ceil(math.sqrt(icdm.shape[0] * 2)))
+    counts, dividing_lines = np.histogram(icdm, bins=side_length)
+    base = dividing_lines[0]
+    delta = dividing_lines[1] - base
+    T = fft(counts)
+    max_bin = np.argmax(T[1:]) + 1
+    xs = fftfreq(side_length, 1)
+    max_unit_freq = xs[max_bin]
+    return (delta / max_unit_freq) + base
+
+
 def orient(
     medoid: str,
     obj_name: str,
@@ -48,7 +67,64 @@ def orient(
     return iodm[i_reorder][:, i_reorder]
 
 
-def get_avg_shape_spt(
+def avg_shape(
+    obj_names: list[str],
+    gw_dist_dict: dict[tuple[str, str], float],
+    iodms: dict[str, npt.NDArray[np.float_]],
+    gw_coupling_mat_dict: dict[tuple[str, str], coo_matrix],
+):
+    """
+    Compute capped and uncapped average distance matrices.
+
+    In both cases the distance matrix is rescaled so that the minimal distance between two points \
+    is 1.
+
+    :param obj_names: Keys for the gw_dist_dict and iodms.
+    :gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) \
+    to Gromov-Wasserstein distances.
+    :param iodms: (intra-object distance matrices) - \
+    Maps object names to intra-object distance matrices. Matrices are assumed to be given \
+    in vector form rather than squareform.
+    :gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to
+    Gromov-Wasserstein coupling matrices from cellA to cellB.
+    """
+    num_objects = len(obj_names)
+    medoid = identify_medoid(obj_names, gw_dist_dict)
+    medoid_matrix = iodms[medoid]
+    # Rescale to unit step size.
+    medoid_matrix = medoid_matrix / step_size(medoid_matrix)
+    square_medoid_matrix = squareform(medoid_matrix, force="tomatrix")
+    dmat_accumulator_uncapped = np.copy(medoid_matrix)
+    dmat_accumulator_capped = cap(medoid_matrix, 2.0)
+    others = (obj for obj in obj_names if obj != medoid)
+    for obj_name in others:
+        iodm = iodms[obj_name]
+        # Rescale to unit step size.
+        iodm = iodm / step_size(iodm)
+        reoriented_iodm = squareform(
+            orient(
+                medoid,
+                obj_name,
+                squareform(iodm, force="tomatrix"),
+                gw_coupling_mat_dict,
+            ),
+            force="tovector",
+        )
+        # reoriented_iodm is not a distance matrix - it is a "pseudodistance matrix".
+        # If X and Y are sets and Y is a metric space, and f : X -> Y, then \
+        # d_X(x0, x1) := d_Y(f(x0),f(x1)) is a pseudometric on X.
+        dmat_accumulator_uncapped += reoriented_iodm
+        dmat_accumulator_capped += cap(reoriented_iodm, 2.0)
+    # dmat_avg_uncapped can have any positive values, but none are zero,
+    # because medoid_matrix is not zero anywhere.
+    # dmat_avg_capped has values between 0 and 2, exclusive.
+    return (
+        dmat_accumulator_capped / num_objects,
+        dmat_accumulator_uncapped / num_objects,
+    )
+
+
+def avg_shape_spt(
     obj_names: list[str],
     gw_dist_dict: dict[tuple[str, str], float],
     iodms: dict[str, npt.NDArray[np.float_]],
@@ -66,38 +142,9 @@ def get_avg_shape_spt(
     Gromov-Wasserstein coupling matrices from cellA to cellB.
     :param k: how many neighbors in the nearest-neighbors graph.
     """
-    num_objects = len(obj_names)
-    medoid = identify_medoid(obj_names, gw_dist_dict)
-    medoid_matrix = iodms[medoid]
-    # Rescale to unit step size.
-    medoid_matrix = medoid_matrix / np.min(medoid_matrix)
-    square_medoid_matrix = squareform(medoid_matrix, force="tomatrix")
-    dmat_accumulator_uncapped = np.copy(medoid_matrix)
-    dmat_accumulator_capped = cap(medoid_matrix, 2.0)
-    others = (obj for obj in obj_names if obj != medoid)
-    for obj_name in others:
-        iodm = iodms[obj_name]
-        # Rescale to unit step size.
-        iodm = iodm / np.min(iodm)
-        reoriented_iodm = squareform(
-            orient(
-                medoid,
-                obj_name,
-                squareform(iodm, force="tomatrix"),
-                gw_coupling_mat_dict,
-            ),
-            force="tovector",
-        )
-        # reoriented_iodm is not a distance matrix - it is a "pseudodistance matrix".
-        # If X and Y are sets and Y is a metric space, and f : X -> Y, then \
-        # d_X(x0, x1) := d_Y(f(x0),f(x1)) is a pseudometric on X.
-        dmat_accumulator_uncapped += reoriented_iodm
-        dmat_accumulator_capped += cap(reoriented_iodm, 2.0)
-    # dmat_avg_uncapped can have any positive values, but none are zero,
-    # because medoid_matrix is not zero anywhere.
-    dmat_avg_uncapped = dmat_accumulator_uncapped / num_objects
-    # dmat_avg_capped has values between 0 and 2, exclusive.
-    dmat_avg_capped = dmat_accumulator_capped / num_objects
+    dmat_avg_capped, dmat_avg_uncapped = avg_shape(
+        obj_names, gw_dist_dict, iodms, gw_coupling_mat_dict
+    )
     dmat_avg_uncapped = squareform(dmat_avg_uncapped)
     # So that 0s along diagonal don't get caught in min
     np.fill_diagonal(dmat_avg_uncapped, np.max(dmat_avg_uncapped))
