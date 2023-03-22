@@ -254,7 +254,10 @@ def leiden_clustering(gw_mat, nn=5, resolution=None, seed=None):
     else:
         leiden_clus = np.array(
             leidenalg.find_partition_multiplex(
-                [graph], leidenalg.CPMVertexPartition, resolution_parameter=resolution, seed=seed
+                [graph],
+                leidenalg.CPMVertexPartition,
+                resolution_parameter=resolution,
+                seed=seed,
             )[0]
         )
     return leiden_clus
@@ -328,13 +331,14 @@ def avg_shape(
     Compute capped and uncapped average distance matrices. \
     In both cases the distance matrix is rescaled so that the minimal distance between two points \
     is 1. The "capped" distance matrix has a max distance of 2.
+    
     :param obj_names: Keys for the gw_dist_dict and iodms.
-    :gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) \
+    :param gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) \
     to Gromov-Wasserstein distances.
     :param iodms: (intra-object distance matrices) - \
     Maps object names to intra-object distance matrices. Matrices are assumed to be given \
     in vector form rather than squareform.
-    :gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to \
+    :param gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to \
     Gromov-Wasserstein coupling matrices from cellA to cellB.
     """
     num_objects = len(obj_names)
@@ -382,7 +386,7 @@ def avg_shape_spt(
 ):
     """
     :param obj_names: Keys for the gw_dist_dict and iodms.
-    :gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) \
+    :param gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) \
     to Gromov-Wasserstein distances.
     :param iodms: (intra-object distance matrices) - \
     Maps object names to intra-object distance matrices. Matrices are assumed to be given \
