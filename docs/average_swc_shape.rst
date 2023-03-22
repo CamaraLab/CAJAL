@@ -31,6 +31,3 @@ morphological average. In brief, the algorithm proceeds as follows:
 .. autofunction:: cajal.utilities.avg_shape
 .. autofunction:: cajal.utilities.avg_shape_spt
 
-.. [#] If the map is not injective, some nodes of :math:`Y` will be repeated in
-       the reoriented cell. If the map is not surjective, some nodes of
-       :math:`Y` will be omitted in the reoriented cell.
