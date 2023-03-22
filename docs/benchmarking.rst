@@ -1,3 +1,44 @@
+Inferring Associations with Cell Morphology
+===========================================
+
+The Laplacian Score is a statistical test implemented in CAJAL to determine whether
+differences in a numerical feature assigned to cells, :math:`f : G\to \mathbb{R}`, such as the expression of a gene or the genotype
+of the cell in a given locus, are related to differences in cell morphology. Specifically,
+the Laplacian Score answers the question: if :math:`x` and :math:`y` are two cells
+with similar morphology, are :math:`f(x)` and :math:`f(y)` closer on average than
+if :math:`x` and :math:`y` were chosen randomly?
+
+To perform this analysis, CAJAL uses the Gromov-Wasserstein distance between every pair
+of cells to construct an undirected graph :math:`G` where nodes represent cells and edges
+connect cells with distances less than :math:`\varepsilon`, a user-specified positive real
+parameter. The Laplacian score of :math:`f` with respect to the graph :math:`G` is
+positive number defined by
+
+.. math::
+
+		C_G(f) = \frac{\sum_{(i,j)\in E(G)} (f(i) - f(j))^2}{\operatorname{Var}_G(f)}
+
+
+where :math:`E(G)` is the set of edges in the graph, :math:`i,j` range over
+nodes of :math:`G`, and :math:`\operatorname{Var}_G(f)` is the weighted
+variance of `f,` where the weight of node :math:`i` is proportional to
+the number of neighbors of :math:`i` in :math:`G`. When the Laplacian Score is close to
+zero, this indicates that the values of :math:`f` tend to be similar between
+connected cells.
+
+To test the significance of the Laplacian Score, CAJAL provides a permutation test
+that shuffles the values of :math:`f` across the nodes of :math:`G` to generate a null
+distribution, from which a p-value can be computed. Additionally, CAJAL supports
+regression analysis to account for the influence of other covariates,
+:math:`g_1,\dots,g_n`, defined on :math:`G`. Users can fit a multivariate linear
+regression model to remove the dependence of :math:`C_G(f)` on
+:math:`C_G(g_1),\dots, C_G(g_n)`, and evaluate whether the Laplacian Score of :math:`f`
+is below what would be expected from the covariate features.
+
+Overall, the Laplacian Score implemented in CAJAL provides a rigorous and flexible method
+for analyzing the relationship between cell morphology and numerical features, with the
+ability to account for other covariates and assess statistical significance.
+
 Example: Predicting the Molecular Type of Neurons
 =================================================
 
@@ -56,8 +97,8 @@ We can visualize the resulting space of cell morphologies using UMAP:
 
 		# Read GW distance matrix
 		cells, gw_dist_dict = cajal.utilities.read_gw_dists("CAJAL/data/swc_gwm.csv", header=True)
-		gw_dist = cajal.utilities.dist_mat_of_dict(gw_dist_dict)
-		gw_dist = squareform(gw_dist)
+		gw_dist_vec = cajal.utilities.dist_mat_of_dict(gw_dist_dict)
+		gw_dist = squareform(gw_dist_vec)
 
 		# Compute UMAP representation
 		reducer = umap.UMAP(metric="precomputed")
@@ -141,114 +182,75 @@ As shown in the visualization, different cortical layers seem to be
 associated with specific regions of the cell morphology space. We can quantify
 statistically the association using the Laplacian score:
 
+.. code-block:: python
 
+		import cajal.laplacian_score
+		import numpy
+		import pandas
 
-Each neuron is the dataset is derived from a specific Cre driver line, which preferentially labels
-distinct neuronal types. Due to this, neurons from the same Cre driver line tend to have
-similar morphologies. As a result, it is possible to predict the Cre driver line of a neuron
-based on its morphological features.
+		# Build indicator matrix
+		layers = numpy.unique(metadata["structure__layer"])
+		indicator = (numpy.array(metadata["structure__layer"])[:,None] == layers)*1
+
+		# Compute the Laplacian score
+		laplacian = pandas.DataFrame(cajal.laplacian_score.laplacian_scores(indicator,
+		                                       gw_dist_vec,
+		                                       numpy.median(gw_dist_vec),
+		                                       permutations = 5000,
+		                                       covariates = None,
+		                                       return_random_laplacians = False)[0])
+		laplacian.index = layers
+
+		print(laplacian)
+
+.. image:: images/a10_table.png
+
+We observe that indeed all cortical layers are significantly associated with distinct
+regions of the cell morphology space with false discovery rates (FDRs) < 0.05.
+
+We could perform a similar analysis with other features. Alternatively, we could
+build a classifier to predict the value of each feature based on the position of the cells in
+the cell morphology space. For example, each neuron in the dataset is derived
+from a specific Cre driver line, which preferentially labels distinct neuronal types.
+Neurons from the same Cre driver line therefore tend to have similar morphologies, and
+a Laplacian score analysis would show that many Cre driver lines are significantly
+associated with distinct regions of the cell morphology space. As a result, it is
+possible to predict the Cre driver line of a neuron based on its morphological features.
 
 To accomplish this, we train a nearest-neighbors classifier on the GW distance matrix and
-evaluate its accuracy using 7-fold cross-validation. For this analysis, we will be
-using pandas, numpy and scikit-learn.
-
-To begin, we parse the Cre driver line of each neuron from the metadata table.
-
-.. code-block:: python
-
-		import pandas as pd
-		import numpy as np
-		cell_types_specimen_details_loc = "/home/jovyan/CAJAL/CAJAL/data/cell_types_specimen_details.csv"
-		metadata = pd.read_csv(cell_types_specimen_details_loc)
-		# We consider only the mouse neurons, either full reconstructions or dendrite_only reconstructions. 
-		metadata = metadata[(metadata["donor__species"]=="Mus musculus")
-                             & ((metadata["nr__reconstruction_type"]=="full") |
-                               (metadata["nr__reconstruction_type"]=="dendrite-only"))]
-		metadata.index = (metadata["specimen__id"])
-		clusters = np.array(metadata["line_name"])
-		cell_ids = np.array(metadata["specimen__id"])
-		
-
-We then read the Gromov-Wasserstein distances into a square matrix, which scikit-learn
-can use as a precomputed distance metric.
-
-.. code-block:: python
-
-		from cajal.utilities import read_gw
-		from scipy.spatial.distance import squareform
-
-		cell_names, gw_dist_dictionary, gw_dist_arr = read_gw("/home/jovyan/swc_gwm.csv")
-		gw_dist_mat = squareform(gw_dist_arr)
-
-Next, we use scikit-learn to train a nearest-neighbors classifier with n=10 neighbors and
-perform cross-validation using stratified k-fold.
+evaluate its accuracy using 7-fold cross-validation:
 
 .. code-block:: python
 
 		from sklearn.neighbors import KNeighborsClassifier
-		from sklearn.model_selection import StratifiedKFold,cross_val_score,cross_val_predict
-		
+		from sklearn.model_selection import StratifiedKFold, cross_val_score
+
+		cre_lines = numpy.array(metadata["line_name"])
+
 		clf = KNeighborsClassifier(metric="precomputed", n_neighbors=10, weights="distance")
-		cv=StratifiedKFold(n_splits=7, shuffle=True)
-		cvs = cross_val_score(clf, X=gw_dist_mat, y=clusters,cv=cv))
-		print(cvs)
-		# array([0.2739726 , 0.32876712, 0.2739726 , 0.21917808, 0.28767123, 0.31944444, 0.30555556])
-		
-Our results show that the average accuracy is between 27% and 30%. Similarly, we can compute the
+		cv = StratifiedKFold(n_splits=7, shuffle=True)
+		accuracy = cross_val_score(clf, X=gw_dist, y=cre_lines,cv=cv)
+
+		numpy.mean(accuracy)
+
+.. image:: images/a10_accuracy.png
+
+Our results show that the average accuracy to predict the Cre driver line from the
+morphology of the neuron is ~28%. Similarly, we can compute the
 `Matthews correlation coefficient <https://bmcgenomics.biomedcentral.com/counter/pdf/10.1186/s12864-019-6413-7.pdf>_`
 of the classification, which appropriately weights the error arising from misclassifying
 elements of smaller classes.
 
 .. code-block:: python
 
+		from sklearn.model_selection import cross_val_predict
 		from sklearn.metrics import matthews_corrcoef
-		cvp = cross_val_predict(clf, X=gw_dist_mat, y=clusters, cv=cv)
-		print(matthews_corrcoef(cvp,clusters))
-		# 0.25205529424157797
 
-Our results show that the MCC is XYZ.
+		cvp = cross_val_predict(clf, X=gw_dist, y=cre_lines, cv=cv)
 
-Inferring Associations with Cell Morphology
-===========================================
+		print(matthews_corrcoef(cvp, cre_lines))
 
-The Laplacian Score is a statistical test implemented in CAJAL to determine whether
-differences in a numerical feature assigned to cells, :math:`f : G\to \mathbb{R}`, such as the expression of a gene or the genotype
-of the cell in a given locus, are related to differences in cell morphology. Specifically,
-the Laplacian Score answers the question: if :math:`x` and :math:`y` are two cells
-with similar morphology, are :math:`f(x)` and :math:`f(y)` closer on average than
-if :math:`x` and :math:`y` were chosen randomly?
-
-To perform this analysis, CAJAL uses the Gromov-Wasserstein distance between every pair
-of cells to construct an undirected graph :math:`G` where nodes represent cells and edges
-connect cells with distances less than :math:`\varepsilon`, a user-specified positive real
-parameter. The Laplacian score of :math:`f` with respect to the graph :math:`G` is
-positive number defined by
-
-.. math::
-
-		C_G(f) = \frac{\sum_{(i,j)\in E(G)} (f(i) - f(j))^2}{\operatorname{Var}_G(f)}
-
-
-where :math:`E(G)` is the set of edges in the graph, :math:`i,j` range over
-nodes of :math:`G`, and :math:`\operatorname{Var}_G(f)` is the weighted
-variance of `f,` where the weight of node :math:`i` is proportional to
-the number of neighbors of :math:`i` in :math:`G`. When the Laplacian Score is close to
-zero, this indicates that the values of :math:`f` tend to be similar between
-connected cells.
-
-To test the significance of the Laplacian Score, CAJAL provides a permutation test
-that shuffles the values of :math:`f` across the nodes of :math:`G` to generate a null
-distribution, from which a p-value can be computed. Additionally, CAJAL supports
-regression analysis to account for the influence of other covariates,
-:math:`g_1,\dots,g_n`, defined on :math:`G`. Users can fit a multivariate linear
-regression model to remove the dependence of :math:`C_G(f)` on
-:math:`C_G(g_1),\dots, C_G(g_n)`, and evaluate whether the Laplacian Score of :math:`f`
-is below what would be expected from the covariate features.
-
-Overall, the Laplacian Score implemented in CAJAL provides a rigorous and flexible method
-for analyzing the relationship between cell morphology and numerical features, with the
-ability to account for other covariates and assess statistical significance.
-
+..image:: images/a10_mcc.png
 
 Example: Identifying Genetic Determinants of Neuronal Morphology in the Worm
 ============================================================================

@@ -222,7 +222,7 @@ def louvain_clustering(gw_mat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[n
     return louvain_clus
 
 
-def leiden_clustering(gw_mat, nn=5, resolution=None):
+def leiden_clustering(gw_mat, nn=5, resolution=None, seed=None):
     """
     Compute clustering of cells based on GW distance, using Leiden clustering on a KNN graph
 
@@ -231,6 +231,7 @@ def leiden_clustering(gw_mat, nn=5, resolution=None):
         nn (integer): number of neighbors in KNN graph
         resolution (float, or None): If None, use modularity to get optimal partition.
             If float, get partition at set resolution.
+        seed (integer): Seed for the random number generator. Uses a random seed if nothing is specified.
 
     Returns:
         numpy array of cluster assignment for each cell
@@ -247,13 +248,13 @@ def leiden_clustering(gw_mat, nn=5, resolution=None):
     if resolution is None:
         leiden_clus = np.array(
             leidenalg.find_partition_multiplex(
-                [graph], leidenalg.ModularityVertexPartition
+                [graph], leidenalg.ModularityVertexPartition, seed=seed
             )[0]
         )
     else:
         leiden_clus = np.array(
             leidenalg.find_partition_multiplex(
-                [graph], leidenalg.CPMVertexPartition, resolution_parameter=resolution
+                [graph], leidenalg.CPMVertexPartition, resolution_parameter=resolution, seed=seed
             )[0]
         )
     return leiden_clus
