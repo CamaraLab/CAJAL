@@ -187,9 +187,7 @@ def topological_sort(
 def read_swc(file_path: str) -> tuple[SWCForest, dict[int, NeuronTree]]:
     r"""
     Construct the graph (forest) associated to an SWC file.
-    If the SWC file contains a marked soma node, forest[0] is a component containing a soma.\
-    If the SWC file does not contain any soma node, forest[0] is the largest \
-    component of the graph by number of nodes.
+    The forest is sorted by the number of nodes of the components
 
     An exception is raised if any line has fewer than seven whitespace \
     separated strings.
@@ -200,16 +198,6 @@ def read_swc(file_path: str) -> tuple[SWCForest, dict[int, NeuronTree]]:
     """
     nodes = read_swc_node_dict(file_path)
     components, tree_index = topological_sort(nodes)
-    i = 0
-    while i < len(components):
-        if components[i].root.structure_id == 1:
-            swap_tree = components[i]
-            components[i] = components[0]
-            components[0] = swap_tree
-            return components, tree_index
-        i += 1
-
-    # Otherwise, there is no soma node.
     return sorted(components, key=num_nodes), tree_index
 
 
