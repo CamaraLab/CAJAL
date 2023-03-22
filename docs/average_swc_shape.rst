@@ -1,4 +1,4 @@
-.. _cluster_and_visualize:
+.. _cluster and visualize:
 
 Clustering and Visualization
 ============================
@@ -21,7 +21,7 @@ Average Cell Shape
 When computing the Gromov-Wasserstein distance between two cells :math:`X` and
 :math:`Y`, the optimal transport algorithm returns two pieces of information:
 
-#. a *coupling matrix* which represents the optimal way to map[#]_ :math:`X`
+#. a *coupling matrix* which represents the optimal way to map [#]_ :math:`X`
    onto :math:`Y` so that the distortion of :math:`X` is minimized
 #. the distortion induced by this optimal coupling matrix, which we call the
    Gromov-Wasserstein distance.
@@ -35,7 +35,7 @@ distance matrices of :math:`X` and :math:`Y` are *directly comparable*.
 Given a cluster of morphologically similar neurons, it is possible to use this
 observation to construct a "morphological average" of cells in the cluster by
 interpolating between them in the latent space. We implement an algorithm
-:func:`avg_shape_spt` to construct this morphological average:
+:func:`cajal.utilities.avg_shape_spt` to construct this morphological average:
 
 - Identify the *medoid cell* of the cluster, i.e., find that cell whose average
   distance to the other cells is minimal.

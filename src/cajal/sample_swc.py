@@ -315,7 +315,7 @@ def get_sample_pts_geodesic(
     "Sample points uniformly" means that there is some scalar `step_size` \
     such that a point `p` on a line segment of `tree` will be in the \
     return list iff its geodesic distance from the origin is an integer \
-    multiple of `step_size.`.
+    multiple of `step_size`.
     
     :return: a list of pairs (wt, h), where `wt` is a node of `tree`, \
     and `h` is a floating point real number representing a point \
@@ -351,7 +351,7 @@ def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
 
     :return: A numpy array, a "condensed distance matrix" in the sense of \
         :func:`scipy.spatial.distance.squareform`, i.e., an array of shape \
-        (num_samples \* num_samples - 1/2, ). Contains the entries in the intracell geodesic \
+        (`num_samples` \* ``num_samples` - 1/2, ). Contains the entries in the intracell geodesic \
         distance matrix for `tree` lying strictly above the diagonal.
     """
 
