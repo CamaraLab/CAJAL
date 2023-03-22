@@ -48,6 +48,12 @@ html_theme = "sphinx_rtd_theme"
 sys.path.insert(0, "../src/")
 
 html_static_path = ["_static"]
+html_logo = "images/logo.png"
+html_theme_options = {
+    'logo_only': True,
+    'display_version': True,
+}
+
 html_css_files = [
     "css/custom.css",
 ]
