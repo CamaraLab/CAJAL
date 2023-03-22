@@ -123,7 +123,7 @@ def _compute_intracell_all(
     return pool.imap(restructure, cell_bdary_list_flattened, chunksize=1000)
 
 
-def compute_and_save_intracell_all(
+def compute_icdm_all(
     infolder: str,
     out_csv: str,
     n_sample: int,

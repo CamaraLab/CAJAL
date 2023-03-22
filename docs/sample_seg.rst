@@ -5,4 +5,4 @@ Sampling from Segmented Images
 
 .. autofunction:: cajal.sample_seg.cell_boundaries
 
-.. autofunction:: cajal.sample_seg.compute_and_save_intracell_all
+.. autofunction:: cajal.sample_seg.compute_icdm_all
