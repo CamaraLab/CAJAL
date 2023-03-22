@@ -345,13 +345,13 @@ def get_sample_pts_geodesic(
 
 def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
     r"""
-    Compute the intracell distance matrix for `tree` using the geodesic metric. \
-        Sample `num_samples` many points uniformly throughout the body of `tree`, compute the \
-        pairwise geodesic distance between all sampled points, and return the matrix of distances.
+    Compute the intracell distance matrix for `tree` using the geodesic metric.
+    Sample `num_samples` many points uniformly throughout the body of `tree`, compute the
+    pairwise geodesic distance between all sampled points, and return the matrix of distances.
 
-    :return: A numpy array, a "condensed distance matrix" in the sense of \
-        :func:`scipy.spatial.distance.squareform`, i.e., an array of shape \
-        (`num_samples` \* ``num_samples` - 1/2, ). Contains the entries in the intracell geodesic \
+    :return: A numpy array, a "condensed distance matrix" in the sense of
+        :func:`scipy.spatial.distance.squareform`, i.e., an array of shape
+        (`num_samples` \* `num_samples` - 1/2, ). Contains the entries in the intracell geodesic
         distance matrix for `tree` lying strictly above the diagonal.
     """
 
