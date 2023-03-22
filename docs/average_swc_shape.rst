@@ -28,6 +28,4 @@ morphological average. In brief, the algorithm proceeds as follows:
 - For neurons, construct a shortest-path tree through the weighted graph encoded by the average distance
   matrix. This tree represents the average neuronal morphology of the cluster.
 
-.. autofunction:: cajal.utilities.avg_shape
-.. autofunction:: cajal.utilities.avg_shape_spt
 
