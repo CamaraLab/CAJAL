@@ -50,8 +50,8 @@ sys.path.insert(0, "../src/")
 html_static_path = ["_static"]
 html_logo = "images/logo.png"
 html_theme_options = {
-    'logo_only': False,
-    'display_version': True,
+    "logo_only": False,
+    "display_version": True,
 }
 
 html_css_files = [
