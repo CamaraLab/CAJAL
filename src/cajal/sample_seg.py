@@ -1,15 +1,14 @@
 # Functions for sampling points from a 2D segmented image
+import os
+import warnings
+from typing import List, Iterator, Tuple, Callable
 import numpy as np
 import numpy.typing as npt
-import os
 from skimage import measure
 import tifffile
-import warnings
 from scipy.spatial.distance import pdist
-from typing import List, Iterator, Tuple, Callable
 import itertools as it
 from pathos.pools import ProcessPool
-
 from cajal.utilities import pj
 
 

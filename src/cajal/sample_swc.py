@@ -5,7 +5,7 @@ Functions for sampling points from an SWC reconstruction of a neuron.
 from operator import contains
 import os
 import math
-from typing import Iterator, Callable, Literal
+from typing import Iterator, Callable
 
 import numpy as np
 import numpy.typing as npt

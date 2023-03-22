@@ -10,7 +10,7 @@ def pearson_coefficient(
     joint_dist: npt.NDArray[np.float_],
     permutations: int,
 ) -> npt.NDArray[np.float_]:
-    """
+    r"""
     Let X, Y be two random variables on the finite set {0,...,N-1}, jointly distributed with \
     distribution described in the matrix joint_dist; joint_dist[i][j] = p(X=i,Y=j). \
     Let f be a function from {0,...,N-1} to |R. In what follows we call f a "feature." \
@@ -200,19 +200,22 @@ def laplacian_score_w_covariates(
     * (for i in range(1,covariates)) feature_data['beta_i'] := the p-value that beta_i is not zero \
       for that feature; see p. 228, 'Applied Linear Statistical Models', \
       Nachtsheim, Kutner, Neter, Li. Shape (num_features,)
-    * feature_data['regression_coefficients_fstat_p_values'] := the p-value that not all beta_i are zero, using the F-statistic, \
-      see p. 226, 'Applied Linear Statistical Models', Nachtsheim, \
+    * feature_data['regression_coefficients_fstat_p_values'] := the p-value that not all beta_i \
+          are zero, using the F-statistic, \
+          see p. 226, 'Applied Linear Statistical Models', Nachtsheim, \
       Kutner, Neter, Li.
-    * feature_data['laplacian_p_values_post_regression'] := the p-value of the residual laplacian of the feature once the \
+    * feature_data['laplacian_p_values_post_regression'] := the p-value of the residual \
+          laplacian of the feature once the \
       covariates have been regressed out.
     * feature_data['laplacian_q_values_post_regression'] := the q-values from the permutation test.
-    * other['covariate_laplacians'] := the graph laplacians of the covariates, of shape (num_covariates,)
+    * other['covariate_laplacians'] := the graph laplacians of the covariates, of shape \
+          (num_covariates,)
     * (Optional, if `return_random_laplacians` is True) \
       other['random_feature_laplacians'] := the matrix of randomly generated feature laplacians, \
       shape (permutations,num_features).
     * (Optional, if `return_random_laplacians` is True) \
-      other['random_covariate_laplacians'] := the matrix of randomly generated covariate laplacians, \
-      shape (permutations, num_covariates)
+      other['random_covariate_laplacians'] := the matrix of randomly generated
+          covariate laplacians, shape (permutations, num_covariates)
     """
 
     distribution = _to_distribution(distance_matrix, epsilon)
