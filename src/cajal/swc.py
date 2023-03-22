@@ -107,7 +107,7 @@ def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:
     Read the swc file at `file_path` and return a dictionary mapping sample numbers \
     to their associated nodes.
 
-    :param file_path: A path to an \*.swc file. \
+    :param file_path: A full path to an \*.swc file. \
     The only validation performed on the file's contents is to ensure that each line has \
     at least seven whitespace-separated strings.
     
