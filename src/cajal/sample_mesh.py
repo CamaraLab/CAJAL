@@ -363,17 +363,6 @@ def compute_intracell_all(
     raise Exception("Metric should be either 'geodesic' or 'euclidean'")
 
 
-# If `segment` \
-#    is False, each \*.obj file will be understood to contain a single \
-#    cell, and points will be sampled accordingly. If `segment` is False and the user \
-#    chooses "geodesic", in the event that an \*.obj file contains multiple connected components, \
-#    the function will attempt to "repair" the \*.obj file by adjoining new faces to the complex \
-#    so that a sensible notion of geodesic distance can be computed between two points. The user \
-#    is warned that this imputing of data carries the same consequences with regard \
-#    to scientific interpretation of the results as any other kind of data imputation \
-#    for incomplete data sets.
-
-
 def compute_and_save_intracell_all(
     infolder: str,
     out_csv: str,
@@ -384,28 +373,36 @@ def compute_and_save_intracell_all(
     method: str = "heat",
 ) -> List[str]:
     r"""
-    Go through every Wavefront \*.obj file in the given input directory `infolder` \
-    and compute intracell \
-    distances according to the given metric. Write the results to output \*.csv file named \
-    `out_csv`.
+    Go through every Wavefront \*.obj file in the given input directory `infolder`
+    and compute intracell distances according to the given metric. Write the results
+    to output \*.csv file named `out_csv`.
 
-    :param infolder: Folder full of \*.obj files. 
-    :param out_csv: Output will be written to a \*.csv file titled `out_csv`. 
-    :param n_sample: How many points to sample from each cell.
+    :param infolder: Folder full of \*.obj files.
+    :param out_csv: Output will be written to a \*.csv file
+        titled `out_csv`.
     :param metric: Either "euclidean" or "geodesic" as preferred by the user.
-    :param segment: If `segment` is True, each \*.obj file will be segmented into its \
-    set of connected components before being returned, so an \*.obj file with multiple \
-    connected components will be understood to contain multiple distinct cells.
-    :param num_cores: Number of independent processes which will be created. Recommended \
-    to set this equal to the number of cores on your machine.
-    :param method: one of 'networxk' or 'heat', how to compute geodesic distance. \
-    The "networkx" method is more precise, and takes between 5 - 15 seconds for \
-    a cell with 50 sample points. The "heat" method is a faster but rougher \
-    approximation, and takes between 0.05 - 0.15 seconds for a cell with \
-    50 sample points. This flag is not relevant if the user is sampling \
-    Euclidean distances.
-    :return: A list of strings for cell names such that sampling failed because the cells have \
-    fewer than `n_sample` points.
+    :param n_sample: How many points to sample from each cell.
+    :param num_cores: Number of independent processes which will be created.
+        Recommended to set this equal to the number of cores on your machine.
+    :param method: one of "networkx" or "heat", how to compute geodesic distance.
+        The "networkx" method is more precise, and takes between 5 - 15 seconds for
+        a cell with 50 sample points. The "heat" method is a faster but rougher
+        approximation, and takes between 0.05 - 0.15 seconds for a cell with
+        50 sample points. This flag is not relevant if the user is sampling
+        Euclidean distances.
+    :param segment: If `segment` is True, each \*.obj file will be segmented into its
+        set of connected components before being returned, so an \*.obj file with multiple
+        connected components will be understood to contain multiple distinct cells.
+        If `segment` is False, each \*.obj file will be understood to contain a single
+        cell, and points will be sampled accordingly. If `segment` is False and the user
+        chooses "geodesic", in the event that an \*.obj file contains multiple connected components,
+        the function will attempt to "repair" the \*.obj file by adjoining new faces to the complex
+        so that a sensible notion of geodesic distance can be computed between two points. The user
+        is warned that this imputing of data carries the same consequences with regard
+        to scientific interpretation of the results as any other kind of data imputation
+        for incomplete data sets.
+    :return: Names of cells for which sampling failed because the cells have
+        fewer than `n_sample` points.
     """
 
     pool = ProcessPool(nodes=num_cores)
