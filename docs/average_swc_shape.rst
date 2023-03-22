@@ -1,5 +1,8 @@
+<<<<<<< HEAD
 .. _cluster and visualize:
 
+=======
+>>>>>>> refs/remotes/origin/readthedocs_dev
 Clustering and Visualization
 ============================
 

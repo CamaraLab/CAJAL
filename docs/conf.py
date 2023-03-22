@@ -24,6 +24,7 @@ release = "0.20"
 # The specific version of the sphinx_rtd_theme is specified in requirements.txt, as is the version of sphinx itself.
 extensions = [
     "myst_parser",
+    "nbsphinx",
     "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosectionlabel",
