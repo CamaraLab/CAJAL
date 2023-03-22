@@ -97,8 +97,6 @@ class NeuronTree:
             yield current_tree
 
 
-# Convention: The *first element* of the SWC forest is always the
-# component containing the soma.
 SWCForest = list[NeuronTree]
 
 
@@ -612,7 +610,7 @@ def preprocessor_eu(
 
 
 def preprocessor_geo(
-    structure_ids: Container[int],
+    structure_ids: Container[int] | Literal["keep_all_types"],
 ) -> Callable[[SWCForest], NeuronTree]:
     """
     This preprocessor strips the tree down to only the components listed in `structure_ids` and \
@@ -623,6 +621,9 @@ def preprocessor_geo(
     :func:`sample_swc.read_preprocess_compute_geodesic` or \
     :func:`sample_swc.compute_and_save_intracell_all_geodesic`.
     """
+
+    if structure_ids == "keep_all_types":
+        return lambda forest: forest[0]
 
     def filter_by_structure_ids(forest: SWCForest) -> NeuronTree:
         return filter_forest(
