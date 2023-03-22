@@ -1,5 +1,3 @@
-.. _cluster_and_visualize:
-
 Clustering and Visualization
 ============================
 

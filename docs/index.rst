@@ -33,7 +33,7 @@ and with other single-cell data modalities, among other analyses.
 
    what-is-cajal
    computing-intracell-distance-matrices
-   benchmarking
+   notebooks/Example_1
 
 .. toctree::
    :maxdepth: 2
