@@ -1,3 +1,3 @@
 Graph Laplacian
 ===============
-.. autofunction:: cajal.graph_laplacian.laplacian_scores
+.. autofunction:: cajal.laplacian_score.laplacian_scores

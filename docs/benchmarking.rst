@@ -203,7 +203,7 @@ statistically the association using the Laplacian score:
 
 		print(laplacian)
 
-.. image:: images/a10_table.png
+#.. image:: images/a10_table.png
 
 We observe that indeed all cortical layers are significantly associated with distinct
 regions of the cell morphology space with false discovery rates (FDRs) < 0.05.
@@ -233,7 +233,7 @@ evaluate its accuracy using 7-fold cross-validation:
 
 		numpy.mean(accuracy)
 
-.. image:: images/a10_accuracy.png
+#.. image:: images/a10_accuracy.png
 
 Our results show that the average accuracy to predict the Cre driver line from the
 morphology of the neuron is ~28%. Similarly, we can compute the
