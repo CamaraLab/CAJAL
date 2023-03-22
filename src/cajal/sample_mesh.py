@@ -363,7 +363,7 @@ def compute_intracell_all(
     raise Exception("Metric should be either 'geodesic' or 'euclidean'")
 
 
-def compute_and_save_intracell_all(
+def compute_icdm_all(
     infolder: str,
     out_csv: str,
     metric: str,

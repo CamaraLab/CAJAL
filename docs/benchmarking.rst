@@ -35,7 +35,7 @@ regression model to remove the dependence of :math:`C_G(f)` on
 :math:`C_G(g_1),\dots, C_G(g_n)`, and evaluate whether the Laplacian Score of :math:`f`
 is below what would be expected from the covariate features.
 
-Overall, the Laplacian Score implemented in CAJAL provides a rigorous and flexible method
+Overall, the Laplacian Score implemented in CAJAL provides a flexible approach
 for analyzing the relationship between cell morphology and numerical features, with the
 ability to account for other covariates and assess statistical significance.
 

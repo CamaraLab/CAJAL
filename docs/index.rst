@@ -33,7 +33,9 @@ and with other single-cell data modalities, among other analyses.
 
    what-is-cajal
    computing-intracell-distance-matrices
+   computing-gw-distances
    benchmarking
+   average_swc_shape
    notebooks/Example_1
 
 .. toctree::
