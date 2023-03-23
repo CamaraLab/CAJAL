@@ -219,7 +219,7 @@ def leiden_clustering(
     nn: int = 5,
     resolution: Optional[float] = None,
     seed: Optional[int] = None,
-) -> npt.NDArray[np.int]:
+) -> npt.NDArray[np.int_]:
     """
     Compute clustering of cells based on GW distance, using Leiden clustering on a
     nearest-neighbors graph

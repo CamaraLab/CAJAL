@@ -1,12 +1,11 @@
 import os
 
-from cajal.swc import (
+from src.cajal.swc import (
     cell_iterator,
     default_name_validate,
     read_swc_node_dict,
     node_type_counts_forest,
     NeuronNode,
-    NeuronTree,
     SWCForest,
 )
 
