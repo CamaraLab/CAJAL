@@ -39,23 +39,29 @@ Overall, the Laplacian Score implemented in CAJAL provides a flexible approach
 for analyzing the relationship between cell morphology and numerical features, with the
 ability to account for other covariates and assess statistical significance.
 
-Example: Identifying Genetic Determinants of Neuronal Morphology in the Worm
-============================================================================
+More information about the theoretical foundations of the Laplacian score can be found at:
 
-We will illustrate how to use the graph Laplacian score to identify features in a C. elegans
-neuron SWC dataset which are correlated with cell morphology.
+\- Govek, K. W., et al. `Analysis and integration of single-cell morphological data using metric geometry. <https://www.biorxiv.org/content/10.1101/2022.05.19.492525v3>`_ (2022). DOI: 10.1101/2022.05.19.492525 (bioRxiv).
 
-First, download and unzip `this folder
-<https://www.dropbox.com/s/uwcgluux2r0dwvb/c_elegans_gw_dists.csv?dl=0>`_
-containing 799 \*.swc files, which are neurons from C. elegans sampled at
-different days throughout their development.
+\- Govek, K. W., Yamajala, V. S., and Camara, P. G. `Clustering-Independent Analysis of Genomic Data using Spectral Simplicial Theory. <https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1007509>`_ PLOS Computational Biology 15 (2019) 11.
 
-We then compute the Gromov-Wasserstein distances between each pair of cells in
-this folder. It is hopefully clear at this point from the other examples how to
-sample points from each cell and compute the pairwise distances between
-neurons. At a resolution of 100 points per cell this takes about 1 hour 45
-minutes on a machine with 20 cores. Let us name the file
-`c_elegans_gw_dists.csv`.
+\- He, X., Cai, D., and  Niyogi, P. `Laplacian Score for Feature Selection <https://proceedings.neurips.cc/paper_files/paper/2005/file/b5b03f06271f8917685d14cea7c6c50a-Paper.pdf>`_ In Advances in neural information processing systems (2005) 507-514.
+
+Example: Genetic Determinants of Neuronal Morphology
+====================================================
+
+We will illustrate how to use the graph Laplacian score to  identify genes that
+contribute to the morphological plasticity of neurons in the C. elegans. The following
+`folder <https://www.dropbox.com/s/uwcgluux2r0dwvb/c_elegans_gw_dists.csv?dl=0>`_ contains
+799 3D neuronal reconstructions of the C.elegans DVB neuron in different mutant and control
+strains across days 1 to 5 of adulhood. The DVB neuron is an excitatory GABAergic motor
+interneuron located in the dorso-rectal ganglion of the worm. It develops
+post-embryonically and undergoes post-developmental neurite outgrowth in males,
+altering its morphology and synaptic connectivity, and contributing to
+changes in the spicule protraction step of male mating behavior.
+
+We first compute the Gromov-Wasserstein distances between each pair of cells:
+
 
 Download the precomputed Gromov-Wasserstein distances `here
 <https://www.dropbox.com/s/uwcgluux2r0dwvb/c_elegans_gw_dists.csv?dl=0>`__.

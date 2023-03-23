@@ -16,10 +16,12 @@ of points randomly sampled from the surface of the cell (usually between 50 and 
 together with a matrix of the (Euclidean or geodesic) pairwise distances between these points
 in the cell, known as the intracellular distance matrix.
 
-In an ideal world where computation was infinitely fast, we would compare two intracellular distance matrices as follows.
-Say we have cells *A* and *B*, each with 50 chosen sample points. Let us write *A(i,j)* for
-the distance between sample points *i* and *j* in cell *A*. If *f* is any pairing
-between the sample points of *A* and *B*, then we can regard *f* as an attempt to overlay *A* on *B*. The distortion of *A* associated to this pairing is measured by
+In a hypothetical scenario where computational speed is infinite, comparing two
+intracellular distance matrices would be conducted as follows. Consider cells *A* and *B*,
+each containing 50 selected sample points. The distance between sample points *i* and *j*
+in cell *A* can be denoted as *A(i,j)*. If we have a pairing *f* between the sample
+points of *A* and *B*, we can consider *f* as an attempt to superimpose *A* on *B*. The
+distortion of *A* that arises from this pairing can be quantified by:
 
 .. math::  \Gamma_f = \max_{i,j \in A} \lvert A(i,j) - B(f(i),f(j)) \rvert
 
@@ -47,3 +49,13 @@ and analyzing the cell morphology latent space produced by CAJAL.
 CAJAL is written and developed by the `Cámara Lab <https://camara-lab.org/>`_ at the
 University of Pennsylvania. More information about the theoretical foundations of CAJAL can be found
 at:
+
+\- Govek, K. W., et al. `Analysis and integration of single-cell morphological data using metric geometry. <https://www.biorxiv.org/content/10.1101/2022.05.19.492525v3>`_ (2022). DOI: 10.1101/2022.05.19.492525 (bioRxiv).
+
+\- Memoli, F. `On the use of Gromov-Hausdorff distances for shape comparison. <https://facundo-memoli.org/papers/dghlp-PBG-fin.pdf>`_ Eurographics
+Symposium on Point-Based Graphics (2007)
+
+\- Memoli, F. `Gromov–Wasserstein distances and the metric approach to object matching. <https://media.adelaide.edu.au/acvt/Publications/2011/2011-Gromov–Wasserstein%20Distances%20and%20the%20Metric%20Approach%20to%20Object%20Matching.pdf>`_ Foundations
+of computational mathematics 11, 417-487 (2011).
+
+\- Memoli, F. & Sapiro, G. `A theoretical and computational framework for isometry invariant recognition of point cloud data. <http://graphics.stanford.edu/courses/cs468-08-fall/pdf/isodgh.pdf>`_ Foundations of Computational Mathematics 5, 313-347 (2005).

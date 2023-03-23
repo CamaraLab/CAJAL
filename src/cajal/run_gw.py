@@ -178,7 +178,7 @@ def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
 def write_gw_dists(
     gw_dist_csv_loc: str,
     name_name_dist: Iterator[tuple[str, str, float]],
-    verbose: bool = True,
+    verbose: Optional[bool] = False,
 ) -> None:
     chunk_size = 100
     counter = 0
@@ -266,7 +266,7 @@ def write_dists_and_coupling_mats(
         tuple[tuple[str, int, str, int, list[float]], tuple[str, str, float]]
     ],
     chunk_size: int = 500,
-    verbose: bool = True,
+    verbose: Optional[bool] = False,
 ) -> None:
     counter = 0
     start = time.time()
@@ -350,11 +350,11 @@ def _gw_dist_coupling(
     )
 
 
-def compute_and_save_gw_distance_matrix(
+def compute_gw_distance_matrix(
     intracell_csv_loc: str,
     gw_dist_csv_loc: str,
     gw_coupling_mat_csv_loc: Optional[str] = None,
-    verbose: bool = True,
+    verbose: Optional[bool] = False,
 ) -> None:
     chunk_size = 100
     cell_pairs = cell_pair_iterator_csv(intracell_csv_loc, chunk_size)
