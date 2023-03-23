@@ -19,6 +19,7 @@ matplotlib==3.6.2
 networkx==2.8.8
 numba==0.56.4
 numpy==1.23.4
+pathos
 pandas==1.5.1
 pillow==9.3.0
 pot==0.7.0.post1
