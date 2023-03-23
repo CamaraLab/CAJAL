@@ -1,15 +1,13 @@
 """
 Helper functions.
 """
-import os
 from dataclasses import dataclass
-from multiprocessing import RawArray
 import csv
 from scipy.spatial.distance import squareform
 from scipy.sparse import coo_array
 import itertools as it
 import math
-from typing import Tuple, List, Iterator, Optional, TypeVar, Generic
+from typing import Iterator, Optional, TypeVar, Generic
 from sklearn.neighbors import NearestNeighbors
 import leidenalg
 import community as community_louvain
@@ -24,16 +22,12 @@ import numpy as np
 import numpy.typing as npt
 
 
-def pj(*paths):
-    return os.path.abspath(os.path.join(*paths))
-
-
 def read_gw_dists(
     gw_dist_file_loc: str, header: bool
 ) -> tuple[list[str], dict[tuple[str, str], float]]:
     r"""
     Read a GW distance matrix into memory.
-    
+
     :param gw_dist_file_loc: A file path to a Gromov-Wasserstein distance matrix. \
     The distance matrix should be a CSV file with exactly three columns and possibly \
     a single header line (which is ignored). All \
@@ -42,7 +36,7 @@ def read_gw_dists(
 
     :param header: If `header` is True, the very first line of the file is discarded. \
     If `header` is False, all lines are assumed to be relevant.
-    
+
     :returns: A pair (cell_names, gw_dist_dictionary), where \
     cell_names is a list of cell names in alphabetical order, gw_dist_dictionary \
     is a dictionary of the GW distances  which can be read like \
@@ -75,8 +69,8 @@ def dist_mat_of_dict(
     Given a distance dictionary and a list of cell names, return a vectorform distance \
     matrix containing the pairwise GW distances between all cells in `cell_names`, and \
     in the same order. \
-    If no list is given, then the distance matrix will represent all GW distances between all cells, \
-    indexed in alphabetical order.
+    If no list is given, then the distance matrix will represent all GW distances between
+    all cells, indexed in alphabetical order.
 
     It is assumed that the keys in `gw_dist_dictionary` are in alphabetical order.
     """
@@ -154,7 +148,7 @@ class Err(Generic[T]):
 def write_csv_block(
     out_csv: str,
     sidelength: int,
-    dist_mats: Iterator[Tuple[str, Err[T] | npt.NDArray[np.float_]]],
+    dist_mats: Iterator[tuple[str, Err[T] | npt.NDArray[np.float_]]],
     batch_size: int,
 ) -> list[tuple[str, Err[T]]]:
     """
@@ -200,14 +194,12 @@ def knn_graph(dmat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
 
 def louvain_clustering(gw_mat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
     """
-    Compute clustering of cells based on GW distance, using Louvain clustering on a KNN graph
+    Compute clustering of cells based on GW distance, using Louvain clustering on a
+    nearest-neighbors graph
 
-    Args:
-        gw_mat (numpy array): NxN distance matrix of GW distance between cells
-        nn (integer): number of neighbors in KNN graph
-
-    Returns:
-        numpy array of shape (num_cells,) the cluster assignment for each cell
+    :param gw_mat: NxN distance matrix of GW distance between cells
+    :param nn: number of neighbors in nearest-neighbors graph
+    :return: numpy array of shape (num_cells,) the cluster assignment for each cell
     """
     nn_model = NearestNeighbors(n_neighbors=nn, metric="precomputed")
     nn_model.fit(gw_mat)
@@ -222,19 +214,23 @@ def louvain_clustering(gw_mat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[n
     return louvain_clus
 
 
-def leiden_clustering(gw_mat, nn=5, resolution=None, seed=None):
+def leiden_clustering(
+    gw_mat: npt.NDArray[np.float_],
+    nn: int = 5,
+    resolution: Optional[float] = None,
+    seed: Optional[int] = None,
+) -> npt.NDArray[np.int]:
     """
-    Compute clustering of cells based on GW distance, using Leiden clustering on a KNN graph
+    Compute clustering of cells based on GW distance, using Leiden clustering on a
+    nearest-neighbors graph
 
-    Args:
-        gw_mat (numpy array): NxN distance matrix of GW distance between cells
-        nn (integer): number of neighbors in KNN graph
-        resolution (float, or None): If None, use modularity to get optimal partition.
-            If float, get partition at set resolution.
-        seed (integer): Seed for the random number generator. Uses a random seed if nothing is specified.
-
-    Returns:
-        numpy array of cluster assignment for each cell
+    :param gw_mat: NxN distance matrix of GW distance between cells
+    :param nn: number of neighbors in nearest-neighbors graph
+    :param resolution: If None, use modularity to get optimal partition.
+        If float, get partition at set resolution.
+    :param seed: Seed for the random number generator.
+        Uses a random seed if nothing is specified.
+    :return: numpy array of cluster assignment for each cell
     """
     nn_model = NearestNeighbors(n_neighbors=nn, metric="precomputed")
     nn_model.fit(gw_mat)
@@ -331,7 +327,7 @@ def avg_shape(
     Compute capped and uncapped average distance matrices. \
     In both cases the distance matrix is rescaled so that the minimal distance between two points \
     is 1. The "capped" distance matrix has a max distance of 2.
-    
+
     :param obj_names: Keys for the gw_dist_dict and iodms.
     :param gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) \
     to Gromov-Wasserstein distances.
@@ -346,7 +342,6 @@ def avg_shape(
     medoid_matrix = iodms[medoid]
     # Rescale to unit step size.
     medoid_matrix = medoid_matrix / step_size(medoid_matrix)
-    square_medoid_matrix = squareform(medoid_matrix, force="tomatrix")
     dmat_accumulator_uncapped = np.copy(medoid_matrix)
     dmat_accumulator_capped = cap(medoid_matrix, 2.0)
     others = (obj for obj in obj_names if obj != medoid)

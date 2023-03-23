@@ -6,7 +6,6 @@ filtering \*.swc files. A function for reading \*.swc files from memory.
 from __future__ import annotations
 
 import os
-import re
 import operator
 from copy import copy
 from dataclasses import dataclass
@@ -16,14 +15,12 @@ from typing import Callable, Iterator, Literal, Container, Optional
 
 import numpy as np
 from scipy.spatial.distance import euclidean
-
+from pathos.pools import ProcessPool
 import dill
 
-dill.settings["recurse"] = True
-
-from pathos.pools import ProcessPool
-
 from .utilities import Err, T
+
+dill.settings["recurse"] = True
 
 
 @dataclass
@@ -108,7 +105,7 @@ def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:
     :param file_path: A full path to an \*.swc file. \
     The only validation performed on the file's contents is to ensure that each line has \
     at least seven whitespace-separated strings.
-    
+
     :return: A dictionary whose keys are sample numbers taken from \
     the first column of an SWC file and whose values are NeuronNodes.
     """
@@ -329,7 +326,8 @@ def write_swc(outfile: str, forest: SWCForest) -> None:
 
 def default_name_validate(filename: str) -> bool:
     """
-    If the file name starts with a period '.', the standard hidden-file marker on Linux, return False.
+    If the file name starts with a period '.', the standard hidden-file marker on Linux,
+    return False.
     Otherwise, return True if and only if the file ends in ".swc" (case-insensitive).
     """
     if filename[0] == ".":
@@ -515,7 +513,7 @@ def keep_only_eu(structure_ids: Container[int]) -> Callable[[SWCForest], SWCFore
     The intended use is to generate a preprocessing function for `swc.read_preprocess_save`, \
     `swc.batch_filter_and_preprocess`, or `sample_swc.compute_and_save_intracell_all_euclidean`, \
     see the documentation for those functions for more information.
-    
+
     :param structure_ids: A container of integers representing types of neuron nodes.
     :return: A filtering function taking as an argument an SWCForest `forest` and \
     returning the subforest of `forest` containing only the node types in `structure_ids`.
@@ -532,7 +530,7 @@ def keep_only_eu(structure_ids: Container[int]) -> Callable[[SWCForest], SWCFore
 def preprocessor_eu(
     structure_ids: Container[int] | Literal["keep_all_types"], soma_component_only: bool
 ) -> Callable[[SWCForest], Err[str] | SWCForest]:
-    """    
+    """
     :param structure_ids: Either a collection of integers corresponding to structure ids in the \
     SWC spec, or the literal string 'keep_all_types'.
     :param soma_component_only: Indicate whether to sample from the whole SWC file, or only \
@@ -878,7 +876,7 @@ def batch_filter_and_preprocess(
 
     try:
         os.mkdir(outfolder)
-    except OSError as error:
+    except OSError:
         # print(error)
         pass
     cell_names, file_paths = get_filenames(infolder, default_name_validate)

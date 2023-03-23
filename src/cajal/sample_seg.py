@@ -9,7 +9,7 @@ import tifffile
 from scipy.spatial.distance import pdist
 import itertools as it
 from pathos.pools import ProcessPool
-from cajal.utilities import pj
+from .utilities import write_csv_block
 
 
 def cell_boundaries(
@@ -56,12 +56,12 @@ def cell_boundaries(
         boundary_pts_list = measure.find_contours(
             cell_imarray, 0.5, fully_connected="high"
         )
-        if discard_cells_with_holes and len(boundary_pts) > 1:
+        if discard_cells_with_holes and len(boundary_pts_list) > 1:
             warnings.warn("More than one boundary for cell " + str(cell))
             continue
         boundary_pts: npt.NDArray[np.float_]
         if only_longest:
-            boundary_pts_list.sort(key=lambda l: l.shape[0])
+            boundary_pts_list.sort(key=lambda ell: ell.shape[0])
             boundary_pts = boundary_pts_list[0]
         else:
             boundary_pts = np.concatenate(boundary_pts_list)
@@ -91,14 +91,24 @@ def _compute_intracell_all(
         if os.path.splitext(file_name)[1] in [".tif", ".tiff", ".TIF", ".TIFF"]
     ]
     cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
-    compute_cell_boundaries: Callable[[str], List[Tuple[int, npt.NDArray[np.float_]]]]
-    compute_cell_boundaries = lambda file_name: cell_boundaries(
-        tifffile.imread(os.path.join(infolder, file_name)),  # type: ignore
-        n_sample,
-        background,
-        discard_cells_with_holes,
-        only_longest,
-    )
+
+    # compute_cell_boundaries: Callable[[str], List[Tuple[int, npt.NDArray[np.float_]]]]
+    def compute_cell_boundaries(file_name: str):
+        return cell_boundaries(
+            tifffile.imread(os.path.join(infolder, file_name)),  # type: ignore
+            n_sample,
+            background,
+            discard_cells_with_holes,
+            only_longest,
+        )
+
+    # compute_cell_boundaries = lambda file_name: cell_boundaries(
+    #     tifffile.imread(os.path.join(infolder, file_name)),  # type: ignore
+    #     n_sample,
+    #     background,
+    #     discard_cells_with_holes,
+    #     only_longest,
+    # )
     cell_names_repeat: Iterator[Iterator[str]]
     cell_names_repeat = map(it.repeat, cell_names)
     cell_bdary_lists: Iterator[
@@ -118,8 +128,17 @@ def _compute_intracell_all(
         [Tuple[str, Tuple[int, npt.NDArray[np.float_]]]],
         Tuple[str, npt.NDArray[np.float_]],
     ]
-    restructure = lambda tup: (tup[0] + "_" + str(tup[1][0]), pdist(tup[1][1]))
-    return pool.imap(restructure, cell_bdary_list_flattened, chunksize=1000)
+
+    def restructure_and_get_pdist(
+        tup: tuple[str, tuple[int, npt.NDArray[np.float_]]]
+    ) -> tuple[str, npt.NDArray[np.float_]]:
+        name = tup[0] + "_" + str(tup[1][0])
+        pd = pdist(tup[1][1])
+        return name, pd
+
+    return pool.imap(
+        restructure_and_get_pdist, cell_bdary_list_flattened, chunksize=1000
+    )
 
 
 def compute_icdm_all(

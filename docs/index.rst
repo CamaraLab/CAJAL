@@ -47,8 +47,9 @@ and with other single-cell data modalities, among other analyses.
    sample_mesh
    sample_seg
    run_gw
-   graph_laplacian
+   laplacian_score
    average_cell_shapes
+   utilities
 
 .. This is a comment.
    \\:hidden:

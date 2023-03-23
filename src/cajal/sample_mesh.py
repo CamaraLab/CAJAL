@@ -20,13 +20,12 @@ from typing import (
     Dict,
     Optional,
     Iterator,
-    Iterable,
     TypeAlias,
     Callable,
 )
-from multiprocessing import Pool
 from pathos.pools import ProcessPool
-from cajal.utilities import pj
+
+from .utilities import write_csv_block
 
 # We represent a mesh as a pair (vertices, faces) : Tuple[VertexArray,FaceArray].
 # A VertexArray is a numpy array of shape (n, 3), where n is the number of vertices in the mesh.
@@ -191,7 +190,7 @@ def cell_generator(
     set of connected components before being returned. If segment \
     is False, the contents of the \*.obj file will be returned as-is.
     :return: An iterator over all cells in the directory, where a "cell"\
-    is a triple (cell_name, vertices, faces). 
+    is a triple (cell_name, vertices, faces).
     """
 
     file_names = [
@@ -273,7 +272,7 @@ def get_geodesic_networkx_one_mesh(
     mesh, computes the pairwise geodesic distances between the sampled points \
     along the (distance-weighted) underlying graph of the mesh, and returns the \
     square matrix of pairwise geodesic distances, linearized into a vector, or \
-    "None" if there are fewer than n_sample vertices in the mesh. 
+    "None" if there are fewer than n_sample vertices in the mesh.
 
     :param vertices: 3D coordinates for vertices
     :param faces: row of vertices contained in each face
@@ -347,7 +346,13 @@ def compute_intracell_all(
             [Tuple[str, VertexArray, FaceArray]],
             Tuple[str, Optional[npt.NDArray[np.float_]]],
         ]
-        compute_geodesic = lambda t: (t[0], get_geodesic(t[1], t[2], n_sample, method))
+
+        def compute_geodesic(
+            t: tuple[str, VertexArray, FaceArray]
+        ) -> tuple[str, Optional[npt.NDArray[np.float_]]]:
+            return t[0], get_geodesic(t[1], t[2], n_sample, method)
+
+        # compute_geodesic = lambda t: (t[0], get_geodesic(t[1], t[2], n_sample, method))
         return pool.imap(compute_geodesic, cell_gen, chunksize=chunksize)
 
     # metric is not "geodesic".
