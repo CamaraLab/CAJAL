@@ -1,6 +1,6 @@
 # CAJAL <a href='https://github.com/CamaraLab/CAJAL'><img src="docs/images/logo.png" align="right" width="22%"/></a>
 
-[![codecov](https://codecov.io/github/CamaraLab/CAJAL/branch/main/graph/badge.svg?token=RU5ZR1SE8Z)](https://codecov.io/github/CamaraLab/CAJAL)
+[![codecov](https://codecov.io/github/CamaraLab/CAJAL/branch/readthedocs_dev/graph/badge.svg?token=RU5ZR1SE8Z)](https://codecov.io/github/CamaraLab/CAJAL)
 
 CAJAL is a python library for multi-modal cell morphology analyses using Gromov-Wasserstein (GW) distance. Detailed information about the methods implemented in CAJAL can be found in:
 
