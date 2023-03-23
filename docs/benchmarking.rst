@@ -41,11 +41,11 @@ ability to account for other covariates and assess statistical significance.
 
 More information about the theoretical foundations of the Laplacian score can be found at:
 
-- Govek, K. W., et al. `Analysis and integration of single-cell morphological data using metric geometry. <https://www.biorxiv.org/content/10.1101/2022.05.19.492525v3>`_ (2022). DOI: 10.1101/2022.05.19.492525 (bioRxiv).
+\- Govek, K. W., et al. `Analysis and integration of single-cell morphological data using metric geometry. <https://www.biorxiv.org/content/10.1101/2022.05.19.492525v3>`_ (2022). DOI: 10.1101/2022.05.19.492525 (bioRxiv).
 
-- Govek, K. W., Yamajala, V. S., and Cámara, P. G. `Clustering-Independent Analysis of Genomic Data using Spectral Simplicial Theory. <https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1007509>`_ PLOS Computational Biology 15 (2019) 11.
+\- Govek, K. W., Yamajala, V. S., and Camara, P. G. `Clustering-Independent Analysis of Genomic Data using Spectral Simplicial Theory. <https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1007509>`_ PLOS Computational Biology 15 (2019) 11.
 
-- He, X., Cai, D., and  Niyogi, P. `Laplacian Score for Feature Selection <https://proceedings.neurips.cc/paper_files/paper/2005/file/b5b03f06271f8917685d14cea7c6c50a-Paper.pdf>`_ In Advances in neural information processing systems (2005) 507-514.
+\- He, X., Cai, D., and  Niyogi, P. `Laplacian Score for Feature Selection <https://proceedings.neurips.cc/paper_files/paper/2005/file/b5b03f06271f8917685d14cea7c6c50a-Paper.pdf>`_ In Advances in neural information processing systems (2005) 507-514.
 
 Example: Genetic Determinants of Neuronal Morphology
 ====================================================
