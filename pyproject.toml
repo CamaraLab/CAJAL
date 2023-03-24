@@ -1,0 +1,74 @@
+[build-system]
+# Minimum requirements for the build system to execute
+requires = [
+	 "setuptools >= 40.8.0",
+	 "wheel"
+	 ]
+# What should the build-backend be?
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cajal"
+version = "0.2.0"
+description="A library for multi-modal cell morphology analyses using Gromov-Wasserstein (GW) distance."
+readme="./README.md"
+requires-python="~=3.10"
+
+authors= [ { name="Pablo Cámara", email='pcamara@pennmedicine.upenn.edu' } ]
+classifiers=[
+	'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3',
+        'Framework :: Jupyter',
+        'Topic :: Scientific/Engineering :: Bio-Informatics'
+    ]
+
+dependencies = [
+	"igraph",
+        "leidenalg",
+        "networkx~=2.8.8",
+        "numpy",
+	"cython >= 0.23",
+        "pathos",
+        "pot~=0.7.0",
+        "potpourri3d",
+        "python-louvain",
+        "scipy",
+        "scikit-image",
+        "tifffile",
+        "trimesh",
+        "umap-learn~=0.5.3" # Depends on numba which requires python < 3.11 as of 11/29/2022
+	]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=0.991",
+    "pytest >= 7.2.1",
+    "pre-commit >= 2.20.0"
+]
+
+vis = [
+    "matplotlib >= 3.7.0",
+    "networkx"
+]
+
+[project.license]
+file="./LICENSE.md"
+
+[project.urls]
+git-repo="https://github.com/CamaraLab/CAJAL"
+readthedocs="https://cajal.readthedocs.io/en/latest/"
+biorxiv="https://www.biorxiv.org/content/10.1101/2022.05.19.492525v2"
+
+[tool.black]
+force-exclude = '''
+/(
+   \.git
+ | \.mypy_cache
+ | _build
+ | build
+ | dist
+ | stubs
+ | pyproject.toml
+ | \.pre-commit-config.yaml
+)/
+'''

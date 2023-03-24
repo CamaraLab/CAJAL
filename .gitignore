@@ -76,6 +76,8 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+.jupyter
+.local/share/jupyter
 
 # IPython
 profile_default/
@@ -133,4 +135,17 @@ QuantizedGromovWasserstein/
 
 # Pycharm
 .idea/
+
+# Linux backup files
+*~
+.bash_history
+
+#Not sure what kind of files
+.\#*
+
+# Emacs backup files
+\#*\#
+
+# Keras
+.keras
 

@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def structural_similarity(im1, im2, *, win_size: Incomplete | None = ..., gradient: bool = ..., data_range: Incomplete | None = ..., channel_axis: Incomplete | None = ..., multichannel: bool = ..., gaussian_weights: bool = ..., full: bool = ..., **kwargs): ...

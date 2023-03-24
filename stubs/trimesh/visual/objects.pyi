@@ -1,0 +1,6 @@
+from .color import ColorVisuals as ColorVisuals
+from .material import from_color as from_color, pack as pack
+from .texture import TextureVisuals as TextureVisuals
+
+def create_visual(**kwargs): ...
+def concatenate(visuals, *args): ...

@@ -1,0 +1,6 @@
+from _typeshed import Incomplete
+
+class PytestTester:
+    module_name: Incomplete
+    def __init__(self, module_name) -> None: ...
+    def __call__(self, label: str = ..., verbose: int = ..., extra_argv: Incomplete | None = ..., doctests: bool = ..., coverage: bool = ..., durations: int = ..., tests: Incomplete | None = ...): ...

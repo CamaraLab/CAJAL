@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def variation_of_information(image0: Incomplete | None = ..., image1: Incomplete | None = ..., *, table: Incomplete | None = ..., ignore_labels=...): ...

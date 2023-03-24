@@ -1,0 +1,9 @@
+from .._shared.utils import remove_arg as remove_arg, warn as warn
+from _typeshed import Incomplete
+
+funcs: Incomplete
+skimage2ndimage: Incomplete
+
+def default_footprint(func): ...
+def remove_small_objects(ar, min_size: int = ..., connectivity: int = ..., in_place: bool = ..., *, out: Incomplete | None = ...): ...
+def remove_small_holes(ar, area_threshold: int = ..., connectivity: int = ..., in_place: bool = ..., *, out: Incomplete | None = ...): ...

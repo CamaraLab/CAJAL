@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def adapted_rand_error(image_true: Incomplete | None = ..., image_test: Incomplete | None = ..., *, table: Incomplete | None = ..., ignore_labels=...): ...

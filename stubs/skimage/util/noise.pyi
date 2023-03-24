@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def random_noise(image, mode: str = ..., seed: Incomplete | None = ..., clip: bool = ..., **kwargs): ...

@@ -1,0 +1,3 @@
+from typing import Any
+
+def coord_map_py(*args, **kwargs) -> Any: ...

@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def profile_line(image, src, dst, linewidth: int = ..., order: Incomplete | None = ..., mode: str = ..., cval: float = ..., *, reduce_func=...): ...

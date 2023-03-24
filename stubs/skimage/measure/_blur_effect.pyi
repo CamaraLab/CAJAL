@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def blur_effect(image, h_size: int = ..., channel_axis: Incomplete | None = ..., reduce_func=...): ...

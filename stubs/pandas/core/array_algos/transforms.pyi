@@ -1,0 +1,3 @@
+import numpy as np
+
+def shift(values: np.ndarray, periods: int, axis: int, fill_value) -> np.ndarray: ...

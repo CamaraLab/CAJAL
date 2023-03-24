@@ -1,0 +1,3 @@
+from .._shared import utils as utils
+
+def felzenszwalb(image, scale: int = ..., sigma: float = ..., min_size: int = ..., multichannel: bool = ..., *, channel_axis: int = ...): ...

@@ -1,0 +1,3 @@
+from .._shared.utils import deprecate_kwarg as deprecate_kwarg
+
+def chan_vese(image, mu: float = ..., lambda1: float = ..., lambda2: float = ..., tol: float = ..., max_num_iter: int = ..., dt: float = ..., init_level_set: str = ..., extended_output: bool = ...): ...
