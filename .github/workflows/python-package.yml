@@ -6,9 +6,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [ "readthedocs_dev" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "readthedocs_dev" ]
+    branches: [ "main" ]
 
 jobs:
   build_windows_mac:
