@@ -1,6 +1,6 @@
 # CAJAL <a href='https://github.com/CamaraLab/CAJAL'><img src="docs/images/logo.png" align="right" width="24%"/></a>
-[![Build and Test](https://github.com/CamaraLab/CAJAL/actions/workflows/python-package.yml/badge.svg?branch=readthedocs_dev)](https://github.com/CamaraLab/CAJAL/actions/workflows/python-package.yml)
-[![codecov](https://codecov.io/github/CamaraLab/CAJAL/branch/readthedocs_dev/graph/badge.svg?token=RU5ZR1SE8Z)](https://codecov.io/github/CamaraLab/CAJAL)
+[![Build and Test](https://github.com/CamaraLab/CAJAL/actions/workflows/python-package.yml/badge.svg?branch=main)](https://github.com/CamaraLab/CAJAL/actions/workflows/python-package.yml)
+[![codecov](https://codecov.io/github/CamaraLab/CAJAL/branch/main/graph/badge.svg?token=RU5ZR1SE8Z)](https://codecov.io/github/CamaraLab/CAJAL)
 ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/CamaraLab/CAJAL?include_prereleases)
 
 CAJAL is a python library for multi-modal cell morphology analyses using Gromov-Wasserstein (GW) distance. Detailed information about the methods implemented in CAJAL can be found in:
@@ -37,4 +37,4 @@ docker run -it -p 8888:8888 -v C:\Users\myusername\Documents\myfolder:/home/jovy
 The ```-p``` flag controls the port number on local host. For example, writing ```-p 4264:8888``` will let you access the Jupyter server from 127.0.0.1:4264. The ```-v``` "bind mount" flag allows one to mount a local directory on the host machine to a folder inside the container so that you can read and write files on the host machine from within the Docker image. Here one must mount the folder on the host machine as /home/jovyan/work or /home/jovyan/some_other_folder as the primary user "jovyan" in the Docker image only has access to that directory and to the /opt/conda folder. See the [Jupyter docker image documentation](https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html) for more information.
 
 ## Documentation
-Extensive documentation, including several tutorials, can be found in [CAJAL's readthedocs.io website](https://cajal.readthedocs.io/en/readthedocs_dev/). This website is under development and will continue to be substantially updated during the coming months.
+Extensive documentation, including several tutorials, can be found in [CAJAL's readthedocs.io website](https://cajal.readthedocs.io/en/latest/index.html). This website is under development and will continue to be substantially updated during the coming months.
