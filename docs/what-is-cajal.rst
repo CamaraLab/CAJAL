@@ -50,7 +50,7 @@ CAJAL is written and developed by the `Cámara Lab <https://camara-lab.org/>`_ a
 University of Pennsylvania. More information about the theoretical foundations of CAJAL can be found
 at:
 
-\- Govek, K. W., et al. `Analysis and integration of single-cell morphological data using metric geometry. <https://www.biorxiv.org/content/10.1101/2022.05.19.492525v3>`_ (2022). DOI: 10.1101/2022.05.19.492525 (bioRxiv).
+\- Govek, K. W., et al. `Multi-modal analysis and integration of single-cell morphological data using metric geometry. <https://www.biorxiv.org/content/10.1101/2022.05.19.492525v3>`_ (2022). DOI: 10.1101/2022.05.19.492525 (bioRxiv).
 
 \- Memoli, F. `On the use of Gromov-Hausdorff distances for shape comparison. <https://facundo-memoli.org/papers/dghlp-PBG-fin.pdf>`_ Eurographics
 Symposium on Point-Based Graphics (2007)
