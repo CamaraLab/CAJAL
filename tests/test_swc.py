@@ -1,7 +1,10 @@
 import os
 import math
+from shutil import rmtree
 
+from src.cajal.utilities import Err
 from src.cajal.swc import (
+    batch_filter_and_preprocess,
     cell_iterator,
     default_name_validate,
     linearize,
@@ -10,7 +13,9 @@ from src.cajal.swc import (
     read_swc,
     node_type_counts_forest,
     num_nodes,
+    has_soma_node,
     filter_forest,
+    preprocessor_eu,
     write_swc,
     NeuronNode,
     SWCForest,
@@ -59,6 +64,18 @@ def is_prime(k: int):
         if k % i == 0:
             return False
     return True
+
+
+def filter_tests(forest: SWCForest) -> None:
+    node_counts = node_type_counts_forest(forest)
+    filter_1 = preprocessor_eu([2, 3], False)
+    forest_1 = filter_1(forest)
+    node_counts_1 = node_type_counts_forest(forest_1)
+    for key in node_counts_1:
+        assert key in node_counts
+    for key in node_counts:
+        if key in [2, 3]:
+            assert key in node_counts_1
 
 
 def test_1():
@@ -116,6 +133,7 @@ def test_1():
         outfile = out_swc + "_OUT" + ext
         write_swc(outfile, forest)
         read_forest, _ = read_swc(outfile)
+        os.remove(outfile)
         assert sorted(linear_forest, key=num_nodes) == read_forest
         filtered_forest = filter_forest(
             linear_forest, lambda node: is_prime(node.sample_number)
@@ -125,3 +143,32 @@ def test_1():
             filtered_forest_samples += [subtree.root.sample_number for subtree in tree]
         prime_sample_numbers = list(filter(is_prime, all_sample_numbers))
         assert set(prime_sample_numbers) == set(filtered_forest_samples)
+        assert any(map(has_soma_node, forest))
+        filter_tests(forest)
+
+
+def only_even_nodes(forest: SWCForest) -> Err[str] | SWCForest:
+    node_cts = sum(node_type_counts_forest(forest).values())
+    if node_cts % 2 == 0:
+        return forest
+    return Err(str(node_cts) + " many nodes.")
+
+
+def test_2():
+    swc_in_dir = "CAJAL/data/swc"
+    swc_out_dir = "CAJAL/data/swc_test_out"
+    batch_filter_and_preprocess(
+        swc_in_dir,
+        swc_out_dir,
+        preprocess=only_even_nodes,
+        parallel_processes=8,
+        err_log="CAJAL/data/swc_err_log.txt",
+    )
+    for _, forest in cell_iterator(swc_out_dir):
+        assert sum(node_type_counts_forest(forest).values()) % 2 == 0
+    with open("CAJAL/data/swc_err_log.txt") as infile:
+        for line in infile:
+            filename = line.split()[0] + ".swc"
+            forest, _ = read_swc(os.path.join(swc_in_dir, filename))
+            assert sum(node_type_counts_forest(forest).values()) % 2 == 1
+    rmtree(swc_out_dir)
