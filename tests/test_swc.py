@@ -102,7 +102,7 @@ def test_1():
     for swc_file in swc_file_names[:10]:
         forest, tree_index = read_swc(swc_file)
         icdm_euclidean(forest, 50)
-        icdm_geodesic(forest, 50)
+        icdm_geodesic(forest[0], 50)
         roots = 0
         for key in tree_index:
             parent = tree_index[key].root.parent_sample_number
