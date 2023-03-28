@@ -337,6 +337,7 @@ def get_sample_pts_geodesic(
         else:
             return ell
         adjustment /= 2
+        counter += 1
     raise Exception("Binary search timed out.")
 
 

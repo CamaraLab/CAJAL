@@ -195,7 +195,7 @@ def read_swc(file_path: str) -> tuple[SWCForest, dict[int, NeuronTree]]:
     """
     nodes = read_swc_node_dict(file_path)
     components, tree_index = topological_sort(nodes)
-    return sorted(components, key=num_nodes), tree_index
+    return sorted(components, key=num_nodes, reverse=True), tree_index
 
 
 def linearize(forest: SWCForest) -> list[NeuronNode]:
