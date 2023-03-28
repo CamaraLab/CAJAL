@@ -3,10 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-CAJAL: a python package for the analysis of single-cell morphological data
+CAJAL: a Python package for the analysis of single-cell morphological data
 ==========================================================================
 
-CAJAL is a python package designed to explore and analyze the morphology of cells
+CAJAL is a Python package designed to explore and analyze the morphology of cells
 and its relationship with other single-cell data.
 
 CAJAL leverages the Python Optimal Transport library to compute the
