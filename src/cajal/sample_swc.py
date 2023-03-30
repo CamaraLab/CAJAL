@@ -118,6 +118,7 @@ def _binary_stepwise_search(forest: SWCForest, num_samples: int) -> float:
         else:
             return step_size
         adjustment /= 2
+        counter += 1
     raise Exception("Binary search timed out.")
 
 
@@ -170,7 +171,7 @@ def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_
     with n sample points.
     :param forest: The cell to be sampled.
     :param num_samples: How many points to be sampled.
-    :return: A condensed distance matrix of length n\* (n-1)/2.
+    :return: A condensed (vectorform) matrix of length n\* (n-1)/2.
     """
     if len(forest) >= num_samples:
         pts: list[npt.NDArray[np.float_]] = []
@@ -321,8 +322,15 @@ def get_sample_pts_geodesic(
     `h` is guaranteed to be less than the distance between `wt` \
     and its parent. If `wt` is a root, `h` is guaranteed to be zero.
     """
+    assert num_sample_pts >= 0
+    if num_sample_pts == 0:
+        return []
     weighted_tree = WeightedTree_of(tree)
+    if num_sample_pts == 1:
+        return [(weighted_tree, 0.0)]
     max_depth = weighted_depth_wt(weighted_tree)
+    if max_depth == 0.0:
+        return [(weighted_tree, 0.0)] * num_sample_pts
     max_reps = 50
     counter = 0
     step_size = max_depth

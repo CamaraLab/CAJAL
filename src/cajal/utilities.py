@@ -7,7 +7,7 @@ from scipy.spatial.distance import squareform
 from scipy.sparse import coo_array
 import itertools as it
 import math
-from typing import Iterator, Optional, TypeVar, Generic
+from typing import Iterator, Iterable, Optional, TypeVar, Generic
 from sklearn.neighbors import NearestNeighbors
 import leidenalg
 import community as community_louvain
@@ -63,10 +63,10 @@ def read_gw_dists(
 
 def dist_mat_of_dict(
     gw_dist_dictionary: dict[tuple[str, str], float],
-    cell_names: Optional[list[str]] = None,
+    cell_names: Optional[Iterable[str]] = None,
 ) -> npt.NDArray[np.float_]:
     """
-    Given a distance dictionary and a list of cell names, return a vectorform distance \
+    Given a distance dictionary and a list of cell names, return a square distance \
     matrix containing the pairwise GW distances between all cells in `cell_names`, and \
     in the same order. \
     If no list is given, then the distance matrix will represent all GW distances between
@@ -84,7 +84,7 @@ def dist_mat_of_dict(
     for first_cell, second_cell in it.combinations(cell_names, 2):
         first_cell, second_cell = sorted([first_cell, second_cell])
         dist_list.append(gw_dist_dictionary[(first_cell, second_cell)])
-    return np.array(dist_list, dtype=np.float_)
+    return squareform(np.array(dist_list, dtype=np.float_), force="tomatrix")
 
 
 def read_gw_couplings(

@@ -1,6 +1,5 @@
 import numpy as np
 import numpy.typing as npt
-from scipy.spatial.distance import squareform
 from scipy.stats import rankdata, t, f
 from typing import Optional
 
@@ -18,8 +17,9 @@ def pearson_coefficient(
     Here we compute the Pearson correlation coefficient of f(X) and f(Y), and return it. \
     We also compute the Pearson correlation coefficient of \
     :math:`f(\\sigma \circ X)`, :math:`f(\\sigma \circ Y)` \
-    for `permutations` many randomly selected permutations sigma of the set {0,\dots,n-1}. \
-    (Caveat: It it is assumed that X and Y are identically distributed.) \
+    for `permutations` many randomly selected permutations :math:`\\sigma` of the \
+    set {0,\dots,n-1}. \
+    (It it is assumed that X and Y are identically distributed.) \
 
     :param feature_arr: array of shape (N ,num_features), where N is the \
     number of possible values the random variables X, Y can take on, and num_features is \
@@ -69,8 +69,8 @@ def pearson_coefficient(
         # Compute var(f(X1))=var(f(X2)).
         np.multiply(f_tildes.T, f_tildes.T, out=tempvar1)
         tempvar1.dot(X, out=variance)
+        assert np.all(variance != 0.0)
         pearson_coefficient_list.append(covariance / variance)
-
     return np.stack(pearson_coefficient_list, axis=0)
 
 
@@ -98,12 +98,13 @@ def _to_distribution(
       distance is less than epsilon
     * normalize the graph adjacency matrix so that it is a probability distribution.
 
-    :param dist_mat: vectorform distance matrix
+    :param dist_mat: squareform distance matrix
     :param epsilon: threshold to connect two nodes in the graph
     :return: an n x n probability matrix representing a joint distribution on
     two variables.
     """
-    adjacency_matrix = (squareform(dist_mat) < epsilon).astype(np.int_)
+    adjacency_matrix = (dist_mat < epsilon).astype(np.int_)
+    np.fill_diagonal(adjacency_matrix, 0)
     return adjacency_matrix / np.sum(adjacency_matrix)
 
 
@@ -184,7 +185,7 @@ def laplacian_score_w_covariates(
     number of nodes in the graph, and num_features is \
     the number of features. Each column represents a feature on N elements. \
     Columns should be preprocessed to remove constant features.
-    :param distance_matrix: vectorform distance matrix
+    :param distance_matrix: squareform distance matrix of size (N,N)
     :param epsilon: connect nodes of graph if their distance is less than epsilon
     :param permutations: how many permutations should be run
     :param covariates: array of shape (N, num_covariates), where N is the number \
@@ -291,7 +292,7 @@ def laplacian_score_w_covariates(
     return (data, other)
 
 
-def laplacian_score_no_covariate(
+def laplacian_score_no_covariates(
     feature_arr: npt.NDArray[np.float_],
     distance_matrix: npt.NDArray[np.float_],
     epsilon: float,
@@ -303,8 +304,8 @@ def laplacian_score_no_covariate(
         number of nodes in the graph, and num_features is
         the number of features. Each column represents a feature on N elements.
         Columns should be preprocessed to remove constant features.
-    :param distance_matrix: A vector-form distance matrix containing pairwise distances \
-        between points in a space. Can be any vector of length N * (N-1)/2 for some N.
+    :param distance_matrix: A squareform distance matrix containing pairwise distances \
+        between points in a space. Should be of size (N,N).
     :param epsilon: From `distance_matrix` we will build an undirected graph G \
         such that nodes i,j are connected in G iff their distance in \
         `distance_matrix` is strictly less than `epsilon`, and \
@@ -317,7 +318,17 @@ def laplacian_score_no_covariate(
         chance that the Laplacian would be equally as high for a randomly \
         selected permutation of the feature.
     :param return_random_laplacians: Whether to return the randomly generated Laplacians.
-    :return: a pair of dictionaries (feature_data,other)
+    :return: a pair of dictionaries (feature_data,other), with
+
+        * `feature_data`['feature_laplacians'] - Laplacian scores of the given features, \
+          shape (num_features,)
+        * `feature_data`['laplacian_p_values'] - p-value of observing
+          such an extreme Laplacian, at the given number of permutations; shape (num_features,)
+        * `feature_data`['laplacian_q_values'] - p-values adjusted by the \
+          Benjamini-Hochsberg method; shape (num_features,)
+        * `other`['random_feature_laplacians'] - if `return_random_laplacians` is true,
+          this will contain all the randomly generated laplacians of all the features.
+          Shape (num_permutations,num_features)
     """
 
     distribution = _to_distribution(distance_matrix, epsilon)
@@ -358,7 +369,8 @@ def laplacian_scores(
         non-parametric permutation test, returning a p-value representing the
         chance that the Laplacian would be equally as high for a randomly \
         selected permutation of the feature.
-    :param covariates: (optional) array of shape (N, num_covariates), where N is the number \
+    :param covariates: (optional) array of shape (N, num_covariates),
+    or simply (N,), where N is the number \
     of nodes in the graph, and num_covariates is the number of covariates
     :param return_random_laplacians: if True, the output dictionary will contain \
     of all the generated laplacians. This will likely be the largest object in the \
@@ -389,7 +401,7 @@ def laplacian_scores(
         * (Optional, if covariates is not None)
           feature_data['laplacian_q_values_post_regression'] :=
           the q-values from the permutation test, shape (num_features,)
-        * (Optional, if covariates is not None) feature_data['covariate_laplacians'] := \
+        * (Optional, if covariates is not None) other['covariate_laplacians'] := \
           the laplacian scores of the covariates, shape (num_covariates,)\
           (if a matrix of covariates was supplied, else this entry will be absent)
         * (Optional, if `return_random_laplacians` is True) \
@@ -402,13 +414,15 @@ def laplacian_scores(
 
     _validate(feature_arr)
     if covariates is None:
-        return laplacian_score_no_covariate(
+        return laplacian_score_no_covariates(
             feature_arr,
             distance_matrix,
             epsilon,
             permutations,
             return_random_laplacians,
         )
+    if len(covariates.shape) == 1:
+        covariates = covariates[:, np.newaxis]
 
     return laplacian_score_w_covariates(
         feature_arr,
