@@ -168,7 +168,7 @@ def test_2():
     os.remove("tests/swc_err_log.txt")
     for _, forest in cell_iterator(swc_out_dir):
         assert sum(node_type_counts_forest(forest).values()) % 2 == 0
-    with open("CAJAL/data/swc_err_log.txt") as infile:
+    with open("tests/swc_err_log.txt") as infile:
         for line in infile:
             filename = line.split()[0] + ".swc"
             forest, _ = read_swc(os.path.join(swc_in_dir, filename))
