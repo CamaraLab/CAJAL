@@ -165,7 +165,6 @@ def test_2():
         parallel_processes=8,
         err_log="tests/swc_err_log.txt",
     )
-    os.remove("tests/swc_err_log.txt")
     for _, forest in cell_iterator(swc_out_dir):
         assert sum(node_type_counts_forest(forest).values()) % 2 == 0
     with open("tests/swc_err_log.txt") as infile:
@@ -173,4 +172,5 @@ def test_2():
             filename = line.split()[0] + ".swc"
             forest, _ = read_swc(os.path.join(swc_in_dir, filename))
             assert sum(node_type_counts_forest(forest).values()) % 2 == 1
+    os.remove("tests/swc_err_log.txt")
     rmtree(swc_out_dir)
