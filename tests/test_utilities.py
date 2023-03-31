@@ -3,6 +3,8 @@ from src.cajal.utilities import (
     dist_mat_of_dict,
     read_gw_couplings,
     avg_shape_spt,
+    leiden_clustering,
+    louvain_clustering,
 )
 import numpy as np
 
@@ -12,7 +14,7 @@ def test():
     assert isinstance(cell_names, list)
     assert isinstance(gw_dist_dictionary, dict)
     dist_mat_of_dict(gw_dist_dictionary, [cell_names[3], cell_names[2], cell_names[1]])
-    dist_mat_of_dict(gw_dist_dictionary)
+    gmat = dist_mat_of_dict(gw_dist_dictionary)
     coupling_mats = read_gw_couplings("tests/gw_coupling_mat.csv", True)
     assert isinstance(coupling_mats, dict)
     icdm = np.loadtxt(
@@ -22,3 +24,5 @@ def test():
     for x, y in zip(cell_names, icdm):
         icdm_dict[x] = y
     avg_shape_spt(cell_names, gw_dist_dictionary, icdm_dict, coupling_mats, 3)
+    leiden_clustering(gmat)
+    louvain_clustering(gmat, 3)
