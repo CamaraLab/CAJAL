@@ -342,7 +342,6 @@ def compute_intracell_all(
         cell_gen = cell_generator(infolder, segment)
 
     if metric == "geodesic":
-        assert method == "networkx" or method == "heat"
         chunksize = 1 if method == "networkx" else 20
         compute_geodesic: Callable[
             [Tuple[str, VertexArray, FaceArray]],
