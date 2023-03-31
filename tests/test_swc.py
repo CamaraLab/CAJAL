@@ -19,6 +19,11 @@ from src.cajal.swc import (
     write_swc,
     NeuronNode,
     SWCForest,
+    total_length,
+    discrete_depth,
+    diagnostics,
+    _depth_table,
+    _branching_degree,
 )
 
 
@@ -70,6 +75,8 @@ def filter_tests(forest: SWCForest) -> None:
     node_counts = node_type_counts_forest(forest)
     filter_1 = preprocessor_eu([2, 3], False)
     forest_1 = filter_1(forest)
+    preprocessor_eu("keep_all_types", True)
+    preprocessor_eu([1, 2, 3, 4], True)
     node_counts_1 = node_type_counts_forest(forest_1)
     for key in node_counts_1:
         assert key in node_counts
@@ -110,10 +117,14 @@ def test_1():
         assert len(forest) == roots
         lin = linearize(forest)
         linear_forest = forest_from_linear(lin)
+        _branching_degree(forest)
+        _depth_table(forest[0])
         for i in range(len(lin)):
             assert lin[i].parent_sample_number - 1 < i
         all_sample_numbers = []
         for tree in linear_forest:
+            assert total_length(tree) >= 0
+            assert discrete_depth(tree) >= 0
             sample_numbers_list = [subtree.root.sample_number for subtree in tree]
             assert sample_numbers_list == sorted(sample_numbers_list)
             # sample_numbers_list1 = sorted(set(sample_numbers_list))
@@ -174,3 +185,7 @@ def test_2():
             assert sum(node_type_counts_forest(forest).values()) % 2 == 1
     os.remove("tests/swc_err_log.txt")
     rmtree(swc_out_dir)
+
+
+def test_diagnostics():
+    diagnostics("tests/swc", lambda forest: None, 1)
