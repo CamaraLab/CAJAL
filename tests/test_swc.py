@@ -79,7 +79,7 @@ def filter_tests(forest: SWCForest) -> None:
 
 
 def test_1():
-    swcdir = "CAJAL/data/swc"
+    swcdir = "tests/swc"
     cell_names, forests = zip(*list(cell_iterator(swcdir)))
     swc_file_names = [
         os.path.join(swcdir, f) for f in os.listdir(swcdir) if default_name_validate(f)
@@ -87,7 +87,8 @@ def test_1():
     node_counts_main = [node_type_counts_forest(forest) for forest in forests]
     raw_dicts = [read_swc_node_dict(f) for f in swc_file_names]
     node_counts_1 = [count_nodes1(d) for d in raw_dicts]
-    assert len(cell_names) == 100
+    num_swc_files = 8
+    assert len(cell_names) == num_swc_files
     assert node_counts_main == node_counts_1
     del node_counts_1
     node_counts_2 = [count_nodes2(forest) for forest in forests]

@@ -3,13 +3,10 @@ import os
 
 
 def test():
+    compute_gw_distance_matrix("tests/icdm.csv", "tests/gw1.csv", None, True)
+    os.remove("tests/gw1.csv")
     compute_gw_distance_matrix(
-        "CAJAL/data/icdm_euclidean.csv", "CAJAL/data/test_gw.csv", None, True
+        "tests/icdm.csv", "tests/gw2.csv", "tests/gw_coupling_mat.csv"
     )
-    os.remove("CAJAL/data/test_gw.csv")
-    compute_gw_distance_matrix(
-        "CAJAL/data/icdm_geodesic.csv",
-        "CAJAL/data/test_gw.csv",
-        "CAJAL/data/test_gw_coupling_mats.csv",
-    )
-    os.remove("CAJAL/data/test_gw_coupling_mats.csv")
+    os.remove("tests/gw2.csv")
+    os.remove("tests/gw_coupling_mat.csv")

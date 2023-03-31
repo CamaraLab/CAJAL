@@ -7,10 +7,11 @@ from src.cajal.sample_swc import (
     compute_icdm_all_geodesic,
 )
 from src.cajal.utilities import Err
+import os
 
 
 def test_rpcg():
-    swc_dir = "CAJAL/data/swc"
+    swc_dir = "tests/swc"
     cell_names, file_paths = get_filenames(swc_dir, default_name_validate)
     t = map(
         lambda file_path: read_preprocess_compute_geodesic(
@@ -35,16 +36,18 @@ def test_rpcg():
 
 
 def test_compute_icdm_both():
-    swc_dir = "CAJAL/data/swc"
+    swc_dir = "tests/swc"
     compute_icdm_all_euclidean(
         infolder=swc_dir,
-        out_csv="CAJAL/data/icdm_euclidean.csv",
+        out_csv="tests/icdm_euclidean.csv",
         n_sample=50,
         num_cores=10,
     )
     compute_icdm_all_geodesic(
         infolder=swc_dir,
-        out_csv="CAJAL/data/icdm_geodesic.csv",
+        out_csv="tests/icdm_geodesic.csv",
         n_sample=50,
         num_cores=10,
     )
+    os.remove("tests/icdm_euclidean.csv")
+    os.remove("tests/icdm_geodesic.csv")

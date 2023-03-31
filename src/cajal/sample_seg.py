@@ -1,7 +1,7 @@
 # Functions for sampling points from a 2D segmented image
 import os
 import warnings
-from typing import List, Iterator, Tuple, Callable
+from typing import List, Iterator, Tuple
 import numpy as np
 import numpy.typing as npt
 from skimage import measure
@@ -102,13 +102,6 @@ def _compute_intracell_all(
             only_longest,
         )
 
-    # compute_cell_boundaries = lambda file_name: cell_boundaries(
-    #     tifffile.imread(os.path.join(infolder, file_name)),  # type: ignore
-    #     n_sample,
-    #     background,
-    #     discard_cells_with_holes,
-    #     only_longest,
-    # )
     cell_names_repeat: Iterator[Iterator[str]]
     cell_names_repeat = map(it.repeat, cell_names)
     cell_bdary_lists: Iterator[
@@ -123,11 +116,6 @@ def _compute_intracell_all(
     cell_bdary_list_iters = map(lambda tup: zip(tup[0], tup[1]), cell_bdary_lists)
     cell_bdary_list_flattened: Iterator[Tuple[str, Tuple[int, npt.NDArray[np.float_]]]]
     cell_bdary_list_flattened = it.chain.from_iterable(cell_bdary_list_iters)
-
-    restructure_and_get_pdist: Callable[
-        [Tuple[str, Tuple[int, npt.NDArray[np.float_]]]],
-        Tuple[str, npt.NDArray[np.float_]],
-    ]
 
     def restructure_and_get_pdist(
         tup: tuple[str, tuple[int, npt.NDArray[np.float_]]]
@@ -180,7 +168,7 @@ def compute_icdm_all(
         infolder, n_sample, pool, background, discard_cells_with_holes, only_longest
     )
     batch_size: int = 1000
-    write_csv_block(out_csv, name_dist_mat_pairs, batch_size)
+    write_csv_block(out_csv, n_sample, name_dist_mat_pairs, batch_size)
     pool.close()
     pool.join()
     pool.clear()
