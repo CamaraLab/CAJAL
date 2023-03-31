@@ -163,8 +163,9 @@ def test_2():
         swc_out_dir,
         preprocess=only_even_nodes,
         parallel_processes=8,
-        err_log="CAJAL/data/swc_err_log.txt",
+        err_log="tests/swc_err_log.txt",
     )
+    os.remove("tests/swc_err_log.txt")
     for _, forest in cell_iterator(swc_out_dir):
         assert sum(node_type_counts_forest(forest).values()) % 2 == 0
     with open("CAJAL/data/swc_err_log.txt") as infile:
