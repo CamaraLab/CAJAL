@@ -22,6 +22,7 @@ from typing import (
     Iterator,
     TypeAlias,
     Callable,
+    Literal,
 )
 from pathos.pools import ProcessPool
 
@@ -328,10 +329,10 @@ def _connect_helper(
 def compute_intracell_all(
     infolder: str,
     n_sample: int,
-    metric: str,
+    metric: Literal["euclidean"] | Literal["geodesic"],
     pool: ProcessPool,
     segment: bool = True,
-    method: str = "networkx",
+    method: Literal["networkx"] | Literal["heat"] = "networkx",
 ) -> Iterator[Tuple[str, Optional[npt.NDArray[np.float_]]]]:
     if metric == "geodesic" and not segment:
         cell_gen = pool.imap(
@@ -341,6 +342,7 @@ def compute_intracell_all(
         cell_gen = cell_generator(infolder, segment)
 
     if metric == "geodesic":
+        assert method == "networkx" or method == "heat"
         chunksize = 1 if method == "networkx" else 20
         compute_geodesic: Callable[
             [Tuple[str, VertexArray, FaceArray]],
@@ -371,11 +373,11 @@ def compute_intracell_all(
 def compute_icdm_all(
     infolder: str,
     out_csv: str,
-    metric: str,
+    metric: Literal["euclidean"] | Literal["geodesic"],
     n_sample: int = 50,
     num_cores: int = 8,
     segment: bool = True,
-    method: str = "heat",
+    method: Literal["networkx"] | Literal["heat"] = "heat",
 ) -> List[str]:
     r"""
     Go through every Wavefront \*.obj file in the given input directory `infolder`
@@ -385,11 +387,11 @@ def compute_icdm_all(
     :param infolder: Folder full of \*.obj files.
     :param out_csv: Output will be written to a \*.csv file
         titled `out_csv`.
-    :param metric: Either "euclidean" or "geodesic" as preferred by the user.
+    :param metric: How to compute the distance between points.
     :param n_sample: How many points to sample from each cell.
     :param num_cores: Number of independent processes which will be created.
         Recommended to set this equal to the number of cores on your machine.
-    :param method: one of "networkx" or "heat", how to compute geodesic distance.
+    :param method: How to compute geodesic distance.
         The "networkx" method is more precise, and takes between 5 - 15 seconds for
         a cell with 50 sample points. The "heat" method is a faster but rougher
         approximation, and takes between 0.05 - 0.15 seconds for a cell with
@@ -413,7 +415,7 @@ def compute_icdm_all(
     pool = ProcessPool(nodes=num_cores)
     dist_mats = compute_intracell_all(infolder, n_sample, metric, pool, segment, method)
     batch_size = 1000
-    failed_cells = write_csv_block(out_csv, dist_mats, batch_size)
+    failed_cells = write_csv_block(out_csv, n_sample, dist_mats, batch_size)
     pool.close()
     pool.join()
     pool.clear()

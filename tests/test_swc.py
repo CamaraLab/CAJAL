@@ -87,7 +87,7 @@ def test_1():
     node_counts_main = [node_type_counts_forest(forest) for forest in forests]
     raw_dicts = [read_swc_node_dict(f) for f in swc_file_names]
     node_counts_1 = [count_nodes1(d) for d in raw_dicts]
-    num_swc_files = 8
+    num_swc_files = len(os.listdir(swcdir)) - 2
     assert len(cell_names) == num_swc_files
     assert node_counts_main == node_counts_1
     del node_counts_1
