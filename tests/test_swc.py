@@ -156,8 +156,8 @@ def only_even_nodes(forest: SWCForest) -> Err[str] | SWCForest:
 
 
 def test_2():
-    swc_in_dir = "CAJAL/data/swc"
-    swc_out_dir = "CAJAL/data/swc_test_out"
+    swc_in_dir = "tests/swc"
+    swc_out_dir = "tests/swc_test_out"
     batch_filter_and_preprocess(
         swc_in_dir,
         swc_out_dir,
