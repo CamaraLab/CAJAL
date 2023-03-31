@@ -44,7 +44,7 @@ def test():
     fmat_day3 = fmat_day3[:, nontriv_day3]
     fmat_day5 = fmat_day5[:, nontriv_day5]
 
-    gw_csv_loc = "CAJAL/data/c_elegans_gw_mat.csv"
+    gw_csv_loc = "tests/c_elegans_gw_mat.csv"
     gw_dist_mat = squareform(np.loadtxt(gw_csv_loc))
 
     gw_dists_day1 = gw_dist_mat[day1_indices][:, day1_indices]

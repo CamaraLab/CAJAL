@@ -6,7 +6,5 @@ def test():
     compute_gw_distance_matrix("tests/icdm.csv", "tests/gw1.csv", None, True)
     os.remove("tests/gw1.csv")
     compute_gw_distance_matrix(
-        "tests/icdm.csv", "tests/gw2.csv", "tests/gw_coupling_mat.csv"
+        "tests/icdm.csv", "tests/gw.csv", "tests/gw_coupling_mat.csv"
     )
-    os.remove("tests/gw2.csv")
-    os.remove("tests/gw_coupling_mat.csv")
