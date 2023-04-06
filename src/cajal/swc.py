@@ -111,17 +111,17 @@ def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:
     """
     nodes: dict[int, NeuronNode] = {}
     with open(file_path, "r") as file:
-        for line in file:
-            if line[0] == "#":
+        for n, line in enumerate(file):
+            if line[0] == "#" or len(line.strip())<2:
                 continue
             row = line.strip().split()[0:7]
             if len(row) < 7:
                 raise TypeError(
-                    "Row"
-                    + line
-                    + "in file"
+                    "Row "
+                    + str(n)
+                    + " in file "
                     + file_path
-                    + "has fewer than seven whitespace-separated strings."
+                    + " has fewer than seven whitespace-separated strings."
                 )
             nodes[int(row[0])] = NeuronNode(
                 sample_number=int(row[0]),

@@ -361,8 +361,8 @@ def laplacian_scores(
     number of nodes in the graph, and num_features is \
     the number of features. Each column represents a feature on N elements. \
     Columns should be preprocessed to remove constant features.
-    :param distance_matrix: vectorform distance matrix
-    :param epsilon: connect nodes of graph if their distance is less than epsilon
+    :param distance_matrix: vectorform distance matrix.
+    :param epsilon: connect nodes of graph if their distance is less than epsilon.
     :param permutations: Generate `permutations` many random permutations \
         :math:`\\sigma` of the set of nodes of `G`, and compute the laplacian scores \
         of the features :math:`f \\circ \\sigma` for each permutation :math:`\\sigma`. \
