@@ -357,12 +357,12 @@ def laplacian_scores(
     return_random_laplacians: bool,
 ) -> dict[str, npt.NDArray[np.float_]]:
     """
-    :param feature_arr: An array of shape (N ,num_features), where N is the \
-    number of nodes in the graph, and num_features is \
-    the number of features. Each column represents a feature on N elements. \
-    Columns should be preprocessed to remove constant features.
-    :param distance_matrix: vectorform distance matrix.
-    :param epsilon: connect nodes of graph if their distance is less than epsilon.
+    :param feature_arr: An array of shape (N, num_features), where N is the
+        number of nodes in the graph, and num_features is
+        the number of features. Each column represents a feature on N elements.
+        Columns should be preprocessed to remove constant features.
+    :param distance_matrix: vectorform distance matrix
+    :param epsilon: connect nodes of graph if their distance is less than epsilon
     :param permutations: Generate `permutations` many random permutations \
         :math:`\\sigma` of the set of nodes of `G`, and compute the laplacian scores \
         of the features :math:`f \\circ \\sigma` for each permutation :math:`\\sigma`. \
@@ -371,11 +371,11 @@ def laplacian_scores(
         chance that the Laplacian would be equally as high for a randomly \
         selected permutation of the feature.
     :param covariates: (optional) array of shape (N, num_covariates),
-    or simply (N,), where N is the number \
-    of nodes in the graph, and num_covariates is the number of covariates
+        or simply (N,), where N is the number \
+        of nodes in the graph, and num_covariates is the number of covariates
     :param return_random_laplacians: if True, the output dictionary will contain \
-    of all the generated laplacians. This will likely be the largest object in the \
-    dictionary.
+        all of the generated laplacians. This will likely be the largest object in the \
+        dictionary.
     :return:
         A pair of dictionaries `(feature_data, other)`.
         All values in feature_data are of shape (num_features,).
@@ -410,6 +410,7 @@ def laplacian_scores(
         * (Optional, if `covariates` is not None and `return_random_laplacians` is True)
           other['random_covariate_laplacians'] := the matrix of randomly generated covariate
           laplacians, shape (permutations, num_covariates)
+
     """
 
     _validate(feature_arr)
