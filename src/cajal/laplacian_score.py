@@ -300,9 +300,9 @@ def laplacian_score_no_covariates(
     return_random_laplacians: bool,
 ) -> tuple[dict[str, npt.NDArray[np.float_]], dict[str, npt.NDArray[np.float_]]]:
     """
-    :param feature_arr: An array of shape (N ,num_features), where N is the
-        number of nodes in the graph, and num_features is
-        the number of features. Each column represents a feature on N elements.
+    :param feature_arr: An array of shape (N ,num_features), where N is the \
+        number of nodes in the graph, and num_features is \
+        the number of features. Each column represents a feature on N elements. \
         Columns should be preprocessed to remove constant features.
     :param distance_matrix: A squareform distance matrix containing pairwise distances \
         between points in a space. Should be of size (N,N).
@@ -313,21 +313,22 @@ def laplacian_score_no_covariates(
     :param permutations: Generate `permutations` many random permutations \
         :math:`\\sigma` of the set of nodes of `G`, and compute the laplacian scores \
         of the features :math:`f \\circ \\sigma` for each permutation :math:`\\sigma`. \
-        These additional laplacian scores are used to perform a
-        non-parametric permutation test, returning a p-value representing the
+        These additional laplacian scores are used to perform a \
+        non-parametric permutation test, returning a p-value representing the \
         chance that the Laplacian would be equally as high for a randomly \
         selected permutation of the feature.
     :param return_random_laplacians: Whether to return the randomly generated Laplacians.
+
     :return: a pair of dictionaries (feature_data,other), with
 
         * `feature_data`['feature_laplacians'] - Laplacian scores of the given features, \
           shape (num_features,)
-        * `feature_data`['laplacian_p_values'] - p-value of observing
+        * `feature_data`['laplacian_p_values'] - p-value of observing \
           such an extreme Laplacian, at the given number of permutations; shape (num_features,)
         * `feature_data`['laplacian_q_values'] - p-values adjusted by the \
           Benjamini-Hochsberg method; shape (num_features,)
-        * `other`['random_feature_laplacians'] - if `return_random_laplacians` is true,
-          this will contain all the randomly generated laplacians of all the features.
+        * `other`['random_feature_laplacians'] - if `return_random_laplacians` is true, \
+          this will contain all the randomly generated laplacians of all the features. \
           Shape (num_permutations,num_features)
     """
 
@@ -373,7 +374,7 @@ def laplacian_scores(
         or simply (N,), where N is the number \
         of nodes in the graph, and num_covariates is the number of covariates
     :param return_random_laplacians: if True, the output dictionary will contain \
-        of all the generated laplacians. This will likely be the largest object in the \
+        all of the generated laplacians. This will likely be the largest object in the \
         dictionary.
     :return:
         A pair of dictionaries `(feature_data, other)`.
