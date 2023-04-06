@@ -205,60 +205,6 @@ def write_gw_dists(
     )
 
 
-# def write_dists_and_coupling_mats(
-#     gw_dist_csv_loc: str,
-#     gw_coupling_mat_csv_loc: str,
-#     name_name_dist_coupling: Iterator[
-#         tuple[tuple[str, int, str, int, list[float]], tuple[str, str, float]]
-#     ],
-# ) -> None:
-#     chunk_size = 100
-#     counter = 0
-#     start = time.time()
-#     batched = _batched(name_name_dist_coupling, chunk_size)
-#     with open(gw_dist_csv_loc, "w", newline="") as gw_dist_csv_file, open(
-#         gw_coupling_mat_csv_loc, "w", newline=""
-#     ) as gw_coupling_mat_csv_file:
-#         dist_writer = csv.writer(gw_dist_csv_file, delimiter=",")
-#         coupling_writer = csv.writer(gw_coupling_mat_csv_file, delimiter=",")
-#         dist_header = ["first_object", "second_object", "gw_dist"]
-#         dist_writer.writerow(dist_header)
-#         coupling_header = [
-#             "first_object",
-#             "first_object_sidelength",
-#             "second_object",
-#             "second_object_sidelength",
-#             "coupling",
-#         ]
-#         coupling_writer.writerow(coupling_header)
-#         for batch in batched:
-#             couplings, dists = [list(tup) for tup in zip(*batch)]
-#             couplings = [
-#                 [A_name, A_sidelength, B_name, B_sidelength] + coupling_mat
-#                 for (
-#                     A_name,
-#                     A_sidelength,
-#                     B_name,
-#                     B_sidelength,
-#                     coupling_mat,
-#                 ) in couplings
-#             ]
-#             counter += len(batch)
-#             dist_writer.writerows(dists)
-#             coupling_writer.writerows(couplings)
-#             now = time.time()
-#             print("Time elapsed: " + str(now - start))
-#             print("Cell pairs computed: " + str(counter))
-#     stop = time.time()
-#     print(
-#         "Computation finished. Computed "
-#         + str(counter)
-#         + " many cell pairs."
-#         + " Time elapsed: "
-#         + str(stop - start)
-#     )
-
-
 def write_dists_and_coupling_mats(
     gw_dist_csv_loc: str,
     gw_coupling_mat_csv_loc: str,
