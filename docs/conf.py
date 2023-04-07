@@ -35,6 +35,7 @@ autodoc_typehints = "both"
 autodoc_type_aliases = {
     "VertexArray": "sample_mesh.VertexArray",
     "FaceArray": "sample_mesh.FaceArray",
+    "SWCForest": "swc.SWCForest",
     "WeightedTree": "sample_swc.WeightedTree",
 }
 

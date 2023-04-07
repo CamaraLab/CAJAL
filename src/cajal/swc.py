@@ -11,7 +11,7 @@ from copy import copy
 from dataclasses import dataclass
 from collections import deque
 import csv
-from typing import Callable, Iterator, Literal, Container, Optional
+from typing import Callable, Iterator, Literal, Container, Optional, TypeAlias
 
 import numpy as np
 from scipy.spatial.distance import euclidean
@@ -94,7 +94,7 @@ class NeuronTree:
             yield current_tree
 
 
-SWCForest = list[NeuronTree]
+SWCForest: TypeAlias = list[NeuronTree]
 
 
 def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:
@@ -112,7 +112,7 @@ def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:
     nodes: dict[int, NeuronNode] = {}
     with open(file_path, "r") as file:
         for n, line in enumerate(file):
-            if line[0] == "#" or len(line.strip())<2:
+            if line[0] == "#" or len(line.strip()) < 2:
                 continue
             row = line.strip().split()[0:7]
             if len(row) < 7:
@@ -222,7 +222,8 @@ def linearize(forest: SWCForest) -> list[NeuronNode]:
     root, indices 2..n are the nodes at depth 1, indices n+1 .. m are the nodes at depth 2, \
     and so on.
     """
-
+    if not (isinstance(forest, list)):
+        raise TypeError("forest should be a list.")
     ell: list[NeuronNode] = []
     counter: int = 0
     for top_level_tree in forest:
@@ -792,7 +793,7 @@ def diagnostics(
 def read_preprocess_save(
     infile_name: str,
     outfile_name: str,
-    preprocess: Callable[[SWCForest], Err[T] | SWCForest],
+    preprocess: Callable[[SWCForest], Err[T] | SWCForest | NeuronTree],
 ) -> Err[T] | Literal["success"]:
     r"""
     Read the \*.swc file `file_name` from disk as an `SWCForest`.
@@ -808,7 +809,10 @@ def read_preprocess_save(
     tree = preprocess(loaded_forest)
     if isinstance(tree, Err):
         return tree
-    write_swc(outfile_name, tree)
+    if isinstance(tree, list):
+        write_swc(outfile_name, tree)
+    if isinstance(tree, NeuronTree):
+        write_swc(outfile_name, [tree])
     return "success"
 
 
@@ -834,13 +838,16 @@ def get_filenames(
     return (cell_names, file_paths)
 
 
+_empty_str = ""
+
+
 def batch_filter_and_preprocess(
     infolder: str,
     outfolder: str,
-    preprocess: Callable[[SWCForest], Err[T] | SWCForest],
+    preprocess: Callable[[SWCForest], Err[T] | SWCForest | NeuronTree],
     parallel_processes: int,
     err_log: Optional[str],
-    suffix="",
+    suffix: Optional[str] = None,
     name_validate: Callable[[str], bool] = default_name_validate,
 ) -> None:
     r"""
@@ -874,6 +881,8 @@ def batch_filter_and_preprocess(
         and metadata files are not read into memory.
     """
 
+    if suffix is None:
+        suffix = ""
     try:
         os.mkdir(outfolder)
     except OSError:
