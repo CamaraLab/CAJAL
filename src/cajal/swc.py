@@ -64,6 +64,9 @@ class NeuronTree:
             ]
         return not bool(treelist1)
 
+    def __repr__(self):
+        return repr([tree.root for tree in self])
+
     def __iter__(self) -> Iterator[NeuronTree]:
         """
         Iterate over all descendants of this tree in breadth-first order. \
@@ -184,7 +187,6 @@ def topological_sort(
 def read_swc(file_path: str) -> tuple[SWCForest, dict[int, NeuronTree]]:
     r"""
     Construct the graph (forest) associated to an SWC file.
-    The forest is sorted by the number of nodes of the components
 
     An exception is raised if any line has fewer than seven whitespace \
     separated strings.
@@ -194,8 +196,7 @@ def read_swc(file_path: str) -> tuple[SWCForest, dict[int, NeuronTree]]:
           maps sample numbers for nodes to their positions in the forest.
     """
     nodes = read_swc_node_dict(file_path)
-    components, tree_index = topological_sort(nodes)
-    return sorted(components, key=num_nodes, reverse=True), tree_index
+    return topological_sort(nodes)
 
 
 def linearize(forest: SWCForest) -> list[NeuronNode]:
@@ -528,6 +529,13 @@ def keep_only_eu(structure_ids: Container[int]) -> Callable[[SWCForest], SWCFore
     return filter_by_structure_ids
 
 
+def all_soma_nodes(forest: SWCForest) -> bool:
+    def tree_all_soma_nodes(tree: NeuronTree):
+        return all((x.root.is_soma_node() for x in tree))
+
+    return all(tree_all_soma_nodes(tree) for tree in forest)
+
+
 def preprocessor_eu(
     structure_ids: Container[int] | Literal["keep_all_types"], soma_component_only: bool
 ) -> Callable[[SWCForest], Err[str] | SWCForest]:
@@ -551,54 +559,50 @@ def preprocessor_eu(
     If `soma_component_only` is True and there is not a unique connected component whose \
     root is a soma node, the function will return an error.
     """
+
     if soma_component_only:
         if structure_ids == "keep_all_types":
 
             def filter1(forest: SWCForest) -> Err[str] | SWCForest:
-                soma_root_nodes = sum(
-                    ((1 if tree.root.structure_id == 1 else 0) for tree in forest)
-                )
-                if soma_root_nodes != 1:
-                    return Err(
-                        "Found "
-                        + str(soma_root_nodes)
-                        + " many soma root nodes, not 1."
-                    )
+                soma_trees = [tree for tree in forest if tree.root.structure_id == 1]
+                if len(soma_trees) != 1:
+                    return Err("Not a unique component containing a soma node.")
                 return forest
 
             return filter1
 
         # This point in the code is reached only if structure_ids is not 'keep_all_types'.
         def filter2(forest: SWCForest) -> Err[str] | SWCForest:
-            soma_root_nodes = sum(
-                ((1 if tree.root.structure_id == 1 else 0) for tree in forest)
-            )
-            if soma_root_nodes != 1:
-                return Err(
-                    "Found " + str(soma_root_nodes) + " many soma root nodes, not 1."
-                )
-            soma_tree = next(tree for tree in forest if tree.root.structure_id == 1)
-            return filter_forest(
-                [soma_tree],
+            soma_trees = [tree for tree in forest if tree.root.structure_id == 1]
+            if len(soma_trees) != 1:
+                return Err("Not a unique component containing a soma node.")
+            forest = filter_forest(
+                soma_trees,
                 lambda node: operator.contains(structure_ids, node.structure_id),
             )
+            if all_soma_nodes(forest):
+                return Err("Only soma nodes remain after filtering.")
+            return forest
 
         return filter2
     # soma_component_only is False.
     if structure_ids == "keep_all_types":
-        return lambda forest: forest
+        return lambda x: x
 
-    def filter3(forest: SWCForest) -> SWCForest:
-        return filter_forest(
+    def filter3(forest: SWCForest) -> Err[str] | SWCForest:
+        forest = filter_forest(
             forest, lambda node: operator.contains(structure_ids, node.structure_id)
         )
+        if all_soma_nodes(forest):
+            return Err("Only soma nodes remain after filtering.")
+        return forest
 
     return filter3
 
 
 def preprocessor_geo(
     structure_ids: Container[int] | Literal["keep_all_types"],
-) -> Callable[[SWCForest], NeuronTree]:
+) -> Callable[[SWCForest], Err[str] | NeuronTree]:
     """
     This preprocessor strips the tree down to only the components listed in `structure_ids` and \
     also trims the tree down to a single connected component.
@@ -612,10 +616,14 @@ def preprocessor_geo(
     if structure_ids == "keep_all_types":
         return lambda forest: forest[0]
 
-    def filter_by_structure_ids(forest: SWCForest) -> NeuronTree:
-        return filter_forest(
+    def filter_by_structure_ids(forest: SWCForest) -> Err[str] | NeuronTree:
+        forest = filter_forest(
             forest, lambda node: operator.contains(structure_ids, node.structure_id)
-        )[0]
+        )
+        if all_soma_nodes(forest):
+            return Err("Only soma nodes remain after filtering.")
+        forest.sort(key=num_nodes, reverse=True)
+        return forest[0]
 
     return filter_by_structure_ids
 
@@ -847,7 +855,7 @@ def batch_filter_and_preprocess(
     preprocess: Callable[[SWCForest], Err[T] | SWCForest | NeuronTree],
     parallel_processes: int,
     err_log: Optional[str],
-    suffix: Optional[str] = None,
+    suffix: str = "",
     name_validate: Callable[[str], bool] = default_name_validate,
 ) -> None:
     r"""
@@ -881,8 +889,6 @@ def batch_filter_and_preprocess(
         and metadata files are not read into memory.
     """
 
-    if suffix is None:
-        suffix = ""
     try:
         os.mkdir(outfolder)
     except OSError:
