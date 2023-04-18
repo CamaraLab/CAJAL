@@ -172,96 +172,57 @@ def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
         "square_loss",
         log=True,
     )
-    return log["gw_dist"]
+    return sqrt(log["gw_dist"]) / 2.0
 
 
 def slb2(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
-    r"""
-    Computes a lower bound for SLB2, which is in turn a lower bound for the
-    Gromov-Wasserstein distance.
-
-    :param fst_mat: vectorform, (N \* N-1/2,)
-    :param snd mat: vectorform, (M\* N-1/2,)
     """
-
-    # fst_mat = squareform(fst_mat,force='tovector')
-    np.ndarray.sort(fst_mat)
+    Accepts two vectorform distance matrices.
+    """
+    fst_mat = np.sort(fst_mat)
+    snd_mat = np.sort(snd_mat)
     ND, MD = fst_mat.shape[0], snd_mat.shape[0]
-    N, M = ceil(sqrt(ND)), ceil(sqrt(MD))
+    N, M = ceil(sqrt(2 * ND)), ceil(sqrt(2 * MD))
     assert ND * 2 == N * (N - 1)
     assert MD * 2 == M * (M - 1)
-
+    fst_diffs = np.diff(fst_mat, prepend=0.0)
+    snd_diffs = np.diff(snd_mat, prepend=0.0)
     fst_mat_x = np.linspace(start=1 / N + 2 / (N**2), stop=1, num=ND)
-    # snd_mat = squareform(snd_mat, force='tovector')
-    np.ndarray.sort(snd_mat)
-
     snd_mat_x = np.linspace(start=1 / M + 2 / (M**2), stop=1, num=MD)
     x = np.concatenate((fst_mat_x, snd_mat_x))
-    ND_MD = ND + MD
-    assert x.shape == (ND_MD,)
+    assert x.shape == (ND + MD,)
     indices = np.argsort(x)
-    f_X_inv = np.zeros((ND_MD,), dtype=float)
-
-    # Main loop
-    i = 0
-    j = ND
-    indices_0 = indices[0]
-    while indices_0 > (indices_j := indices[j]):
-        f_X_inv[indices_j] = 0
-        j += 1
-    assert indices_0 < indices_j
-    f_X_inv[indices_0] = fst_mat[0]
-    i = 1
-    while i < ND:
-        indices_i = indices[i]
-        while j < ND_MD and indices_i > (indices_j := indices[j]):
-            f_X_inv[indices_j] = fst_mat[i - 1]
-            j += 1
-        assert indices_i < indices_j or j == ND_MD
-        f_X_inv[indices_i] = fst_mat[i]
-        i += 1
-    assert i == ND
-    ND_sub1 = ND - 1
-    while j < ND_MD:
-        f_X_inv[indices[j]] == f_X_inv[ND_sub1]
-        j += 1
-    assert j == ND_MD
-
-    # Dual to the other loop
-    f_Y_inv = np.zeros((ND_MD,), dtype=float)
-    i = 0
-    j = ND
-    indices_ND = indices[ND]
-    while (indices_i := indices[i]) < indices_ND:
-        f_Y_inv[indices_i] = 0
-        i += 1
-    assert indices_i > indices_ND
-    f_Y_inv[indices_ND] = snd_mat[0]
-    j = ND + 1
-    while j < ND_MD:
-        indices_j = indices[j]
-        snd_mat_val = snd_mat[(j - ND) - 1]
-        while i < ND and (indices_i := indices[i]) < indices_j:
-            f_Y_inv[indices_i] = snd_mat_val
-            i += 1
-        assert indices_i > indices_j or i == ND
-        f_Y_inv[indices_j] = snd_mat[j - ND]
-        j += 1
-    assert j == ND_MD
-
-    T = f_X_inv - f_Y_inv
-    np.abs(T, out=T)
-    np.square(T, out=T)
-
-    T = np.concatenate((fst_mat, -snd_mat))[indices]
-
+    T = np.concatenate((fst_diffs, -snd_diffs))[indices]
     np.cumsum(T, out=T)
     np.abs(T, out=T)
     np.square(T, out=T)
-    # d = np.diff(T)
-    t = np.diff(x[indices])
+    a = x[indices]
+    t = np.diff(a, append=a[-1])
     assert np.all(t >= 0.0)
-    return np.sqrt(np.dot(T[1:], t)) / 2
+    return sqrt(np.dot(T, t)) / 2
+
+
+def compute_slb2_distance_matrix(
+    intracell_csv_loc: str,
+    slb2_dist_csv_loc: str,
+    verbose: Optional[bool] = False,
+) -> None:
+    cell_pairs = cell_pair_iterator_csv(intracell_csv_loc, 100)
+    write_gw_dists(
+        slb2_dist_csv_loc,
+        (
+            (
+                cellA_name,
+                cellB_name,
+                slb2(
+                    squareform(cellA_icdm, force="tovector"),
+                    squareform(cellB_icdm, force="tovector"),
+                ),
+            )
+            for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
+        ),
+        True,
+    )
 
 
 def write_gw_dists(
@@ -381,7 +342,7 @@ def _gw_dist_coupling(
     return (cellA_name, cellA_sidelength, cellB_name, cellB_sidelength, coupling_mat), (
         cellA_name,
         cellB_name,
-        log["gw_dist"],
+        sqrt(log["gw_dist"]) / 2.0,
     )
 
 
