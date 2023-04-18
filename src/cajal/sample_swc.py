@@ -86,12 +86,10 @@ def _count_nodes_at_given_stepsize(tree: NeuronTree, stepsize: float) -> int:
     return acc
 
 
-def _binary_stepwise_search(forest: SWCForest, num_samples: int) -> tuple[float, bool]:
+def _binary_stepwise_search(forest: SWCForest, num_samples: int) -> float:
     """
-    Perform a binary search for the epsilon which will cause exactly
-    `num_samples` points to be sampled, if the forest is sampled at `stepsize`
-    epsilon. If such an epsilon is found, return (epsilon, True). If no such epsilon is found,
-    return (epsilon, False) where epsilon is the best guess.
+    Returns the epsilon which will cause exactly `num_samples` points to be sampled, if
+    the forest is sampled at `stepsize` epsilon.
 
     The user should ensure that len(forest) <= num_samples.
     """
@@ -118,10 +116,10 @@ def _binary_stepwise_search(forest: SWCForest, num_samples: int) -> tuple[float,
         elif num_nodes_this_step_size > num_samples:
             step_size += adjustment
         else:
-            return step_size, True
+            return step_size
         adjustment /= 2
         counter += 1
-    return step_size, False
+    raise Exception("Binary search timed out.")
 
 
 def get_sample_pts_euclidean(
@@ -180,12 +178,8 @@ def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_
         for i in range(num_samples):
             pts.append(np.array(forest[i].root.coord_triple))
     else:
-        step_size, success = _binary_stepwise_search(forest, num_samples)
+        step_size = _binary_stepwise_search(forest, num_samples)
         pts = get_sample_pts_euclidean(forest, step_size)
-        if not success:
-            k = len(pts)
-            pts = [pts[i % k] for i in range(num_samples)]
-    assert len(pts) == num_samples
     pts_matrix = np.stack(pts)
     return pdist(pts_matrix)
 
