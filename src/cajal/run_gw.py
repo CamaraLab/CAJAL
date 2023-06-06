@@ -6,7 +6,7 @@ using algorithms in Peyre et al. ICML 2016
 import itertools as it
 import time
 import csv
-from typing import List, Iterator, TypeVar, Optional
+from typing import List, Iterable, Iterator, TypeVar, Optional
 from math import sqrt, ceil
 
 
@@ -16,6 +16,10 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import squareform
 from scipy.sparse import coo_array
+
+from .slb import slb2
+from .pogrow import pogrow
+from .gw_cython import gw_cython
 
 T = TypeVar("T")
 
@@ -39,10 +43,14 @@ def icdm_csv_validate(intracell_csv_loc: str) -> None:
     with open(intracell_csv_loc, "r", newline="") as icdm_infile:
         csv_reader = csv.reader(icdm_infile, delimiter=",")
         header = next(csv_reader)
+        while header[0] == "#":
+            header = next(csv_reader)
         if header[0] != "cell_id":
             raise ValueError("Expects header on first line starting with 'cell_id' ")
         linenum = 1
         for line in csv_reader:
+            if line[0] == "#":
+                continue
             try:
                 float(line[1])
             except ValueError:
@@ -88,7 +96,9 @@ def _batched_cell_list_iterator_csv(
 
     with open(intracell_csv_loc, "r", newline="") as icdm_csvfile_outer:
         csv_outer_reader = enumerate(csv.reader(icdm_csvfile_outer, delimiter=","))
-        next(csv_outer_reader)
+        _, first_line = next(csv_outer_reader)
+        while first_line[0] == "#":
+            _, first_line = next(csv_outer_reader)
         batched_outer = _batched(csv_outer_reader, chunk_size)
         for outer_batch in batched_outer:
             outer_list = [
@@ -126,7 +136,7 @@ def cell_iterator_csv(
     intracell_csv_loc: str,
 ) -> Iterator[tuple[str, npt.NDArray[np.float_]]]:
     """
-    Return an iterator over cells in a directory.
+    Return an iterator over cells in a directory. Intracell distance matrices are in squareform.
     """
     icdm_csv_validate(intracell_csv_loc)
     with open(intracell_csv_loc, "r", newline="") as icdm_csvfile:
@@ -135,7 +145,10 @@ def cell_iterator_csv(
         next(csv_reader)
         while ell := next(csv_reader, None):
             cell_name = ell[0]
-            arr = np.array([float(x) for x in ell[1:]], dtype=np.float64)
+            arr = squareform(
+                np.array([float(x) for x in ell[1:]], dtype=np.float64),
+                force="tomatrix",
+            )
             yield cell_name, arr
 
 
@@ -172,34 +185,38 @@ def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
         "square_loss",
         log=True,
     )
-    return sqrt(log["gw_dist"]) / 2.0
+    gw_dist = log["gw_dist"]
+    # Should be unnecessary but floating point
+    if gw_dist < 0:
+        gw_dist = 0
+    return sqrt(gw_dist) / 2.0
 
 
-def slb2(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
-    """
-    Accepts two vectorform distance matrices.
-    """
-    fst_mat = np.sort(fst_mat)
-    snd_mat = np.sort(snd_mat)
-    ND, MD = fst_mat.shape[0], snd_mat.shape[0]
-    N, M = ceil(sqrt(2 * ND)), ceil(sqrt(2 * MD))
-    assert ND * 2 == N * (N - 1)
-    assert MD * 2 == M * (M - 1)
-    fst_diffs = np.diff(fst_mat, prepend=0.0)
-    snd_diffs = np.diff(snd_mat, prepend=0.0)
-    fst_mat_x = np.linspace(start=1 / N + 2 / (N**2), stop=1, num=ND)
-    snd_mat_x = np.linspace(start=1 / M + 2 / (M**2), stop=1, num=MD)
-    x = np.concatenate((fst_mat_x, snd_mat_x))
-    assert x.shape == (ND + MD,)
-    indices = np.argsort(x)
-    T = np.concatenate((fst_diffs, -snd_diffs))[indices]
-    np.cumsum(T, out=T)
-    np.abs(T, out=T)
-    np.square(T, out=T)
-    a = x[indices]
-    t = np.diff(a, append=a[-1])
-    assert np.all(t >= 0.0)
-    return sqrt(np.dot(T, t)) / 2
+# def slb2(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
+#     """
+#     Accepts two vectorform distance matrices.
+#     """
+#     fst_mat = np.sort(fst_mat)
+#     snd_mat = np.sort(snd_mat)
+#     ND, MD = fst_mat.shape[0], snd_mat.shape[0]
+#     N, M = ceil(sqrt(2 * ND)), ceil(sqrt(2 * MD))
+#     assert ND * 2 == N * (N - 1)
+#     assert MD * 2 == M * (M - 1)
+#     fst_diffs = np.diff(fst_mat, prepend=0.0)
+#     snd_diffs = np.diff(snd_mat, prepend=0.0)
+#     fst_mat_x = np.linspace(start=1 / N + 2 / (N**2), stop=1, num=ND)
+#     snd_mat_x = np.linspace(start=1 / M + 2 / (M**2), stop=1, num=MD)
+#     x = np.concatenate((fst_mat_x, snd_mat_x))
+#     assert x.shape == (ND + MD,)
+#     indices = np.argsort(x)
+#     T = np.concatenate((fst_diffs, -snd_diffs))[indices]
+#     np.cumsum(T, out=T)
+#     np.abs(T, out=T)
+#     np.square(T, out=T)
+#     a = x[indices]
+#     t = np.diff(a, append=a[-1])
+#     assert np.all(t >= 0.0)
+#     return sqrt(np.dot(T, t)) / 2
 
 
 def compute_slb2_distance_matrix(
@@ -339,11 +356,51 @@ def _gw_dist_coupling(
         log=True,
     )
     coupling_mat = _coupling_mat_reformat(coupling_mat)
+    gw_dist = log["gw_dist"]
+    # This should be unnecessary but floating point reasons
+    if gw_dist < 0:
+        gw_dist = 0
     return (cellA_name, cellA_sidelength, cellB_name, cellB_sidelength, coupling_mat), (
         cellA_name,
         cellB_name,
-        sqrt(log["gw_dist"]) / 2.0,
+        sqrt(gw_dist) / 2.0,
     )
+
+
+def gw_custom(
+    cell_list1: list[npt.NDArray[np.float_]],  # Squareform
+    cell_list2: list[npt.NDArray[np.float_]],  # Squareform
+    distributions_1: list[npt.NDArray[np.float_]],
+    distributions_2: list[npt.NDArray[np.float_]],
+    indices: Iterable[tuple[int, int]],
+    max_iters_ot: int = 100000,
+    max_iters_descent: int = 1000,
+) -> Iterable[float]:
+    cell_list1 = [np.asarray(a, dtype=np.float64, order="C") for a in cell_list1]
+    cell_list2 = [np.asarray(a, dtype=np.float64, order="C") for a in cell_list2]
+    c_C = [
+        np.matmul(np.multiply(A, A), distr)[:, np.newaxis]
+        for A, distr in zip(cell_list1, distributions_1)
+    ]
+    c_Cbar = [
+        np.matmul(distr[np.newaxis, :], np.multiply(A.T, A.T))
+        for A, distr in zip(cell_list2, distributions_2)
+    ]
+    retlist: list[float] = []
+    for i, j in indices:
+        retlist.append(
+            gw_cython(
+                cell_list1[i],
+                cell_list2[j],
+                distributions_1[i],
+                distributions_2[j],
+                c_C[i],
+                c_Cbar[j],
+                max_iters_ot,
+                max_iters_descent,
+            )
+        )
+    return retlist
 
 
 def compute_gw_distance_matrix(
@@ -352,6 +409,19 @@ def compute_gw_distance_matrix(
     gw_coupling_mat_csv_loc: Optional[str] = None,
     verbose: Optional[bool] = False,
 ) -> None:
+    """
+    :param intracell_csv_loc: A file containing the intracell distance matrices
+    for all cells.
+
+    :param gw_dist_csv_loc: An output file containing the Gromov-Wasserstein
+    distances, which will be created if it does not exist and overwritten if it
+    does.
+
+    :param gw_coupling_mat_csv_loc: If this argument is not None, for each pair
+    of cells, the coupling matrices will be retained and written to this output
+    file. If this argument is None, the coupling matrices will be discarded. Be
+    warned that the coupling matrices are large.
+    """
     chunk_size = 100
     cell_pairs = cell_pair_iterator_csv(intracell_csv_loc, chunk_size)
 
@@ -369,3 +439,22 @@ def compute_gw_distance_matrix(
             for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
         )
         write_gw_dists(gw_dist_csv_loc, write_dists, verbose=verbose)
+
+
+def pogrow_pairwise(a: list[npt.NDArray[np.float_]], it: int, alpha: float):
+    """
+    elements of a should be in square form
+    """
+    C_sq = [np.average(np.multiply(A, A), axis=1) for A in a]
+    Cbar_sq = [np.average(np.multiply(A, A), axis=0) for A in a]
+    retlist = []
+    for i in range(len(a)):
+        a_i = a[i]
+        C_sq_i = C_sq[i]
+        for j in range(i + 1, len(a)):
+            LC_tensor_C = C_sq_i[:, np.newaxis] + Cbar_sq[j]
+            assert len(LC_tensor_C.shape) == 2
+            T = pogrow(a_i, a[j], it, alpha)
+            LC_tensor_C -= 2 * np.matmul(a[i], np.matmul(T, a[j].T))
+            retlist.append(sqrt(np.sum(np.multiply(LC_tensor_C, T))) / 2)
+    return retlist

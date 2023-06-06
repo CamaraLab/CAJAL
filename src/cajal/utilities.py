@@ -64,6 +64,7 @@ def read_gw_dists(
 def dist_mat_of_dict(
     gw_dist_dictionary: dict[tuple[str, str], float],
     cell_names: Optional[Iterable[str]] = None,
+    as_squareform: bool = True,
 ) -> npt.NDArray[np.float_]:
     """
     Given a distance dictionary and a list of cell names, return a square distance \
@@ -84,7 +85,10 @@ def dist_mat_of_dict(
     for first_cell, second_cell in it.combinations(cell_names, 2):
         first_cell, second_cell = sorted([first_cell, second_cell])
         dist_list.append(gw_dist_dictionary[(first_cell, second_cell)])
-    return squareform(np.array(dist_list, dtype=np.float_), force="tomatrix")
+    arr = np.array(dist_list, dtype=np.float_)
+    if as_squareform:
+        return squareform(arr, force="tomatrix")
+    return arr
 
 
 def read_gw_couplings(

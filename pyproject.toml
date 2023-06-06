@@ -2,7 +2,9 @@
 # Minimum requirements for the build system to execute
 requires = [
 	 "setuptools >= 40.8.0",
-	 "wheel"
+	 "wheel",
+	 "Cython",
+	 "numpy"
 	 ]
 # What should the build-backend be?
 build-backend = "setuptools.build_meta"
@@ -29,7 +31,7 @@ dependencies = [
         "numpy",
 	"cython >= 0.23",
         "pathos",
-        "pot~=0.7.0",
+        "pot>=0.7.0",
         "potpourri3d",
         "python-louvain",
         "scipy",
