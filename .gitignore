@@ -149,3 +149,8 @@ QuantizedGromovWasserstein/
 # Keras
 .keras
 
+# Cython
+cython_debug
+# Test scripts
+
+tests/debug*

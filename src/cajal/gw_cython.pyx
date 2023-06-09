@@ -10,6 +10,7 @@ np.import_array()
 from libc.stdlib cimport rand
 from ot.lp import emd_c, emd
 from math import sqrt
+from scipy.sparse import lil_matrix
 
 cdef extern from "stdlib.h":
     int RAND_MAX
@@ -33,7 +34,7 @@ def matrix_tensor(
     np.multiply(LCCbar_otimes_T,2.,out=LCCbar_otimes_T)
     np.subtract(c_C_Cbar,LCCbar_otimes_T,out=LCCbar_otimes_T)
 
-cdef frobenius(DTYPE_t[:,::1] A, DTYPE_t[:,::1] B):
+def frobenius(DTYPE_t[:,:] A, DTYPE_t[:,:] B):
 
     cdef int n = A.shape[0]
     cdef int m = A.shape[1]
@@ -150,9 +151,11 @@ def gw_cython(
     return (T, sqrt(gw_loss_T)/2,log)
 
 def intersection(DTYPE_t a, DTYPE_t b, DTYPE_t c, DTYPE_t d):
-    cdef maxac=max(a,c)
-    cdef minbd=min(b,d)
-    return max(0.0,minbd-maxac)
+    cdef maxac= a if a >= c else c
+    cdef minbd= b if b <= d else d
+    minbd=minbd-maxac
+    return minbd if minbd >= 0.0 else 0.0
+
 def oneD_ot_CHECK(
         DTYPE_t[:,:] T):
 
@@ -161,12 +164,12 @@ def oneD_ot_CHECK(
         for j in range(T.shape[1]):
             mysum+=T[i,j]
     return mysum
-        
+
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
 def oneD_ot_gw(
-        DTYPE_t[:,:] A,
         DTYPE_t[::1] a,
         int a_len,
-        DTYPE_t[:,:] B,
         DTYPE_t[::1] b,
         int b_len,
         DTYPE_t[:,:] T,
@@ -221,40 +224,30 @@ def oneD_ot_gw(
                 cum_b_prob+=b[j]
                 j+=1
 
-def sparse_oneD_ot(
-        np.ndarray[DTYPE_t,ndim=1] a,
-        int a_offset,
-        np.ndarray[DTYPE_t,ndim=1] b,
-        int b_offset,
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
+cdef sparse_oneD_OT_gw(
+    int[::1] T_rows,
+    int[::1] T_cols,
+    DTYPE_t[::1] T_vals,
+    int T_offset,
+    int a_offset,
+    int b_offset,
+    DTYPE_t[::1] a, # 1dim
+    int a_len, #int
+    DTYPE_t[::1] b,#1dim
+    int b_len, #int
+    DTYPE_t scaling_factor #float
 ):
-    # a, b are not required to be probability distributions, but they should be nonnegative.
+    # a, b are required to be probability distributions
     # The sparse matrix returned by this function may have triples of the form (0,0,0.0).
     # Code handling this should be aware of this.
-    cdef int a_len = a.shape[0]
-    cdef DTYPE_t a_sum = np.sum(a)
-    cdef int b_len = b.shape[0]
-    cdef DTYPE_t b_sum = np.sum(b)
-
-    # Note the allocation and overhead induced by these lines
-    # forcing them to be probability distributions.
-    # It can always be revisited.
-    a=a/a_sum
-    b=b/b_sum
-
-    cdef np.ndarray[int,ndim=1] rows = np.zeros((a_len+b_len-1,), dtype=int)
-    cdef np.ndarray[int,ndim=1] columns = np.zeros((a_len+b_len-1,), dtype=int)
-    cdef np.ndarray[DTYPE_t,ndim=1] values = np.zeros((a_len+b_len-1,), dtype=DTYPE)
 
     cdef Py_ssize_t i = 0
     cdef Py_ssize_t j = 0
-    cdef Py_ssize_t x = 0
-    cdef Py_ssize_t y = 0
-    cdef Py_ssize_t i2 = 0
-    cdef Py_ssize_t j2 = 0
-    cdef Py_ssize_t k = 0
-    cdef Py_ssize_t ell = 0
     cdef DTYPE_t cum_a_prob=0.0
     cdef DTYPE_t cum_b_prob=0.0
+    cdef int index
 
     # assert A.shape[0]==a_len
     # assert B.shape[0]==b_len
@@ -264,17 +257,20 @@ def sparse_oneD_ot(
     # assert T.shape[1]==b_len
     # assert( abs(np.sum(a)-1.0)<1.0e-7 )
     # assert( abs(np.sum(b)-1.0)<1.0e-7 )
-
     while i+j < a_len+b_len-1:
+        # print("inner i:" + str(i))
+        # print("inner j:" + str(j))
         # Loop invariant:  [cum_a_prob,cum_a_prob+a[i]) intersects [cum_b_prob,cum_b_prob+b[j])
         # nontrivially.
         # assert i<a_len
         # assert j<b_len
         # assert cum_a_prob+a[i]>cum_b_prob and cum_b_prob+b[j]>cum_a_prob
-        rows[i+j]=i+a_offset
-        columns[i+j]=j+b_offset
-        values[i+j]=intersection(cum_a_prob,cum_a_prob+a[i],cum_b_prob,cum_b_prob+b[j])*(a_sum * b_sum)
-        # k+=1
+        index=T_offset+i+j
+        T_rows[index]= a_offset + i
+        T_cols[index ]= b_offset + j
+        assert T_vals[index]==0.0
+        T_vals[index]=\
+            intersection(cum_a_prob,cum_a_prob+a[i],cum_b_prob,cum_b_prob+b[j])*scaling_factor
         if cum_a_prob+a[i]<cum_b_prob+b[j]:
             if i==a_len-1:
                 # assert j==b_len-1
@@ -298,13 +294,12 @@ def sparse_oneD_ot(
                 i+=1
                 cum_b_prob+=b[j]
                 j+=1
-    return (rows, columns, values)
 
 @cython.boundscheck(False)  # Deactivate bounds checking
 @cython.wraparound(False)   # Deactivate negative indexing.
 def quantized_gw(
         # A is an n x n distance matrix
-        np.ndarray[np.float64_t,ndim=2] A,
+        # np.ndarray[np.float64_t,ndim=2] A,
         # a is the probability distribution on points of A
         np.ndarray[np.float64_t,ndim=1] a,
         # A_s=A_sample is a sub_matrix of A, of size ns x ns
@@ -318,7 +313,7 @@ def quantized_gw(
         # np.dot(np.multiply(A_s,A_s),a_s)
         np.ndarray[np.float64_t,ndim=1] As_As_as,
         # B is an mxm distance matrix
-        np.ndarray[np.float64_t,ndim=2] B,
+        # np.ndarray[np.float64_t,ndim=2] B,
         # b is the probability distribution on points of B
         np.ndarray[np.float64_t,ndim=1] b,
         # B_sample, size ms x ms
@@ -328,7 +323,7 @@ def quantized_gw(
         # Probability distribution on sample points of B_s; of length ms
         np.ndarray[np.float64_t,ndim=1] b_s,
         # np.dot(np.multiply(B_s,B_s),b_s)
-        np.ndarray[np.float64_t,nkdim=1] Bs_Bs_bs,
+        np.ndarray[np.float64_t,ndim=1] Bs_Bs_bs,
 ):
 
     # Assumptions: The points of A are arranged in such a way that:
@@ -338,17 +333,15 @@ def quantized_gw(
     # are in sorted order, i..e, for A_si[k] <= i < j < A_si[k+1],
     # we have A[A_si[k],i]<=A[A_si[k],j]
     # And B should also satisfy these assumptions.
-    cdef int n = A.shape[0]
+    cdef int n = a.shape[0]
     cdef int ns = A_s.shape[0]
-    cdef int m = B.shape[0]
+    cdef int m = b.shape[0]
     cdef int ms = B_s.shape[0]
     cdef DTYPE_t gw_cost=0.0
     cdef DTYPE_t local_gw_cost=0.0
     cdef Py_ssize_t i = 0
     cdef Py_ssize_t j = 0
-    cdef DTYPE_t[:,:] A_local
     cdef np.ndarray[np.float64_t,ndim=1] a_local
-    cdef DTYPE_t[:,:] B_local
     cdef np.ndarray[np.float64_t,ndim=1] b_local
     cdef int a_local_len
     cdef int b_local_len
@@ -359,13 +352,11 @@ def quantized_gw(
 
     for i in range(ns):
         if (i+1<ns):
-            A_local=A[ A_si[i]:A_si[i+1],:][:,A_si[i]:A_si[i+1]]
             a_local=a[A_si[i]:A_si[i+1]]/a_s[i]
             # assert( abs(np.sum(a_local)-1.0)<1.0e-7 )
             a_local_len=A_si[i+1]-A_si[i]
         else:
             # assert(i+1==ns)
-            A_local=A[A_si[i]:,:][:,A_si[i]:]
             a_local=a[A_si[i]:]/a_s[i]
             # assert( abs(np.sum(a_local)-1.0)<1.0e-6 )
             a_local_len=n-A_si[i]
@@ -377,7 +368,6 @@ def quantized_gw(
                     else:
                         # assert (i == ns-1)
                         T_local= T[A_si[i]:,:][:,B_si[j]:B_si[j+1]]
-                    B_local=B[B_si[j]:B_si[j+1],:][:,B_si[j]:B_si[j+1]]
                     b_local=b[B_si[j]:B_si[j+1]]/b_s[j]
                     # assert( abs(np.sum(b_local)-1.0)<1.0e-7 )
                     b_local_len=B_si[j+1]-B_si[j]
@@ -388,16 +378,94 @@ def quantized_gw(
                     else:
                         # assert (i == ns-1)
                         T_local= T[A_si[i]:,:][:,B_si[j]:]
-                    B_local=B[B_si[j]:,:][:,B_si[j]:]
                     b_local=b[B_si[j]:]/b_s[j]
                     # assert( abs(np.sum(b_local)-1.0)<1.0e-7 )
                     b_local_len=m-B_si[j]
-                oneD_ot_gw(A_local, # 2dim,square.
-                           a_local, # 1dim
+                oneD_ot_gw(a_local, # 1dim
                            a_local_len, #int
-                           B_local,# 2dim, square
                            b_local,#1dim
                            b_local_len, #int
                            T_local,# rectangle
-                           quantized_coupling[i,j])#float
+                           quantized_coupling[i,j]) #float
     return T
+
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
+def quantized_gw_2(
+        # a is the probability distribution on points of A
+        np.ndarray[np.float64_t,ndim=1] a,
+        # A_s=A_sample is a sub_matrix of A, of size ns x ns
+        np.ndarray[np.float64_t,ndim=2] A_s,
+        # A_si = A_sample_indices
+        # Indices for sampled points of A, of length ns+1
+        # Should satisfy A_s[x,y]=A[A_si[x],A_si[y]] for all x,y < ns
+        # should satisfy A_si[ns]=n
+        np.ndarray[Py_ssize_t,ndim=1] A_si,
+        # Probability distribution on sample points of A_s; of length ns
+        np.ndarray[np.float64_t,ndim=1] a_s,
+        # np.dot(np.multiply(A_s,A_s),a_s)
+        np.ndarray[np.float64_t,ndim=1] As_As_as,
+        # b is the probability distribution on points of B
+        np.ndarray[np.float64_t,ndim=1] b,
+        # B_sample, size ms x ms
+        np.ndarray[np.float64_t,ndim=2] B_s,
+        # B_sample_indices, size ms+1
+        np.ndarray[Py_ssize_t,ndim=1] B_si,
+        # Probability distribution on sample points of B_s; of length ms
+        np.ndarray[np.float64_t,ndim=1] b_s,
+        # np.dot(np.multiply(B_s,B_s),b_s)
+        np.ndarray[np.float64_t,ndim=1] Bs_Bs_bs,
+):
+
+    cdef int n = a.shape[0]
+    cdef int ns = A_s.shape[0]
+    cdef int m = b.shape[0]
+    cdef int ms = B_s.shape[0]
+    cdef Py_ssize_t i = 0
+    cdef Py_ssize_t j = 0
+    cdef int a_local_len
+    cdef int b_local_len
+    cdef np.ndarray[np.float64_t,ndim=2] quantized_coupling # size ns x ms
+
+    quantized_coupling, _,_ =gw_cython(A_s,B_s,a_s,b_s,As_As_as[:,np.newaxis],Bs_Bs_bs[np.newaxis,:])
+    # We can count, roughly, how many elements we'll need in the coupling matrix.
+    cdef int num_elts =0
+    for i in range(ns):
+        for j in range(ms):
+            if quantized_coupling[i,j]!=0.0:
+                num_elts += (A_si[i+1]-A_si[i]) + (B_si[j+1]-B_si[j]) - 1
+
+    cdef np.ndarray[int ,ndim=1,mode="c"] T_rows = np.zeros((num_elts,),dtype=np.int32)
+    cdef np.ndarray[int ,ndim=1,mode="c"] T_cols = np.zeros((num_elts,),dtype=np.int32)
+    cdef np.ndarray[DTYPE_t ,ndim=1,mode="c"] T_vals = np.zeros((num_elts,),dtype=DTYPE)
+    cdef int k = 0
+    for i in range(ns):
+        a_local=a[A_si[i]:A_si[i+1]]/a_s[i]
+        # assert( abs(np.sum(a_local)-1.0)<1.0e-7 )
+        a_local_len=A_si[i+1]-A_si[i]
+        for j in range(ms):
+            if quantized_coupling[i,j] != 0.0:
+                b_local=b[B_si[j]:B_si[j+1]]/b_s[j]
+                # assert( abs(np.sum(b_local)-1.0)<1.0e-7 )
+                b_local_len=B_si[j+1]-B_si[j]
+                # print("i:" + str(i))
+                # print("j:" + str(j))
+                # print("k:" + str(k))
+                # print("num_elts:"+str(num_elts))
+                # print("A_si[i]:" + str(A_si[i]))
+                # print("B_si[j]:" + str(B_si[j]))                
+                sparse_oneD_OT_gw(
+                    T_rows,
+                    T_cols,
+                    T_vals,
+                    k,
+                    A_si[i],
+                    B_si[j],
+                    a_local, # 1dim
+                    a_local_len, #int
+                    b_local,#1dim
+                    b_local_len, #int
+                    quantized_coupling[i,j])#float
+                k+= (A_si[i+1]-A_si[i])+(B_si[j+1]-B_si[j])-1
+    return (T_rows,T_cols,T_vals)
+

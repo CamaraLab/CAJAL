@@ -15,11 +15,14 @@ import ot
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import squareform
+from scipy import sparse
+from scipy import cluster
 from scipy.sparse import coo_array
+from multiprocessing import Pool
 
-from .slb import slb2
+from .slb import slb2 as slb2_cython
 from .pogrow import pogrow
-from .gw_cython import gw_cython
+from .gw_cython import gw_cython, frobenius, quantized_gw_2
 
 T = TypeVar("T")
 
@@ -37,6 +40,10 @@ def _is_sorted(int_list: List[int]) -> bool:
     if len(int_list) <= 1:
         return True
     return all(map(lambda tup: tup[0] <= tup[1], zip(int_list[:-1], int_list[1:])))
+
+
+def n_c_2(n: int):
+    return (n * (n - 1)) // 2
 
 
 def icdm_csv_validate(intracell_csv_loc: str) -> None:
@@ -219,27 +226,47 @@ def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
 #     return sqrt(np.dot(T, t)) / 2
 
 
+def init_slb_worker(cells):
+    global _VF_CELLS
+    _VF_CELLS = cells
+
+
+def slb_by_indices(p: tuple[int, int]):
+    i, j = p
+    return (i, j, slb2_cython(_VF_CELLS[i], _VF_CELLS[j]))
+
+
 def compute_slb2_distance_matrix(
     intracell_csv_loc: str,
     slb2_dist_csv_loc: str,
+    num_processes: int,
+    chunksize: int,
     verbose: Optional[bool] = False,
 ) -> None:
-    cell_pairs = cell_pair_iterator_csv(intracell_csv_loc, 100)
-    write_gw_dists(
-        slb2_dist_csv_loc,
-        (
-            (
-                cellA_name,
-                cellB_name,
-                slb2(
-                    squareform(cellA_icdm, force="tovector"),
-                    squareform(cellB_icdm, force="tovector"),
-                ),
-            )
-            for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
-        ),
-        True,
+    start = time.time()
+    names, cells = zip(
+        *(
+            (name, np.sort(squareform(cell)))
+            for name, cell in cell_iterator_csv(intracell_csv_loc)
+        )
     )
+    N = len(cells)
+    indices = it.combinations(iter(range(N)), 2)
+
+    with Pool(
+        processes=num_processes, initializer=init_slb_worker, initargs=(cells,)
+    ) as pool:
+        slb_dists = pool.imap_unordered(slb_by_indices, indices, chunksize=chunksize)
+        with open(slb2_dist_csv_loc, "w", newline="") as outfile:
+            csvwriter = csv.writer(outfile)
+            stop = time.time()
+            print("Init time: " + str(stop - start))
+            start = time.time()
+            for t in _batched(slb_dists, 2000):
+                t = [(names[i], names[j], slb_dist) for i, j, slb_dist in t]
+                csvwriter.writerows(t)
+    stop = time.time()
+    print("GW + File IO time " + str(stop - start))
 
 
 def write_gw_dists(
@@ -458,3 +485,248 @@ def pogrow_pairwise(a: list[npt.NDArray[np.float_]], it: int, alpha: float):
             LC_tensor_C -= 2 * np.matmul(a[i], np.matmul(T, a[j].T))
             retlist.append(sqrt(np.sum(np.multiply(LC_tensor_C, T))) / 2)
     return retlist
+
+
+class quantized_icdm:
+    n: int
+    # 2 dimensional square matrix of side length n.
+    icdm: npt.NDArray[np.float64]
+    # "distribution" is a dimensional vector of length n,
+    # a probability distribution on points of the space
+    distribution: npt.NDArray[np.float64]
+    ns: int
+    # A square sub-matrix of icdm, the distance matrix between sampled points. Of side length ns.
+    sub_icdm: npt.NDArray[np.float64]
+    # q_indices is a 1-dimensional array of integers of length ns+1. For i,j < ns,
+    # icdm[sample_indices[i],sample_indices[j]]==sub_icdm[i,j].
+    # sample_indices[ns]==n.
+    q_indices: npt.NDArray[np.int_]
+    # The quantized distribution; a 1-dimensional array of length ns.
+    q_distribution: npt.NDArray[np.float64]
+    # This field stores the one-dimensional vector
+    # np.dot(np.multiply(sub_icdm,sub_icdm),q_distribution) which is useful to have
+    # precomputed for some of the Gromov-Wasserstein computations.
+    c_C: npt.NDArray[np.float64]
+    # This field is equal to np.dot(np.dot(np.multiply(icdm,icdm),distribution),distribution)
+    AAa_a: float
+
+    def __init__(
+        self,
+        cell_dm: npt.NDArray[np.float64],
+        p: npt.NDArray[np.float64],
+        num_clusters: int,
+    ):
+        assert len(cell_dm.shape) == 2
+        self.n = cell_dm.shape[0]
+        Z = cluster.hierarchy.linkage(squareform(cell_dm), method="centroid")
+        clusters = cluster.hierarchy.fcluster(
+            Z, num_clusters, criterion="maxclust", depth=0
+        )
+        actual_num_clusters: int = len(set(clusters))
+        self.ns = actual_num_clusters
+        indices: npt.NDArray[np.int_] = np.argsort(clusters)
+        original_cell_dm = cell_dm
+        cell_dm = cell_dm[indices, :][:, indices]
+        p = p[indices]
+        q: list[float]
+        q = []
+        clusters = np.sort(clusters)
+        for i in range(1, actual_num_clusters + 1):
+            permutation = np.nonzero(clusters == i)[0]
+            this_cluster = cell_dm[permutation, :][:, permutation]
+            medoid = np.argmin(sum(this_cluster))
+            new_local_indices = np.argsort(this_cluster[medoid])
+            cell_dm[permutation, :] = cell_dm[permutation[new_local_indices], :]
+            cell_dm[:, permutation] = cell_dm[:, permutation[new_local_indices]]
+            indices[permutation] = indices[permutation[new_local_indices]]
+            p[permutation] = p[permutation[new_local_indices]]
+            q.append(np.sum(p[permutation]))
+        self.icdm = cell_dm
+        self.distribution = p
+        cell_dm_sq = np.multiply(cell_dm, cell_dm)
+        q_arr = np.array(q, dtype=np.float64)
+        self.q_distribution = q_arr
+        assert abs(np.sum(q_arr) - 1.0) < 1e-7
+        medoids = np.nonzero(np.r_[1, np.diff(clusters)])[0]
+        A_s = cell_dm[medoids, :][:, medoids]
+        assert np.all(np.equal(original_cell_dm[:, indices][indices, :], cell_dm))
+        self.sub_icdm = A_s
+        self.q_indices = np.nonzero(np.r_[1, np.diff(clusters), 1])[0]
+        self.c_C = np.dot(np.multiply(A_s, A_s), q_arr)
+        self.AAa_a = np.dot(np.dot(cell_dm_sq, p), p)
+
+
+# def init_worker(cell_name):
+#     global _PREPROCESSED_CELLS
+#     global _NAMES
+#     global _OUT_CSV_ROOT
+#     _NAMES = names
+#     _OUT_CSV_ROOT = out_csv_root
+
+
+def quantized_gw(A: quantized_icdm, B: quantized_icdm):
+    T_rows, T_cols, T_data = quantized_gw_2(
+        A.distribution,
+        A.sub_icdm,
+        A.q_indices,
+        A.q_distribution,
+        A.c_C,
+        B.distribution,
+        B.sub_icdm,
+        B.q_indices,
+        B.q_distribution,
+        B.c_C,
+    )
+    P = sparse.coo_matrix((T_data, (T_rows, T_cols)), shape=(A.n, B.n)).tocsr()
+    gw_loss = A.AAa_a + B.AAa_a - 2.0 * frobenius(A.icdm, P.dot(P.dot(B.icdm).T))
+    return sqrt(gw_loss) / 2.0
+
+
+# def block_quantized_gw(
+#       list_pair : tuple[
+#             list[tuple[int,tuple[str,quantized_icdm]]],
+#             list[tuple[int,tuple[str,quantized_icdm]]]
+#         ]
+# ):
+#     gw_list=[]
+#     cell_listA, cell_listB = list_pair
+#     for i, (Aname, A) in cell_listA:
+#         for j, (Bname, B) in cell_listB:
+#             if i < j:
+#                 gw_list.append((Aname,Bname,quantized_gw(A,B)))
+#     return gw_list
+
+
+# def quantized_gw_parallel(
+#         intracell_csv_loc : str,
+#         num_processes : int,
+#         chunk_size : int,
+#         num_clusters : int,
+#         out_csv : str,
+#         verbose : bool = False
+# ):
+#     cell_iterator=cell_iterator_csv(intracell_csv_loc)
+#     quantized_cells=((name,quantized_icdm(
+#         cell_dm,
+#         np.ones((cell_dm.shape[0],))/cell_dm.shape[0],
+#         num_clusters)) for name,cell_dm in cell_iterator)
+#     cells_batched = _batched(enumerate(quantized_cells),chunk_size)
+#     cell_batch_pairs= it.combinations_with_replacement(cells_batched,2)
+#     k=0
+#     with Pool(processes=num_processes) as pool:
+#         gw_dists=pool.imap_unordered(block_quantized_gw, cell_batch_pairs)
+#         with open(out_csv,'w',newline='') as outcsvfile:
+#             csvwriter=csv.writer(outcsvfile)
+#             for block in gw_dists:
+#                 print(k)
+#                 k+=1
+#                 csvwriter.writerows(block)
+
+
+def block_quantized_gw(indices):
+    (i0, i1), (j0, j1) = indices
+
+    gw_list = []
+    for i in range(i0, i1):
+        A = _QUANTIZED_CELLS[i]
+        for j in range(j0, j1):
+            if i < j:
+                B = _QUANTIZED_CELLS[j]
+                gw_list.append((i, j, quantized_gw(A, B)))
+    return gw_list
+
+
+def init_pool(quantized_cells):
+    global _QUANTIZED_CELLS
+    _QUANTIZED_CELLS = quantized_cells
+
+
+# def quantized_gw_parallel(
+#         intracell_csv_loc : str,
+#         num_processes : int,
+#         chunk_size : int,
+#         num_clusters : int,
+#         out_csv : str,
+#         verbose : bool = False
+# ):
+#     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
+#     quantized_cells=\
+#         [ quantized_icdm(cell_dm,
+#                          np.ones((cell_dm.shape[0],))/cell_dm.shape[0],
+#                          num_clusters) for cell_dm in cell_dms ]
+#     N = len(quantized_cells)
+#     indices= list(iter(range(0,N,chunk_size)))
+#     if indices[-1]!=N:
+#         indices.append(N)
+#     index_pairs = it.combinations_with_replacement(it.pairwise(indices),2)
+#     gw_time = 0.0
+#     fileio_time = 0.0
+#     gw_start=time.time()
+#     with Pool(
+#             initializer=init_pool,
+#             initargs = (quantized_cells,),
+#             processes=num_processes) as pool:
+#         gw_dists=pool.imap_unordered(block_quantized_gw, index_pairs)
+#         gw_stop=time.time()
+#         gw_time+=gw_stop-gw_start
+#         with open(out_csv,'w',newline='') as outcsvfile:
+#             csvwriter=csv.writer(outcsvfile)
+#             gw_start=time.time()
+#             for block in gw_dists:
+#                 block = [ (names[i],names[j],gw_dist) for (i,j,gw_dist) in block]
+#                 gw_stop=time.time()
+#                 gw_time+=gw_stop-gw_start
+#                 csvwriter.writerows(block)
+#                 gw_start=time.time()
+#                 fileio_time+=(gw_start-gw_stop)
+#     print("GW time: "+str(gw_time))
+#     print("File IO time: "+str(fileio_time))
+
+
+def quantized_gw_index(p: tuple[int, int]):
+    i, j = p
+    return (i, j, quantized_gw(_QUANTIZED_CELLS[i], _QUANTIZED_CELLS[j]))
+
+
+def quantized_gw_parallel(
+    intracell_csv_loc: str,
+    num_processes: int,
+    chunksize: int,
+    num_clusters: int,
+    out_csv: str,
+    verbose: bool = False,
+):
+    names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
+    quantized_cells = [
+        quantized_icdm(
+            cell_dm, np.ones((cell_dm.shape[0],)) / cell_dm.shape[0], num_clusters
+        )
+        for cell_dm in cell_dms
+    ]
+    N = len(quantized_cells)
+    index_pairs = it.combinations(iter(range(N)), 2)
+
+    gw_time = 0.0
+    fileio_time = 0.0
+    gw_start = time.time()
+    with Pool(
+        initializer=init_pool, initargs=(quantized_cells,), processes=num_processes
+    ) as pool:
+        gw_dists = pool.imap_unordered(
+            quantized_gw_index, index_pairs, chunksize=chunksize
+        )
+        gw_stop = time.time()
+        gw_time += gw_stop - gw_start
+        with open(out_csv, "w", newline="") as outcsvfile:
+            csvwriter = csv.writer(outcsvfile)
+            gw_start = time.time()
+            t = _batched(gw_dists, 2000)
+            for block in t:
+                block = [(names[i], names[j], gw_dist) for (i, j, gw_dist) in block]
+                gw_stop = time.time()
+                gw_time += gw_stop - gw_start
+                csvwriter.writerows(block)
+                gw_start = time.time()
+                fileio_time += gw_start - gw_stop
+    print("GW time: " + str(gw_time))
+    print("File IO time: " + str(fileio_time))
