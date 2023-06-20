@@ -151,6 +151,9 @@ QuantizedGromovWasserstein/
 
 # Cython
 cython_debug
+*.c
+
 # Test scripts
 
 tests/debug*
+
