@@ -7,7 +7,7 @@ cimport numpy as np
 np.import_array()
 from math import ceil,sqrt
 
-DTYPE=np.float
+DTYPE=np.float64
 ctypedef np.float_t DTYPE_t
 
 # def slb2(np.ndarray[DTYPE_t,ndim=1] f, np.ndarray[DTYPE_t,ndim=1] g):

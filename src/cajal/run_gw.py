@@ -199,31 +199,31 @@ def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
     return sqrt(gw_dist) / 2.0
 
 
-# def slb2(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
-#     """
-#     Accepts two vectorform distance matrices.
-#     """
-#     fst_mat = np.sort(fst_mat)
-#     snd_mat = np.sort(snd_mat)
-#     ND, MD = fst_mat.shape[0], snd_mat.shape[0]
-#     N, M = ceil(sqrt(2 * ND)), ceil(sqrt(2 * MD))
-#     assert ND * 2 == N * (N - 1)
-#     assert MD * 2 == M * (M - 1)
-#     fst_diffs = np.diff(fst_mat, prepend=0.0)
-#     snd_diffs = np.diff(snd_mat, prepend=0.0)
-#     fst_mat_x = np.linspace(start=1 / N + 2 / (N**2), stop=1, num=ND)
-#     snd_mat_x = np.linspace(start=1 / M + 2 / (M**2), stop=1, num=MD)
-#     x = np.concatenate((fst_mat_x, snd_mat_x))
-#     assert x.shape == (ND + MD,)
-#     indices = np.argsort(x)
-#     T = np.concatenate((fst_diffs, -snd_diffs))[indices]
-#     np.cumsum(T, out=T)
-#     np.abs(T, out=T)
-#     np.square(T, out=T)
-#     a = x[indices]
-#     t = np.diff(a, append=a[-1])
-#     assert np.all(t >= 0.0)
-#     return sqrt(np.dot(T, t)) / 2
+def slb2(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
+    """
+    Accepts two vectorform distance matrices.
+    """
+    fst_mat = np.sort(fst_mat)
+    snd_mat = np.sort(snd_mat)
+    ND, MD = fst_mat.shape[0], snd_mat.shape[0]
+    N, M = ceil(sqrt(2 * ND)), ceil(sqrt(2 * MD))
+    assert ND * 2 == N * (N - 1)
+    assert MD * 2 == M * (M - 1)
+    fst_diffs = np.diff(fst_mat, prepend=0.0)
+    snd_diffs = np.diff(snd_mat, prepend=0.0)
+    fst_mat_x = np.linspace(start=1 / N + 2 / (N**2), stop=1, num=ND)
+    snd_mat_x = np.linspace(start=1 / M + 2 / (M**2), stop=1, num=MD)
+    x = np.concatenate((fst_mat_x, snd_mat_x))
+    assert x.shape == (ND + MD,)
+    indices = np.argsort(x)
+    T = np.concatenate((fst_diffs, -snd_diffs))[indices]
+    np.cumsum(T, out=T)
+    np.abs(T, out=T)
+    np.square(T, out=T)
+    a = x[indices]
+    t = np.diff(a, append=a[-1])
+    assert np.all(t >= 0.0)
+    return sqrt(np.dot(T, t)) / 2
 
 
 def init_slb_worker(cells):
@@ -730,3 +730,34 @@ def quantized_gw_parallel(
                 fileio_time += gw_start - gw_stop
     print("GW time: " + str(gw_time))
     print("File IO time: " + str(fileio_time))
+
+
+def init_slb2_pool(sorted_cells):
+    global _SORTED_CELLS
+    _SORTED_CELLS = sorted_cells
+
+
+def global_slb2_pool(p: tuple[int, int]):
+    i, j = p
+    return (i, j, slb2(_SORTED_CELLS[i], _SORTED_CELLS[j]))
+
+
+# def combined_slb2_quantized_gw(
+#     intracell_csv_loc: str,
+#     num_processes: int,
+#     chunksize: int,
+#     num_clusters: int,
+#     out_csv: str,
+#     confidence_parameter: float,
+#     verbose: bool = False,
+# ):
+#     # First we compute the slb2 intracell distance for everything.
+#     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
+#     N = len(names)
+#     cell_dms_sorted = [np.sort(squareform(cell, force="tovector")) for cell in cell_dms]
+#     with Pool(
+#         initializer=init_slb2_pool, initargs=(cell_dms_sorted,), processes=num_processes
+#     ) as pool:
+#         slb2_dists = pool.imap_unordered(
+#             global_slb2, it.combinations(iter(range(N)), 2), chunksize=chunksize
+#         )

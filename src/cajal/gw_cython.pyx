@@ -1,19 +1,34 @@
 # cython: profile=True
+# distutils: language=c++
+# distutils: sources = src/cajal/EMD_wrapper.cpp
 """
 GW
 """
 
+cimport cython
 import numpy as np
 cimport numpy as np
-cimport cython
+import scipy
 np.import_array()
 from libc.stdlib cimport rand
-from ot.lp import emd_c, emd
+from libc.stdint cimport uint64_t
+# from ot.lp import emd_c, emd
 from math import sqrt
 from scipy.sparse import lil_matrix
+from scipy import sparse
+
+cdef extern from "EMD.h":
+    int EMD_wrap(int n1, int n2, double *X, double *Y,double *D, double *G, double* alpha, double* beta, double *cost, uint64_t maxIter) nogil
+
+# cdef extern from "EMD.h":
+#     int EMD_wrap(int n1,int n2, double *X, double *Y,double *D, double *G, double* alpha, double* beta, double *cost, uint64_t maxIter) nogil
+#     int EMD_wrap_omp(int n1,int n2, double *X, double *Y,double *D, double *G, double* alpha, double* beta, double *cost, uint64_t maxIter, int numThreads) nogil
+#     cdef enum ProblemType: INFEASIBLE, OPTIMAL, UNBOUNDED, MAX_ITER_REACHED
+
 
 cdef extern from "stdlib.h":
     int RAND_MAX
+
 DTYPE=np.float64
 ctypedef np.float_t DTYPE_t
 
@@ -131,7 +146,8 @@ def gw_cython(
         # It's tempting to use the 'cost' from this function but remember that
         # it's a "mixed cost" between two different transport plans, T_r and T_r+1.
         # It's not meaningful! Don't use it
-        T_new, _, _, _,_ = emd_c(p,q,2*LCCbar_otimes_T,max_iters_OT,numThreads=1)
+        # T_new, _, _, _,_ = emd_c(p,q,2*LCCbar_otimes_T,max_iters_OT,numThreads=1)
+        T_new=np.zeros((1,1),dtype=DTYPE)
         log['sparse'].append(np.count_nonzero(T_new))
         matrix_tensor(c_C_Cbar,C,Cbar,T_new,LCCbar_otimes_T)
         new_gw_loss_T =frobenius(LCCbar_otimes_T,T_new)
@@ -149,6 +165,96 @@ def gw_cython(
     # assert np.allclose(np.sum(T,axis=0),p)
     # assert np.allclose(np.sum(T,axis=1),q)
     return (T, sqrt(gw_loss_T)/2,log)
+
+
+def n_c_2(int n):
+    return <int>((n * (n-1))/2)
+
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
+def vf_ij(
+        # np.ndarray[np.float64_t,ndim=1,mode='c'] A,
+        np.float64_t[::1] A,
+        int n,
+        int i,
+        int j):
+
+    if i == j:
+        return 0.0
+    if i < j:
+        return A[ (n_c_2(n)-n_c_2(n-i))+((j-i)-1)]
+    return A[(n_c_2(n)-n_c_2(n-j))+((i-j)-1)]
+
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
+def vf_dot(
+        DTYPE_t[::1] A,
+        int n,
+        DTYPE_t[:] B,
+        DTYPE_t[:] C
+):
+
+    assert B.shape[0]==n
+    cdef int k
+    for k in range(n):
+        C[k]=0.0
+        for i in range(n):
+            C[k]+= vf_ij(A,n,k,i)*B[i]
+
+
+def gw_cython_core(
+        np.ndarray[DTYPE_t,ndim=2,mode='c'] A,
+        np.ndarray[DTYPE_t,ndim=1,mode='c'] a,
+        np.ndarray[DTYPE_t,ndim=1,mode='c'] Aa,
+        DTYPE_t c_A,        
+        np.ndarray[DTYPE_t,ndim=2,mode='c'] B,
+        np.ndarray[DTYPE_t,ndim=1,mode='c'] b,
+        np.ndarray[DTYPE_t,ndim=1,mode='c'] Bb,
+        DTYPE_t c_B,
+        int max_iters_descent =1000,
+        uint64_t max_iters_ot = 200000,
+):
+
+    cdef int it = 0
+    cdef int n = a.shape[0]
+    cdef int m = b.shape[0]
+    cdef int result_code
+    # cdef DTYPE_t alpha
+    # cdef DTYPE_t gw_loss_T
+    # cdef DTYPE_t new_gw_loss_T
+    cdef double cost=0.0
+    cdef double newcost=0.0
+    # np.ndarray[np.float64_t,ndim=1] Aa = np.dot(A,a)
+    cdef np.ndarray[double, ndim=1, mode="c"] alpha=np.zeros(n)
+    cdef np.ndarray[double, ndim=1, mode="c"] beta=np.zeros(m)
+    cdef np.ndarray[double, ndim=2, mode="c"] neg2_PB
+    cdef np.ndarray[double, ndim=2, mode="c"] AP
+
+    # np.ndarray[np.float64_t,ndim=1] Bb = np.dot(B,b)
+
+    # Cost matrix, C= initialized to -2*APB
+    cdef np.ndarray[np.float64_t,ndim=2,mode='c'] C = np.multiply(Aa[:,np.newaxis],(-2.0*Bb)[np.newaxis,:],order='C')
+    cdef np.ndarray[np.float64_t,ndim=2,mode='c'] P = np.zeros((n,m),dtype=DTYPE,order='C')
+    cost=(c_A+c_B)+frobenius(C,P)
+
+
+    while it<max_iters_descent:
+        result_code=EMD_wrap(n,m, <double*> a.data, <double*> b.data,
+                             <double*> C.data, <double*>P.data,
+                             <double*> alpha.data, <double*> beta.data,
+                             <double*> &cost, max_iters_ot)
+        if result_code != 0:
+            raise Exception("HELP")
+        P_sparse = scipy.sparse.csr_matrix(P,shape=(n,m), dtype=DTYPE)
+        AP = sparse.csr_matrix.dot(A,P_sparse)
+        neg2_PB = (-2.0*P_sparse).dot(B)
+        newcost = (c_A+c_B)+frobenius(AP,neg2_PB)
+        if newcost >= cost:
+            return (P,sqrt(cost)/2.0)
+        cost=newcost
+        np.dot(A,neg2_PB,out=C)
+        it+=1
+        
 
 def intersection(DTYPE_t a, DTYPE_t b, DTYPE_t c, DTYPE_t d):
     cdef maxac= a if a >= c else c

@@ -151,7 +151,7 @@ QuantizedGromovWasserstein/
 
 # Cython
 cython_debug
-*.c
+src/cajal/*.c
 
 # Test scripts
 
