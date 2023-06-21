@@ -503,12 +503,10 @@ class quantized_icdm:
     q_indices: npt.NDArray[np.int_]
     # The quantized distribution; a 1-dimensional array of length ns.
     q_distribution: npt.NDArray[np.float64]
-    # This field stores the one-dimensional vector
-    # np.dot(np.multiply(sub_icdm,sub_icdm),q_distribution) which is useful to have
-    # precomputed for some of the Gromov-Wasserstein computations.
-    c_C: npt.NDArray[np.float64]
+    c_A: float
+    c_As: float
+    A_s_a_s: npt.NDArray[np.float64]
     # This field is equal to np.dot(np.dot(np.multiply(icdm,icdm),distribution),distribution)
-    AAa_a: float
 
     def __init__(
         self,
@@ -518,6 +516,8 @@ class quantized_icdm:
     ):
         assert len(cell_dm.shape) == 2
         self.n = cell_dm.shape[0]
+        cell_dm_sq = np.multiply(cell_dm, cell_dm)
+        self.c_A = np.dot(np.dot(cell_dm_sq, p), p)
         Z = cluster.hierarchy.linkage(squareform(cell_dm), method="centroid")
         clusters = cluster.hierarchy.fcluster(
             Z, num_clusters, criterion="maxclust", depth=0
@@ -541,19 +541,20 @@ class quantized_icdm:
             indices[permutation] = indices[permutation[new_local_indices]]
             p[permutation] = p[permutation[new_local_indices]]
             q.append(np.sum(p[permutation]))
-        self.icdm = cell_dm
+        self.icdm = np.asarray(cell_dm, order="C")
         self.distribution = p
-        cell_dm_sq = np.multiply(cell_dm, cell_dm)
-        q_arr = np.array(q, dtype=np.float64)
+        q_arr = np.array(q, dtype=np.float64, order="C")
         self.q_distribution = q_arr
         assert abs(np.sum(q_arr) - 1.0) < 1e-7
         medoids = np.nonzero(np.r_[1, np.diff(clusters)])[0]
         A_s = cell_dm[medoids, :][:, medoids]
         assert np.all(np.equal(original_cell_dm[:, indices][indices, :], cell_dm))
-        self.sub_icdm = A_s
-        self.q_indices = np.nonzero(np.r_[1, np.diff(clusters), 1])[0]
-        self.c_C = np.dot(np.multiply(A_s, A_s), q_arr)
-        self.AAa_a = np.dot(np.dot(cell_dm_sq, p), p)
+        self.sub_icdm = np.asarray(A_s, order="C")
+        self.q_indices = np.asarray(
+            np.nonzero(np.r_[1, np.diff(clusters), 1])[0], order="C"
+        )
+        self.c_As = np.dot(np.multiply(A_s, A_s), q_arr) @ q_arr
+        self.A_s_a_s = np.dot(A_s, q_arr)
 
 
 # def init_worker(cell_name):
@@ -570,15 +571,17 @@ def quantized_gw(A: quantized_icdm, B: quantized_icdm):
         A.sub_icdm,
         A.q_indices,
         A.q_distribution,
-        A.c_C,
+        A.A_s_a_s,
+        A.c_As,
         B.distribution,
         B.sub_icdm,
         B.q_indices,
         B.q_distribution,
-        B.c_C,
+        B.A_s_a_s,
+        B.c_As,
     )
     P = sparse.coo_matrix((T_data, (T_rows, T_cols)), shape=(A.n, B.n)).tocsr()
-    gw_loss = A.AAa_a + B.AAa_a - 2.0 * frobenius(A.icdm, P.dot(P.dot(B.icdm).T))
+    gw_loss = A.c_A + B.c_A - 2.0 * frobenius(A.icdm, P.dot(P.dot(B.icdm).T))
     return sqrt(gw_loss) / 2.0
 
 

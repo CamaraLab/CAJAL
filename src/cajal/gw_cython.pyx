@@ -202,7 +202,8 @@ def vf_dot(
         for i in range(n):
             C[k]+= vf_ij(A,n,k,i)*B[i]
 
-
+# @cython.boundscheck(False)  # Deactivate bounds checking
+# @cython.wraparound(False)   # Deactivate negative indexing.
 def gw_cython_core(
         np.ndarray[DTYPE_t,ndim=2,mode='c'] A,
         np.ndarray[DTYPE_t,ndim=1,mode='c'] a,
@@ -525,8 +526,8 @@ def quantized_gw_2(
         np.ndarray[Py_ssize_t,ndim=1] A_si,
         # Probability distribution on sample points of A_s; of length ns
         np.ndarray[np.float64_t,ndim=1] a_s,
-        # np.dot(np.multiply(A_s,A_s),a_s)
-        np.ndarray[np.float64_t,ndim=1] As_As_as,
+        np.ndarray[np.float64_t,ndim=1] A_s_a_s,
+        DTYPE_t c_As,
         # b is the probability distribution on points of B
         np.ndarray[np.float64_t,ndim=1] b,
         # B_sample, size ms x ms
@@ -535,8 +536,8 @@ def quantized_gw_2(
         np.ndarray[Py_ssize_t,ndim=1] B_si,
         # Probability distribution on sample points of B_s; of length ms
         np.ndarray[np.float64_t,ndim=1] b_s,
-        # np.dot(np.multiply(B_s,B_s),b_s)
-        np.ndarray[np.float64_t,ndim=1] Bs_Bs_bs,
+        np.ndarray[np.float64_t,ndim=1] B_s_b_s,
+        DTYPE_t c_Bs,
 ):
 
     cdef int n = a.shape[0]
@@ -549,7 +550,9 @@ def quantized_gw_2(
     cdef int b_local_len
     cdef np.ndarray[np.float64_t,ndim=2] quantized_coupling # size ns x ms
 
-    quantized_coupling, _,_ =gw_cython(A_s,B_s,a_s,b_s,As_As_as[:,np.newaxis],Bs_Bs_bs[np.newaxis,:])
+    quantized_coupling, _=gw_cython_core(
+        A_s,a_s,A_s_a_s,c_As,
+        B_s,b_s,B_s_b_s,c_Bs)
     # We can count, roughly, how many elements we'll need in the coupling matrix.
     cdef int num_elts =0
     for i in range(ns):
@@ -570,12 +573,6 @@ def quantized_gw_2(
                 b_local=b[B_si[j]:B_si[j+1]]/b_s[j]
                 # assert( abs(np.sum(b_local)-1.0)<1.0e-7 )
                 b_local_len=B_si[j+1]-B_si[j]
-                # print("i:" + str(i))
-                # print("j:" + str(j))
-                # print("k:" + str(k))
-                # print("num_elts:"+str(num_elts))
-                # print("A_si[i]:" + str(A_si[i]))
-                # print("B_si[j]:" + str(B_si[j]))                
                 sparse_oneD_OT_gw(
                     T_rows,
                     T_cols,
