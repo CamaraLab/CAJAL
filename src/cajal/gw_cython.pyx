@@ -9,6 +9,7 @@ cimport cython
 import numpy as np
 cimport numpy as np
 import scipy
+import warnings
 np.import_array()
 from libc.stdlib cimport rand
 from libc.stdint cimport uint64_t
@@ -18,8 +19,8 @@ from scipy.sparse import lil_matrix
 from scipy import sparse
 
 cdef extern from "EMD.h":
-    int EMD_wrap(int n1, int n2, double *X, double *Y,double *D, double *G, double* alpha, double* beta, double *cost, uint64_t maxIter) nogil
-
+    int EMD_wrap(int n1, int n2, double *X, double *Y, double *D, double *G, double* alpha, double* beta, double *cost, uint64_t maxIter) nogil
+    cdef enum ProblemType: INFEASIBLE, OPTIMAL, UNBOUNDED, MAX_ITER_REACHED
 # cdef extern from "EMD.h":
 #     int EMD_wrap(int n1,int n2, double *X, double *Y,double *D, double *G, double* alpha, double* beta, double *cost, uint64_t maxIter) nogil
 #     int EMD_wrap_omp(int n1,int n2, double *X, double *Y,double *D, double *G, double* alpha, double* beta, double *cost, uint64_t maxIter, int numThreads) nogil
@@ -49,7 +50,7 @@ def matrix_tensor(
     np.multiply(LCCbar_otimes_T,2.,out=LCCbar_otimes_T)
     np.subtract(c_C_Cbar,LCCbar_otimes_T,out=LCCbar_otimes_T)
 
-def frobenius(DTYPE_t[:,:] A, DTYPE_t[:,:] B):
+def frobenius(DTYPE_t[:,:] A, DTYPE_t[:,:] B) -> DTYPE_t:
 
     cdef int n = A.shape[0]
     cdef int m = A.shape[1]
@@ -222,13 +223,16 @@ def gw_cython_core(
     # cdef DTYPE_t alpha
     # cdef DTYPE_t gw_loss_T
     # cdef DTYPE_t new_gw_loss_T
-    cdef double cost=0.0
-    cdef double newcost=0.0
+    cdef DTYPE_t cost=0.0
+    cdef double temp=0.0        # I believe this number is not useful. I could be wrong.
+    cdef DTYPE_t newcost=0.0
     # np.ndarray[np.float64_t,ndim=1] Aa = np.dot(A,a)
     cdef np.ndarray[double, ndim=1, mode="c"] alpha=np.zeros(n)
     cdef np.ndarray[double, ndim=1, mode="c"] beta=np.zeros(m)
-    cdef np.ndarray[double, ndim=2, mode="c"] neg2_PB
-    cdef np.ndarray[double, ndim=2, mode="c"] AP
+    cdef np.ndarray[DTYPE_t, ndim=2, mode="c"] neg2_PB
+    # cdef np.ndarray[double, ndim=2, mode="fortran"] AP
+    cdef np.ndarray[double, ndim=2, mode="c"] AP=np.zeros((n,m),dtype=DTYPE,order='C')
+    # cdef np.ndarray[double, ndim=2, mode="c"] PB=np.zeros((n,m),dtype=DTYPE,order='C')
 
     # np.ndarray[np.float64_t,ndim=1] Bb = np.dot(B,b)
 
@@ -237,30 +241,42 @@ def gw_cython_core(
     cdef np.ndarray[np.float64_t,ndim=2,mode='c'] P = np.zeros((n,m),dtype=DTYPE,order='C')
     cost=(c_A+c_B)+frobenius(C,P)
 
-
     while it<max_iters_descent:
         result_code=EMD_wrap(n,m, <double*> a.data, <double*> b.data,
                              <double*> C.data, <double*>P.data,
                              <double*> alpha.data, <double*> beta.data,
-                             <double*> &cost, max_iters_ot)
-        if result_code != 0:
-            raise Exception("HELP")
-        P_sparse = scipy.sparse.csr_matrix(P,shape=(n,m), dtype=DTYPE)
-        AP = sparse.csr_matrix.dot(A,P_sparse)
-        neg2_PB = (-2.0*P_sparse).dot(B)
-        newcost = (c_A+c_B)+frobenius(AP,neg2_PB)
+                             <double*> &temp, max_iters_ot)
+
+        if result_code != OPTIMAL:
+            # cdef enum ProblemType: INFEASIBLE, OPTIMAL, UNBOUNDED, MAX_ITER_REACHED
+            if result_code == INFEASIBLE:
+                raise Exception("INFEASIBLE")
+            if result_code == UNBOUNDED:
+                raise Exception("UNBOUNDED")
+            if result_code == MAX_ITER_REACHED:
+                raise Warning("MAX_ITER_REACHED")
+            
+        # P_sparse = scipy.sparse.csc_matrix(P,shape=(n,m), dtype=DTYPE)
+        # AP = sparse.csc_matrix.dot(A,P_sparse)
+        np.dot(A,P,out=AP)
+        np.multiply(AP,-2.0,out=AP)
+        np.matmul(AP,B,out=C)
+        # neg2_PB = (-2.0*P_sparse).dot(B)
+        # newcost = (c_A+c_B)+frobenius(AP,neg2_PB)
+        newcost = (c_A+c_B)+frobenius(C,P)
         if newcost >= cost:
             return (P,sqrt(cost)/2.0)
-        cost=newcost
-        np.dot(A,neg2_PB,out=C)
+        cost=newcost 
+        # np.dot(A,neg2_PB,out=C)
         it+=1
-        
 
-def intersection(DTYPE_t a, DTYPE_t b, DTYPE_t c, DTYPE_t d):
-    cdef maxac= a if a >= c else c
-    cdef minbd= b if b <= d else d
+
+def intersection(DTYPE_t a, DTYPE_t b, DTYPE_t c, DTYPE_t d) -> DTYPE_t:
+    cdef DTYPE_t maxac= a if a >= c else c
+    cdef DTYPE_t minbd= b if b <= d else d
     minbd=minbd-maxac
-    return minbd if minbd >= 0.0 else 0.0
+    minbd = minbd if minbd >= <DTYPE_t>0.0 else <DTYPE_t>0.0
+    return minbd
 
 def oneD_ot_CHECK(
         DTYPE_t[:,:] T):
