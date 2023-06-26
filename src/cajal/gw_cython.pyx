@@ -295,10 +295,10 @@ def gw_pairwise(
             B, b, Bb, c_B = cell_dms[j]
             _,gw_dist=gw_cython_core(A,a,Aa,c_A,B,b,Bb,c_B)
             gw_dists[k]=gw_dist
-            del(B)
-            del(b)
-            del(Bb)
-            del(c_B)
+            # del(B)
+            # del(b)
+            # del(Bb)
+            # del(c_B)
             k+=1
     return gw_dists
 
