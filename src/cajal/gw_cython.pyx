@@ -202,9 +202,7 @@ def vf_dot(
         for i in range(n):
             C[k]+= vf_ij(A,n,k,i)*B[i]
 
-# @cython.boundscheck(False)  # Deactivate bounds checking
-# @cython.wraparound(False)   # Deactivate negative indexing.
-def gw_cython_core(
+cpdef gw_cython_core(
         np.ndarray[DTYPE_t,ndim=2,mode='c'] A,
         np.ndarray[DTYPE_t,ndim=1,mode='c'] a,
         np.ndarray[DTYPE_t,ndim=1,mode='c'] Aa,
@@ -240,7 +238,8 @@ def gw_cython_core(
     # Cost matrix, C= initialized to -2*APB
     cdef np.ndarray[np.float64_t,ndim=2,mode='c'] C = np.multiply(Aa[:,np.newaxis],(-2.0*Bb)[np.newaxis,:],order='C')
     cdef np.ndarray[np.float64_t,ndim=2,mode='c'] P = np.zeros((n,m),dtype=DTYPE,order='C')
-    cost=(c_A+c_B)+frobenius(C,P)
+    cost=c_A+c_B
+    cost+=frobenius(C,P)
 
     while it<max_iters_descent:
         result_code=EMD_wrap(n,m, <double*> a.data, <double*> b.data,
@@ -264,12 +263,44 @@ def gw_cython_core(
         np.matmul(AP,B,out=C)
         # neg2_PB = (-2.0*P_sparse).dot(B)
         # newcost = (c_A+c_B)+frobenius(AP,neg2_PB)
-        newcost = (c_A+c_B)+frobenius(C,P)
+        newcost=c_A+c_B
+        newcost+=frobenius(C,P)
         if newcost >= cost:
             return (P,sqrt(cost)/2.0)
         cost=newcost 
         # np.dot(A,neg2_PB,out=C)
         it+=1
+
+def gw_pairwise(
+        list cell_dms
+):
+
+    cdef Py_ssize_t i = 0
+    cdef Py_ssize_t j = 0
+    cdef Py_ssize_t k = 0
+    cdef int N = len(cell_dms)
+    
+    # cdef list[double] gw_dists= ((N * (N-1))/2)*[0.0]
+    cdef np.ndarray[DTYPE_t,ndim=1,mode='c'] gw_dists = np.zeros( (((N * (N-1))/2),),dtype=DTYPE)
+    cdef double gw_dist
+
+    cdef np.ndarray[DTYPE_t,ndim=2,mode='c'] A, B
+    cdef np.ndarray[DTYPE_t,ndim=1,mode='c'] a, b
+    cdef np.ndarray[DTYPE_t,ndim=1,mode='c'] Aa, Bb
+    cdef DTYPE_t c_A, c_B
+
+    for i in range(N):
+        A, a, Aa, c_A = cell_dms[i]
+        for j in range(i+1,N):
+            B, b, Bb, c_B = cell_dms[j]
+            _,gw_dist=gw_cython_core(A,a,Aa,c_A,B,b,Bb,c_B)
+            gw_dists[k]=gw_dist
+            del(B)
+            del(b)
+            del(Bb)
+            del(c_B)
+            k+=1
+    return gw_dists
 
 
 def intersection(DTYPE_t a, DTYPE_t b, DTYPE_t c, DTYPE_t d) -> DTYPE_t:
@@ -512,8 +543,8 @@ def quantized_gw(
                            quantized_coupling[i,j]) #float
     return T
 
-@cython.boundscheck(False)  # Deactivate bounds checking
-@cython.wraparound(False)   # Deactivate negative indexing.
+# Turning off bounds checking doesn't improve performance on my end.
+# Neither does turning 
 def quantized_gw_2(
         # a is the probability distribution on points of A
         np.ndarray[np.float64_t,ndim=1] a,
@@ -536,6 +567,7 @@ def quantized_gw_2(
         np.ndarray[Py_ssize_t,ndim=1] B_si,
         # Probability distribution on sample points of B_s; of length ms
         np.ndarray[np.float64_t,ndim=1] b_s,
+        # np.dot(np.multiply(B_s,B_s),b_s)
         np.ndarray[np.float64_t,ndim=1] B_s_b_s,
         DTYPE_t c_Bs,
 ):
@@ -553,6 +585,7 @@ def quantized_gw_2(
     quantized_coupling, _=gw_cython_core(
         A_s,a_s,A_s_a_s,c_As,
         B_s,b_s,B_s_b_s,c_Bs)
+
     # We can count, roughly, how many elements we'll need in the coupling matrix.
     cdef int num_elts =0
     for i in range(ns):
@@ -573,6 +606,12 @@ def quantized_gw_2(
                 b_local=b[B_si[j]:B_si[j+1]]/b_s[j]
                 # assert( abs(np.sum(b_local)-1.0)<1.0e-7 )
                 b_local_len=B_si[j+1]-B_si[j]
+                # print("i:" + str(i))
+                # print("j:" + str(j))
+                # print("k:" + str(k))
+                # print("num_elts:"+str(num_elts))
+                # print("A_si[i]:" + str(A_si[i]))
+                # print("B_si[j]:" + str(B_si[j]))                
                 sparse_oneD_OT_gw(
                     T_rows,
                     T_cols,

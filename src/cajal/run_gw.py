@@ -644,48 +644,6 @@ def init_pool(quantized_cells):
     _QUANTIZED_CELLS = quantized_cells
 
 
-# def quantized_gw_parallel(
-#         intracell_csv_loc : str,
-#         num_processes : int,
-#         chunk_size : int,
-#         num_clusters : int,
-#         out_csv : str,
-#         verbose : bool = False
-# ):
-#     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
-#     quantized_cells=\
-#         [ quantized_icdm(cell_dm,
-#                          np.ones((cell_dm.shape[0],))/cell_dm.shape[0],
-#                          num_clusters) for cell_dm in cell_dms ]
-#     N = len(quantized_cells)
-#     indices= list(iter(range(0,N,chunk_size)))
-#     if indices[-1]!=N:
-#         indices.append(N)
-#     index_pairs = it.combinations_with_replacement(it.pairwise(indices),2)
-#     gw_time = 0.0
-#     fileio_time = 0.0
-#     gw_start=time.time()
-#     with Pool(
-#             initializer=init_pool,
-#             initargs = (quantized_cells,),
-#             processes=num_processes) as pool:
-#         gw_dists=pool.imap_unordered(block_quantized_gw, index_pairs)
-#         gw_stop=time.time()
-#         gw_time+=gw_stop-gw_start
-#         with open(out_csv,'w',newline='') as outcsvfile:
-#             csvwriter=csv.writer(outcsvfile)
-#             gw_start=time.time()
-#             for block in gw_dists:
-#                 block = [ (names[i],names[j],gw_dist) for (i,j,gw_dist) in block]
-#                 gw_stop=time.time()
-#                 gw_time+=gw_stop-gw_start
-#                 csvwriter.writerows(block)
-#                 gw_start=time.time()
-#                 fileio_time+=(gw_start-gw_stop)
-#     print("GW time: "+str(gw_time))
-#     print("File IO time: "+str(fileio_time))
-
-
 def quantized_gw_index(p: tuple[int, int]):
     i, j = p
     return (i, j, quantized_gw(_QUANTIZED_CELLS[i], _QUANTIZED_CELLS[j]))
@@ -694,9 +652,9 @@ def quantized_gw_index(p: tuple[int, int]):
 def quantized_gw_parallel(
     intracell_csv_loc: str,
     num_processes: int,
-    chunksize: int,
     num_clusters: int,
     out_csv: str,
+    chunksize: int = 20,
     verbose: bool = False,
 ):
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
@@ -731,8 +689,10 @@ def quantized_gw_parallel(
                 csvwriter.writerows(block)
                 gw_start = time.time()
                 fileio_time += gw_start - gw_stop
-    print("GW time: " + str(gw_time))
-    print("File IO time: " + str(fileio_time))
+
+
+# print("GW time: " + str(gw_time))
+# print("File IO time: " + str(fileio_time))
 
 
 def init_slb2_pool(sorted_cells):
@@ -745,6 +705,30 @@ def global_slb2_pool(p: tuple[int, int]):
     return (i, j, slb2(_SORTED_CELLS[i], _SORTED_CELLS[j]))
 
 
+def to_pairs(A: npt.NDArray[int]):
+    ell = []
+    for i in range(A.shape[0]):
+        for j in range(A.shape[1]):
+            k = A[i, j]
+            if i < k:
+                ell.append((i, k))
+            else:
+                ell.append((k, i))
+    return list(set(ell))
+
+
+def update_dist_mat(
+    gw_dist_iter: Iterable[tuple[int, int, float]],
+    dist_mat: npt.NDArray[float],
+    dist_mat_known: npt.NDArray[bool],
+):
+    for i, j, gw_dist in gw_dist_iter:
+        dist_mat[i, j] = gw_dist
+        dist_mat[j, i] = gw_dist
+        dist_mat_known[i, j] = True
+        dist_mat_known[j, i] = True
+
+
 # def combined_slb2_quantized_gw(
 #     intracell_csv_loc: str,
 #     num_processes: int,
@@ -752,8 +736,11 @@ def global_slb2_pool(p: tuple[int, int]):
 #     num_clusters: int,
 #     out_csv: str,
 #     confidence_parameter: float,
+#     gw_block_size : int = 10000,
+#     nearest_neighbors : int,
 #     verbose: bool = False,
 # ):
+#     np_arange_N = np.arange(N)
 #     # First we compute the slb2 intracell distance for everything.
 #     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
 #     N = len(names)
@@ -764,3 +751,62 @@ def global_slb2_pool(p: tuple[int, int]):
 #         slb2_dists = pool.imap_unordered(
 #             global_slb2, it.combinations(iter(range(N)), 2), chunksize=chunksize
 #         )
+
+#     slb2_vf=np.array(list(slb2_dists))
+#     slb2_dmat=squareform(slb2_vf)
+
+#     # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
+#     qgw_dmat=np.zeros((N,N),dtype=float)
+#     # Cell indices sorted by slb2 distance.
+#     slb2_sort=np.argsort(slb2_dmat,axis=1)
+
+#     qgw_indices = slb2_sort[:,1:nearest_neighbors]
+#     qgw_priority= to_pairs(qgw_indices)
+#     qgw_known=np.full(shape=(N,N),fill_value=False)
+#     qgw_known[np_arange_N,np_arange_N]=True
+
+#     quantized_cells = [
+#         quantized_icdm(
+#             cell_dm, np.ones((cell_dm.shape[0],)) / cell_dm.shape[0], num_clusters
+#         )
+#         for cell_dm in cell_dms
+#     ]
+
+#     # estimator_dmat=np.copy(slb2_dmat)
+#     # estimator_sort=np.copy(slb2_sort)
+#     # k=1
+#     # while condition:
+#     #     indices=estimator_sort[:,k]
+#     #     locally_known=qgw_known[np_arange_N,indices]
+
+#     with Pool(
+#         initializer=init_pool, initargs=(quantized_cells,), processes=num_processes
+#     ) as pool:
+#         qgw_dists = pool.imap_unordered(
+#             quantized_gw_index, qgw_priority, chunksize=chunksize
+#         )
+#         update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
+
+
+#     qgw_xy=np.nonzero((estimator_dmat <= cutoff[:,np.newaxis]) & (~qgw_known))
+#     while qgw_xy[0].shape>0:
+#         qgw_indices= zip(*qgw_xy)
+#         with Pool(initializer=init_pool, initargs=(quantized_cells,), processes=num_processes
+#                   ) as pool:
+#             qgw_dists = pool.imap_unordered(
+#                 quantized_gw_index, qgw_priority, chunksize=chunksize
+#             )
+#             update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
+#         qgw_vf=squareform(qgw_dmat)
+#         errors = (qgw_vf-slb2_vf)[qgw_vf>0]
+#         acceptable_error=np.percentile(errors, confidence_parameter*100)
+#         # median_error=np.percentile(errors,50)
+#         estimator_dmat=squareform(slb2_vf+acceptable_error)
+#         # estimator_dmat[np_arange_N[:,np.newaxis],qgw_indices]=\
+#         #     qgw_dmat[np_arange_N[:,np.newaxis],qgw_indices]
+#         estimator_dmat[qgw_xy[0],qgw_xy[1]]=qgw_dists[qgw_xy[0],qgw_xy[1]]
+#         estimator_sort=np.argsort(estimator_dmat,axis=1)
+#         cutoff=estimator_dmat[np_arange_N,estimator_sort[np_arange_N,nearest_neighbors]]
+#         qgw_xy=np.nonzero((estimator_dmat <= cutoff[:,np.newaxis]) & (~qgw_known))
+
+#     return estimator_dmat
