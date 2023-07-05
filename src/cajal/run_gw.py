@@ -21,8 +21,7 @@ from scipy.sparse import coo_array
 from multiprocessing import Pool
 
 from .slb import slb2 as slb2_cython
-from .pogrow import pogrow
-from .gw_cython import gw_cython, frobenius, quantized_gw_2
+from .gw_cython import frobenius, quantized_gw_2
 
 T = TypeVar("T")
 
@@ -169,6 +168,11 @@ def cell_pair_iterator_csv(
         tuple[int, str, npt.NDArray[np.float_]], tuple[int, str, npt.NDArray[np.float_]]
     ]
 ]:
+    """
+    Return an iterator over pairs of cells in a directory, of the form
+    ((indexA, nameA, distance_matrixA),(indexB, nameB, distance_matrixB)).
+    Intracell distance matrices are in squareform.
+    """
     batched_it = _batched_cell_list_iterator_csv(intracell_csv_loc, chunk_size)
     return it.chain.from_iterable(
         (
@@ -360,7 +364,10 @@ def write_dists_and_coupling_mats(
 
 
 def _coupling_mat_reformat(coupling_mat: npt.NDArray[np.float_]) -> list[float | int]:
-    # return [x for ell in coupling_mat for x in ell]
+    """
+    Convert a sparse coupling matrix to something that can be written to a csv file.
+    """
+    return [x for ell in coupling_mat for x in ell]
     coo = coo_array(coupling_mat)
     ell = [coo.nnz]
     ell += list(coo.data)
@@ -375,6 +382,11 @@ def _gw_dist_coupling(
     cellB_name: str,
     cellB_icdm: npt.NDArray[np.float_],
 ) -> tuple[tuple[str, int, str, int, list[float]], tuple[str, str, float]]:
+    """
+    Compute the Gromov-Wasserstein distance between two cells, and return
+    this information along with other context in a manner which is immediately
+    suitable for being written to a text file.
+    """
     cellA_sidelength = cellA_icdm.shape[0]
     cellB_sidelength = cellB_icdm.shape[0]
     coupling_mat, log = ot.gromov.gromov_wasserstein(
@@ -395,42 +407,6 @@ def _gw_dist_coupling(
         cellB_name,
         sqrt(gw_dist) / 2.0,
     )
-
-
-def gw_custom(
-    cell_list1: list[npt.NDArray[np.float_]],  # Squareform
-    cell_list2: list[npt.NDArray[np.float_]],  # Squareform
-    distributions_1: list[npt.NDArray[np.float_]],
-    distributions_2: list[npt.NDArray[np.float_]],
-    indices: Iterable[tuple[int, int]],
-    max_iters_ot: int = 100000,
-    max_iters_descent: int = 1000,
-) -> Iterable[float]:
-    cell_list1 = [np.asarray(a, dtype=np.float64, order="C") for a in cell_list1]
-    cell_list2 = [np.asarray(a, dtype=np.float64, order="C") for a in cell_list2]
-    c_C = [
-        np.matmul(np.multiply(A, A), distr)[:, np.newaxis]
-        for A, distr in zip(cell_list1, distributions_1)
-    ]
-    c_Cbar = [
-        np.matmul(distr[np.newaxis, :], np.multiply(A.T, A.T))
-        for A, distr in zip(cell_list2, distributions_2)
-    ]
-    retlist: list[float] = []
-    for i, j in indices:
-        retlist.append(
-            gw_cython(
-                cell_list1[i],
-                cell_list2[j],
-                distributions_1[i],
-                distributions_2[j],
-                c_C[i],
-                c_Cbar[j],
-                max_iters_ot,
-                max_iters_descent,
-            )
-        )
-    return retlist
 
 
 def compute_gw_distance_matrix(
@@ -471,26 +447,14 @@ def compute_gw_distance_matrix(
         write_gw_dists(gw_dist_csv_loc, write_dists, verbose=verbose)
 
 
-def pogrow_pairwise(a: list[npt.NDArray[np.float_]], it: int, alpha: float):
-    """
-    elements of a should be in square form
-    """
-    C_sq = [np.average(np.multiply(A, A), axis=1) for A in a]
-    Cbar_sq = [np.average(np.multiply(A, A), axis=0) for A in a]
-    retlist = []
-    for i in range(len(a)):
-        a_i = a[i]
-        C_sq_i = C_sq[i]
-        for j in range(i + 1, len(a)):
-            LC_tensor_C = C_sq_i[:, np.newaxis] + Cbar_sq[j]
-            assert len(LC_tensor_C.shape) == 2
-            T = pogrow(a_i, a[j], it, alpha)
-            LC_tensor_C -= 2 * np.matmul(a[i], np.matmul(T, a[j].T))
-            retlist.append(sqrt(np.sum(np.multiply(LC_tensor_C, T))) / 2)
-    return retlist
-
-
 class quantized_icdm:
+    """
+    This class represents a "quantized" intracell distance matrix, i.e.,
+    a metric measure space which has been equipped with a given clustering;
+    it contains additional data which allows for the rapid computation
+    of pairwise GW distances across many cells.
+    """
+
     n: int
     # 2 dimensional square matrix of side length n.
     icdm: npt.NDArray[np.float64]
@@ -517,6 +481,12 @@ class quantized_icdm:
         p: npt.NDArray[np.float64],
         num_clusters: int,
     ):
+        """
+        :param cell_dm: An intracell distance matrix in squareform.
+        :param p: A probability distribution on the points of the metric space
+        :param num_clusters: How many clusters to subdivide the cell into; the more clusters,
+        the more accuracy, but the longer the computation.
+        """
         assert len(cell_dm.shape) == 2
         self.n = cell_dm.shape[0]
         cell_dm_sq = np.multiply(cell_dm, cell_dm)
@@ -560,15 +530,10 @@ class quantized_icdm:
         self.A_s_a_s = np.dot(A_s, q_arr)
 
 
-# def init_worker(cell_name):
-#     global _PREPROCESSED_CELLS
-#     global _NAMES
-#     global _OUT_CSV_ROOT
-#     _NAMES = names
-#     _OUT_CSV_ROOT = out_csv_root
-
-
 def quantized_gw(A: quantized_icdm, B: quantized_icdm):
+    """
+    Compute the quantized Gromov-Wasserstein distance between two quantized metric measure spaces.
+    """
     T_rows, T_cols, T_data = quantized_gw_2(
         A.distribution,
         A.sub_icdm,
@@ -583,6 +548,7 @@ def quantized_gw(A: quantized_icdm, B: quantized_icdm):
         B.A_s_a_s,
         B.c_As,
     )
+
     P = sparse.coo_matrix((T_data, (T_rows, T_cols)), shape=(A.n, B.n)).tocsr()
     gw_loss = A.c_A + B.c_A - 2.0 * frobenius(A.icdm, P.dot(P.dot(B.icdm).T))
     return sqrt(gw_loss) / 2.0
@@ -603,12 +569,20 @@ def _block_quantized_gw(indices):
     return gw_list
 
 
-def init_pool(quantized_cells):
+def _init_pool(quantized_cells: list[quantized_icdm]):
+    """
+    Initialize the parallel quantized GW computation by declaring a global variable
+    accessible from all processes.
+    """
     global _QUANTIZED_CELLS
     _QUANTIZED_CELLS = quantized_cells
 
 
-def quantized_gw_index(p: tuple[int, int]):
+def _quantized_gw_index(p: tuple[int, int]):
+    """
+    Given input p= (i,j), compute the quantized GW distance between cells i
+    and j in the global list of quantized cells.
+    """
     i, j = p
     return (i, j, quantized_gw(_QUANTIZED_CELLS[i], _QUANTIZED_CELLS[j]))
 
@@ -621,6 +595,15 @@ def quantized_gw_parallel(
     chunksize: int = 20,
     verbose: bool = False,
 ):
+    """
+    Compute the quantized Gromov-Wasserstein distance in parallel between all cells in a family
+    of cells.
+    :param intracell_csv_loc: path to a CSV file containing the cells to process
+    :param num_processes: number of Python processes to run in parallel
+    :param num_clusters: Each cell will be partitioned into `num_clusters` many clusters.
+    :out_csv: file path where a CSV file containing the quantized GW distances will be written
+    :chunksize: How many q-GW distances should be computed at a time by each parallel process.
+    """
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     quantized_cells = [
         quantized_icdm(
@@ -635,10 +618,10 @@ def quantized_gw_parallel(
     fileio_time = 0.0
     gw_start = time.time()
     with Pool(
-        initializer=init_pool, initargs=(quantized_cells,), processes=num_processes
+        initializer=_init_pool, initargs=(quantized_cells,), processes=num_processes
     ) as pool:
         gw_dists = pool.imap_unordered(
-            quantized_gw_index, index_pairs, chunksize=chunksize
+            _quantized_gw_index, index_pairs, chunksize=chunksize
         )
         gw_stop = time.time()
         gw_time += gw_stop - gw_start
@@ -655,37 +638,42 @@ def quantized_gw_parallel(
                 fileio_time += gw_start - gw_stop
 
 
-# print("GW time: " + str(gw_time))
-# print("File IO time: " + str(fileio_time))
+def _init_slb2_pool(sorted_cells):
+    """
+    Initialize the parallel SLB computation by declaring a global variable
+    accessible from all processes.
+    """
 
-
-def init_slb2_pool(sorted_cells):
     global _SORTED_CELLS
     _SORTED_CELLS = sorted_cells
 
 
-def global_slb2_pool(p: tuple[int, int]):
+def _global_slb2_pool(p: tuple[int, int]):
+    """
+    Given input p= (i,j), compute the SLB distance between cells i
+    and j in the global list of cells.
+    """
+
     i, j = p
     return (i, j, slb2_cython(_SORTED_CELLS[i], _SORTED_CELLS[j]))
 
 
-def to_pairs(A: npt.NDArray[np.int_]):
-    ell = []
-    for i in range(A.shape[0]):
-        for j in range(A.shape[1]):
-            k = A[i, j]
-            if i < k:
-                ell.append((i, k))
-            else:
-                ell.append((k, i))
-    return list(set(ell))
-
-
-def update_dist_mat(
+def _update_dist_mat(
     gw_dist_iter: Iterable[tuple[int, int, float]],
     dist_mat: npt.NDArray[np.float_],
     dist_mat_known: npt.NDArray[np.bool_],
 ) -> None:
+    """
+    Write the values in `gw_dist_iter` to the matrix `dist_mat` and update the matrix
+    `dist_mat_known` to reflect these known values.
+
+    :param gw_dist_iter: An iterator over ordered triples (i,j,d) where i, j are array
+    indices and d is a float.
+    :param dist_mat: A distance matrix. The matrix is modified by this function;
+    we set dist_mat[i,j]=d for all (i,j,d) in `gw_dist_iter`; similarly dist_mat[j,i]=d.
+    :param dist_mat_known: An array of booleans recording what GW distances are known.
+    This matrix is modified by this function.
+    """
     for i, j, gw_dist in gw_dist_iter:
         dist_mat[i, j] = gw_dist
         dist_mat[j, i] = gw_dist
@@ -694,22 +682,32 @@ def update_dist_mat(
     return
 
 
-def _slb_parallel(
-    cell_dms: Collection[npt.NDArray[np.float_]], num_processes: int, chunksize: int
+def slb_parallel(
+    cell_dms: Collection[npt.NDArray[np.float_]],
+    num_processes: int,
+    chunksize: int = 20,
 ) -> npt.NDArray[np.float_]:
+    """
+    Compute the SLB distance in parallel between all cells in `cell_dms`.
+    :param cell_dms: A collection of distance matrices
+    :param num_processes: How many Python processes to run in parallel
+    :param chunksize: How many SLB distances each Python process computes at a time
+    """
     cell_dms_sorted = [np.sort(squareform(cell, force="tovector")) for cell in cell_dms]
     N = len(cell_dms)
     with Pool(
-        initializer=init_slb2_pool, initargs=(cell_dms_sorted,), processes=num_processes
+        initializer=_init_slb2_pool,
+        initargs=(cell_dms_sorted,),
+        processes=num_processes,
     ) as pool:
         slb2_dists = pool.imap_unordered(
-            global_slb2_pool, it.combinations(iter(range(N)), 2), chunksize=chunksize
+            _global_slb2_pool, it.combinations(iter(range(N)), 2), chunksize=chunksize
         )
         a = [x for (_, _, x) in slb2_dists]
     return np.array(a)
 
 
-def get_indices(
+def _get_indices(
     slb_dmat: npt.NDArray[np.float_],
     gw_dmat: npt.NDArray[np.float_],
     gw_known: npt.NDArray[np.int_],
@@ -737,16 +735,46 @@ def get_indices(
 def combined_slb2_quantized_gw(
     intracell_csv_loc: str,
     num_processes: int,
-    chunksize: int,
     num_clusters: int,
     out_csv: str,
     confidence_parameter: float,
     nearest_neighbors: int,
+    chunksize: int = 20,
 ):
+    """
+    Compute the pairwise SLB distances between each pair of cells in `intracell_csv_loc`.
+    Based on this initial estimate of the distances, compute the quantized GW distance between
+    the nearest with `num_clusters` many clusters until the correct nearest-neighbors list is
+    obtained for each cell with a high degree of confidence.
+
+    The idea is that for the sake of clustering we can avoid
+    computing the precise pairwise distances between cells which are far apart,
+    because the clustering will not be sensitive to changes in large
+    distances. Thus, we want to compute as precisely as possible the pairwise
+    GW distances for (say) the 30 nearest neighbors of each point, and use a
+    rough estimation beyond that.
+
+    :param intracell_csv_loc: path to a CSV file containing the cells to process
+    :param num_processes: How many Python processes to run in parallel
+    :param num_clusters: Each cell will be partitioned into `num_clusters` many
+    clusters for the quantized Gromov-Wasserstein distance computation.
+    :param chunksize: Number of pairwise cell distance computations done by
+    each Python process at one time.
+    :param out_csv: path to a CSV file where the results of the computation will be written
+    :confidence_parameter: This is a real number between 0 and 1, inclusive.
+    If `confidence_parameter ==0`, then there is a 100% chance that the correct nearest
+    neighbors list is obtained. If ``confidence_parameter == 0.05`, then for each cell in
+    the reported list of nearest neighbors, we estimate at most a 5% chance
+    that this cell is not actually in the list of nearest neighbors.
+    :param nearest_neighbors: The algorithm tries to compute only the
+    quantized GW distances between pairs of cells if one is within the first
+    `nearest_neighbors` neighbors of the other; for all other values,
+    the SLB distance is used to give a rough estimate.
+    """
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     N = len(names)
     np_arange_N = np.arange(N)
-    slb2_vf = _slb_parallel(cell_dms, num_processes, chunksize)
+    slb2_vf = slb_parallel(cell_dms, num_processes, chunksize)
     slb2_dmat = squareform(slb2_vf)
 
     # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
@@ -762,17 +790,17 @@ def combined_slb2_quantized_gw(
     ]
 
     with Pool(
-        initializer=init_pool, initargs=(quantized_cells,), processes=num_processes
+        initializer=_init_pool, initargs=(quantized_cells,), processes=num_processes
     ) as pool:
-        indices, estimator_dmat = get_indices(
+        indices, estimator_dmat = _get_indices(
             slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
         )
         while len(indices) > 0:
             qgw_dists = pool.imap_unordered(
-                quantized_gw_index, indices, chunksize=chunksize
+                _quantized_gw_index, indices, chunksize=chunksize
             )
-            update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
-            indices, estimator_dmat = get_indices(
+            _update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
+            indices, estimator_dmat = _get_indices(
                 slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
             )
 
