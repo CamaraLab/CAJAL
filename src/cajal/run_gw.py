@@ -705,7 +705,8 @@ def _slb_parallel(
         slb2_dists = pool.imap_unordered(
             global_slb2_pool, it.combinations(iter(range(N)), 2), chunksize=chunksize
         )
-    return np.array(list(slb2_dists))
+        a = [x for (_, _, x) in slb2_dists]
+    return np.array(a)
 
 
 def get_indices(
@@ -741,8 +742,6 @@ def combined_slb2_quantized_gw(
     out_csv: str,
     confidence_parameter: float,
     nearest_neighbors: int,
-    gw_block_size: int = 10000,
-    verbose: bool = False,
 ):
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     N = len(names)
