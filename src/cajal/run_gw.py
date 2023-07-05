@@ -778,6 +778,7 @@ def combined_slb2_quantized_gw(
 
     with open(out_csv, "w", newline="") as outfile:
         csv_writer = csv.writer(outfile)
+        csv_writer.writerow["name1", "name2", "dist", "type"]
         ij = it.combinations(range(N), 2)
         rows = (
             (
