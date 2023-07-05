@@ -6,7 +6,7 @@ using algorithms in Peyre et al. ICML 2016
 import itertools as it
 import time
 import csv
-from typing import List, Iterable, Iterator, TypeVar, Optional
+from typing import List, Iterable, Iterator, TypeVar, Optional, Collection
 from math import sqrt, ceil
 
 
@@ -695,7 +695,7 @@ def update_dist_mat(
 
 
 def _slb_parallel(
-    cell_dms: list[npt.NDArray[np.float_]], num_processes: int, chunksize: int
+    cell_dms: Collection[npt.NDArray[np.float_]], num_processes: int, chunksize: int
 ) -> npt.NDArray[np.float_]:
     cell_dms_sorted = [np.sort(squareform(cell, force="tovector")) for cell in cell_dms]
     N = len(cell_dms)
@@ -714,7 +714,7 @@ def get_indices(
     gw_known: npt.NDArray[np.int_],
     confidence_parameter: float,
     nearest_neighbors: int,
-) -> Iterable[tuple[int, int]]:
+) -> tuple[list[tuple[int, int]], npt.NDArray[np.float_]]:
     gw_vf = squareform(gw_dmat)
     slb_vf = squareform(slb_dmat)
     errors = (gw_vf - slb_vf)[gw_vf > 0]
@@ -722,7 +722,7 @@ def get_indices(
         estimator_dmat = slb_dmat
     else:
         acceptable_error = np.percentile(errors, confidence_parameter * 100)
-        estimator_dmat = np.squareform(slb_vf + acceptable_error)
+        estimator_dmat = squareform(slb_vf + acceptable_error)
         gw_known_x, gw_known_y = np.nonzero(gw_known)
         estimator_dmat[gw_known_x, gw_known_y] = gw_dmat[gw_known_x, gw_known_y]
 
@@ -747,7 +747,7 @@ def combined_slb2_quantized_gw(
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     N = len(names)
     np_arange_N = np.arange(N)
-    slb2_vf = _slb_parallel(cell_dms, num_processes)
+    slb2_vf = _slb_parallel(cell_dms, num_processes, chunksize)
     slb2_dmat = squareform(slb2_vf)
 
     # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
@@ -769,7 +769,9 @@ def combined_slb2_quantized_gw(
             slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
         )
         while len(indices) > 0:
-            qgw_dists = pool.imap_unordered(quantized_gw_index, chunksize=chunksize)
+            qgw_dists = pool.imap_unordered(
+                quantized_gw_index, indices, chunksize=chunksize
+            )
             update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
             indices, estimator_dmat = get_indices(
                 slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
