@@ -729,6 +729,8 @@ def _get_indices(
     indices = list(
         zip(*np.nonzero((estimator_dmat <= cutoff[:, np.newaxis]) & (~gw_known)))
     )
+    indices = ((i, j) if i < j else (j, i) for i, j in indices)
+    indices = list(set(indices))
     return indices, estimator_dmat
 
 
@@ -739,6 +741,7 @@ def combined_slb2_quantized_gw(
     out_csv: str,
     confidence_parameter: float,
     nearest_neighbors: int,
+    verbose: bool,
     chunksize: int = 20,
 ):
     """
@@ -796,6 +799,8 @@ def combined_slb2_quantized_gw(
             slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
         )
         while len(indices) > 0:
+            if verbose:
+                print(len(indices))
             qgw_dists = pool.imap_unordered(
                 _quantized_gw_index, indices, chunksize=chunksize
             )
