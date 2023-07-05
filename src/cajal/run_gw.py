@@ -47,6 +47,9 @@ def n_c_2(n: int):
 
 
 def icdm_csv_validate(intracell_csv_loc: str) -> None:
+    """
+    Raise an exception if the file in intracell_csv_loc fails to pass formatting tests.
+    """
     with open(intracell_csv_loc, "r", newline="") as icdm_infile:
         csv_reader = csv.reader(icdm_infile, delimiter=",")
         header = next(csv_reader)
@@ -199,39 +202,19 @@ def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
     return sqrt(gw_dist) / 2.0
 
 
-def slb2(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
+def _init_slb_worker(cells):
     """
-    Accepts two vectorform distance matrices.
+    Declares a global list of distance matrices which can be accessed by child threads
     """
-    fst_mat = np.sort(fst_mat)
-    snd_mat = np.sort(snd_mat)
-    ND, MD = fst_mat.shape[0], snd_mat.shape[0]
-    N, M = ceil(sqrt(2 * ND)), ceil(sqrt(2 * MD))
-    assert ND * 2 == N * (N - 1)
-    assert MD * 2 == M * (M - 1)
-    fst_diffs = np.diff(fst_mat, prepend=0.0)
-    snd_diffs = np.diff(snd_mat, prepend=0.0)
-    fst_mat_x = np.linspace(start=1 / N + 2 / (N**2), stop=1, num=ND)
-    snd_mat_x = np.linspace(start=1 / M + 2 / (M**2), stop=1, num=MD)
-    x = np.concatenate((fst_mat_x, snd_mat_x))
-    assert x.shape == (ND + MD,)
-    indices = np.argsort(x)
-    T = np.concatenate((fst_diffs, -snd_diffs))[indices]
-    np.cumsum(T, out=T)
-    np.abs(T, out=T)
-    np.square(T, out=T)
-    a = x[indices]
-    t = np.diff(a, append=a[-1])
-    assert np.all(t >= 0.0)
-    return sqrt(np.dot(T, t)) / 2
-
-
-def init_slb_worker(cells):
     global _VF_CELLS
     _VF_CELLS = cells
 
 
-def slb_by_indices(p: tuple[int, int]):
+def _slb_by_indices(p: tuple[int, int]):
+    """
+    Used for parallelization, assumes that a global variable called _VF_CELLS has been
+    declared (as in  _init_slb_worker)
+    """
     i, j = p
     return (i, j, slb2_cython(_VF_CELLS[i], _VF_CELLS[j]))
 
@@ -240,9 +223,19 @@ def compute_slb2_distance_matrix(
     intracell_csv_loc: str,
     slb2_dist_csv_loc: str,
     num_processes: int,
-    chunksize: int,
+    chunksize: int = 20,
     verbose: Optional[bool] = False,
 ) -> None:
+    """
+    Compute the pairwise slb2 distances between all intracell distance matrices
+    in the file intracell_csv_loc.
+    :param intracell_csv_loc: File path to an intracell distance matrix file.
+    Same format as in `compute_gw_distance_matrix`.
+    :param slb2_dist_csv_loc: Output file, where to write the slb2 distances.
+    :param num_processes: How many Python processes to run in parallel.
+    :param chunksize: How many jobs are fed to the child processes at one time.
+    :param verbose: Prints timing information
+    """
     start = time.time()
     names, cells = zip(
         *(
@@ -254,9 +247,9 @@ def compute_slb2_distance_matrix(
     indices = it.combinations(iter(range(N)), 2)
 
     with Pool(
-        processes=num_processes, initializer=init_slb_worker, initargs=(cells,)
+        processes=num_processes, initializer=_init_slb_worker, initargs=(cells,)
     ) as pool:
-        slb_dists = pool.imap_unordered(slb_by_indices, indices, chunksize=chunksize)
+        slb_dists = pool.imap_unordered(_slb_by_indices, indices, chunksize=chunksize)
         with open(slb2_dist_csv_loc, "w", newline="") as outfile:
             csvwriter = csv.writer(outfile)
             stop = time.time()
@@ -274,6 +267,10 @@ def write_gw_dists(
     name_name_dist: Iterator[tuple[str, str, float]],
     verbose: Optional[bool] = False,
 ) -> None:
+    """
+    Given an iterator name_name_dist containing entries (cellA_name,cellB_name, gw_dist),
+    writes these entries to a csv file.
+    """
     chunk_size = 100
     counter = 0
     start = time.time()
@@ -308,6 +305,12 @@ def write_dists_and_coupling_mats(
     chunk_size: int = 500,
     verbose: Optional[bool] = False,
 ) -> None:
+    """
+    Given an iterator name_name_dist_coupling containing entries
+    (first_object_name, first_object_sidelength, second_object_name,second_object_sidelength, ),
+    writes these entries to a csv file.
+    """
+
     counter = 0
     start = time.time()
     batched = _batched(name_name_dist_coupling, chunk_size)
@@ -585,48 +588,9 @@ def quantized_gw(A: quantized_icdm, B: quantized_icdm):
     return sqrt(gw_loss) / 2.0
 
 
-# def block_quantized_gw(
-#       list_pair : tuple[
-#             list[tuple[int,tuple[str,quantized_icdm]]],
-#             list[tuple[int,tuple[str,quantized_icdm]]]
-#         ]
-# ):
-#     gw_list=[]
-#     cell_listA, cell_listB = list_pair
-#     for i, (Aname, A) in cell_listA:
-#         for j, (Bname, B) in cell_listB:
-#             if i < j:
-#                 gw_list.append((Aname,Bname,quantized_gw(A,B)))
-#     return gw_list
-
-
-# def quantized_gw_parallel(
-#         intracell_csv_loc : str,
-#         num_processes : int,
-#         chunk_size : int,
-#         num_clusters : int,
-#         out_csv : str,
-#         verbose : bool = False
-# ):
-#     cell_iterator=cell_iterator_csv(intracell_csv_loc)
-#     quantized_cells=((name,quantized_icdm(
-#         cell_dm,
-#         np.ones((cell_dm.shape[0],))/cell_dm.shape[0],
-#         num_clusters)) for name,cell_dm in cell_iterator)
-#     cells_batched = _batched(enumerate(quantized_cells),chunk_size)
-#     cell_batch_pairs= it.combinations_with_replacement(cells_batched,2)
-#     k=0
-#     with Pool(processes=num_processes) as pool:
-#         gw_dists=pool.imap_unordered(block_quantized_gw, cell_batch_pairs)
-#         with open(out_csv,'w',newline='') as outcsvfile:
-#             csvwriter=csv.writer(outcsvfile)
-#             for block in gw_dists:
-#                 print(k)
-#                 k+=1
-#                 csvwriter.writerows(block)
-
-
-def block_quantized_gw(indices):
+def _block_quantized_gw(indices):
+    # Assumes that the global variable _QUANTIZED_CELLS has been declared, as by
+    # init_pool
     (i0, i1), (j0, j1) = indices
 
     gw_list = []
@@ -702,10 +666,10 @@ def init_slb2_pool(sorted_cells):
 
 def global_slb2_pool(p: tuple[int, int]):
     i, j = p
-    return (i, j, slb2(_SORTED_CELLS[i], _SORTED_CELLS[j]))
+    return (i, j, slb2_cython(_SORTED_CELLS[i], _SORTED_CELLS[j]))
 
 
-def to_pairs(A: npt.NDArray[int]):
+def to_pairs(A: npt.NDArray[np.int_]):
     ell = []
     for i in range(A.shape[0]):
         for j in range(A.shape[1]):
@@ -719,94 +683,108 @@ def to_pairs(A: npt.NDArray[int]):
 
 def update_dist_mat(
     gw_dist_iter: Iterable[tuple[int, int, float]],
-    dist_mat: npt.NDArray[float],
-    dist_mat_known: npt.NDArray[bool],
-):
+    dist_mat: npt.NDArray[np.float_],
+    dist_mat_known: npt.NDArray[np.bool_],
+) -> None:
     for i, j, gw_dist in gw_dist_iter:
         dist_mat[i, j] = gw_dist
         dist_mat[j, i] = gw_dist
         dist_mat_known[i, j] = True
         dist_mat_known[j, i] = True
+    return
 
 
-# def combined_slb2_quantized_gw(
-#     intracell_csv_loc: str,
-#     num_processes: int,
-#     chunksize: int,
-#     num_clusters: int,
-#     out_csv: str,
-#     confidence_parameter: float,
-#     gw_block_size : int = 10000,
-#     nearest_neighbors : int,
-#     verbose: bool = False,
-# ):
-#     np_arange_N = np.arange(N)
-#     # First we compute the slb2 intracell distance for everything.
-#     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
-#     N = len(names)
-#     cell_dms_sorted = [np.sort(squareform(cell, force="tovector")) for cell in cell_dms]
-#     with Pool(
-#         initializer=init_slb2_pool, initargs=(cell_dms_sorted,), processes=num_processes
-#     ) as pool:
-#         slb2_dists = pool.imap_unordered(
-#             global_slb2, it.combinations(iter(range(N)), 2), chunksize=chunksize
-#         )
-
-#     slb2_vf=np.array(list(slb2_dists))
-#     slb2_dmat=squareform(slb2_vf)
-
-#     # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
-#     qgw_dmat=np.zeros((N,N),dtype=float)
-#     # Cell indices sorted by slb2 distance.
-#     slb2_sort=np.argsort(slb2_dmat,axis=1)
-
-#     qgw_indices = slb2_sort[:,1:nearest_neighbors]
-#     qgw_priority= to_pairs(qgw_indices)
-#     qgw_known=np.full(shape=(N,N),fill_value=False)
-#     qgw_known[np_arange_N,np_arange_N]=True
-
-#     quantized_cells = [
-#         quantized_icdm(
-#             cell_dm, np.ones((cell_dm.shape[0],)) / cell_dm.shape[0], num_clusters
-#         )
-#         for cell_dm in cell_dms
-#     ]
-
-#     # estimator_dmat=np.copy(slb2_dmat)
-#     # estimator_sort=np.copy(slb2_sort)
-#     # k=1
-#     # while condition:
-#     #     indices=estimator_sort[:,k]
-#     #     locally_known=qgw_known[np_arange_N,indices]
-
-#     with Pool(
-#         initializer=init_pool, initargs=(quantized_cells,), processes=num_processes
-#     ) as pool:
-#         qgw_dists = pool.imap_unordered(
-#             quantized_gw_index, qgw_priority, chunksize=chunksize
-#         )
-#         update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
+def _slb_parallel(
+    cell_dms: list[npt.NDArray[np.float_]], num_processes: int, chunksize: int
+) -> npt.NDArray[np.float_]:
+    cell_dms_sorted = [np.sort(squareform(cell, force="tovector")) for cell in cell_dms]
+    N = len(cell_dms)
+    with Pool(
+        initializer=init_slb2_pool, initargs=(cell_dms_sorted,), processes=num_processes
+    ) as pool:
+        slb2_dists = pool.imap_unordered(
+            global_slb2_pool, it.combinations(iter(range(N)), 2), chunksize=chunksize
+        )
+    return np.array(list(slb2_dists))
 
 
-#     qgw_xy=np.nonzero((estimator_dmat <= cutoff[:,np.newaxis]) & (~qgw_known))
-#     while qgw_xy[0].shape>0:
-#         qgw_indices= zip(*qgw_xy)
-#         with Pool(initializer=init_pool, initargs=(quantized_cells,), processes=num_processes
-#                   ) as pool:
-#             qgw_dists = pool.imap_unordered(
-#                 quantized_gw_index, qgw_priority, chunksize=chunksize
-#             )
-#             update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
-#         qgw_vf=squareform(qgw_dmat)
-#         errors = (qgw_vf-slb2_vf)[qgw_vf>0]
-#         acceptable_error=np.percentile(errors, confidence_parameter*100)
-#         # median_error=np.percentile(errors,50)
-#         estimator_dmat=squareform(slb2_vf+acceptable_error)
-#         # estimator_dmat[np_arange_N[:,np.newaxis],qgw_indices]=\
-#         #     qgw_dmat[np_arange_N[:,np.newaxis],qgw_indices]
-#         estimator_dmat[qgw_xy[0],qgw_xy[1]]=qgw_dists[qgw_xy[0],qgw_xy[1]]
-#         estimator_sort=np.argsort(estimator_dmat,axis=1)
-#         cutoff=estimator_dmat[np_arange_N,estimator_sort[np_arange_N,nearest_neighbors]]
-#         qgw_xy=np.nonzero((estimator_dmat <= cutoff[:,np.newaxis]) & (~qgw_known))
+def get_indices(
+    slb_dmat: npt.NDArray[np.float_],
+    gw_dmat: npt.NDArray[np.float_],
+    gw_known: npt.NDArray[np.int_],
+    confidence_parameter: float,
+    nearest_neighbors: int,
+) -> Iterable[tuple[int, int]]:
+    gw_vf = squareform(gw_dmat)
+    slb_vf = squareform(slb_dmat)
+    errors = (gw_vf - slb_vf)[gw_vf > 0]
+    if errors.shape[0] == 0:
+        estimator_dmat = slb_dmat
+    else:
+        acceptable_error = np.percentile(errors, confidence_parameter * 100)
+        estimator_dmat = np.squareform(slb_vf + acceptable_error)
+        gw_known_x, gw_known_y = np.nonzero(gw_known)
+        estimator_dmat[gw_known_x, gw_known_y] = gw_dmat[gw_known_x, gw_known_y]
 
-#     return estimator_dmat
+    cutoff = np.partition(estimator_dmat, nearest_neighbors)[:, nearest_neighbors]
+    indices = list(
+        zip(*np.nonzero((estimator_dmat <= cutoff[:, np.newaxis]) & (~gw_known)))
+    )
+    return indices, estimator_dmat
+
+
+def combined_slb2_quantized_gw(
+    intracell_csv_loc: str,
+    num_processes: int,
+    chunksize: int,
+    num_clusters: int,
+    out_csv: str,
+    confidence_parameter: float,
+    nearest_neighbors: int,
+    gw_block_size: int = 10000,
+    verbose: bool = False,
+):
+    names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
+    N = len(names)
+    np_arange_N = np.arange(N)
+    slb2_vf = _slb_parallel(cell_dms, num_processes)
+    slb2_dmat = squareform(slb2_vf)
+
+    # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
+    qgw_dmat = np.zeros((N, N), dtype=float)
+    qgw_known = np.full(shape=(N, N), fill_value=False)
+    qgw_known[np_arange_N, np_arange_N] = True
+
+    quantized_cells = [
+        quantized_icdm(
+            cell_dm, np.ones((cell_dm.shape[0],)) / cell_dm.shape[0], num_clusters
+        )
+        for cell_dm in cell_dms
+    ]
+
+    with Pool(
+        initializer=init_pool, initargs=(quantized_cells,), processes=num_processes
+    ) as pool:
+        indices, estimator_dmat = get_indices(
+            slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
+        )
+        while len(indices) > 0:
+            qgw_dists = pool.imap_unordered(quantized_gw_index, chunksize=chunksize)
+            update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
+            indices, estimator_dmat = get_indices(
+                slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
+            )
+
+    with open(out_csv, "w", newline="") as outfile:
+        csv_writer = csv.writer(outfile)
+        ij = it.combinations(range(N), 2)
+        rows = (
+            (
+                names[i],
+                names[j],
+                estimator_dmat[i, j],
+                "QGW" if qgw_known[i, j] else "SLB",
+            )
+            for i, j in ij
+        )
+        csv_writer.writerows(rows)
