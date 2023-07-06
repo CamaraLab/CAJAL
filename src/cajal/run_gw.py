@@ -726,12 +726,91 @@ def _get_indices(
         estimator_dmat[gw_known_x, gw_known_y] = gw_dmat[gw_known_x, gw_known_y]
 
     cutoff = np.partition(estimator_dmat, nearest_neighbors)[:, nearest_neighbors]
-    indices = list(
-        zip(*np.nonzero((estimator_dmat <= cutoff[:, np.newaxis]) & (~gw_known)))
-    )
-    indices = ((i, j) if i < j else (j, i) for i, j in indices)
-    indices = list(set(indices))
-    return indices, estimator_dmat
+    X: npt.NDArray[np.int_]
+    Y: npt.NDArray[np.int_]
+    X, Y = np.nonzero((estimator_dmat <= cutoff[:, np.newaxis]) & (~gw_known))
+    indices = zip(*(X, Y))
+    reduced_indices = list(set(((i, j) if i < j else (j, i) for i, j in indices)))
+    return reduced_indices, estimator_dmat
+
+
+def combined_slb2_quantized_gw_memory(
+    cell_dms: Collection[npt.NDArray[np.float_]],  # Squareform
+    num_processes: int,
+    num_clusters: int,
+    confidence_parameter: float,
+    nearest_neighbors: int,
+    verbose: bool,
+    chunksize: int = 20,
+):
+    """
+    Compute the pairwise SLB distances between each pair of cells in `cell_dms`.
+    Based on this initial estimate of the distances, compute the quantized GW distance between
+    the nearest with `num_clusters` many clusters until the correct nearest-neighbors list is
+    obtained for each cell with a high degree of confidence.
+
+    The idea is that for the sake of clustering we can avoid
+    computing the precise pairwise distances between cells which are far apart,
+    because the clustering will not be sensitive to changes in large
+    distances. Thus, we want to compute as precisely as possible the pairwise
+    GW distances for (say) the 30 nearest neighbors of each point, and use a
+    rough estimation beyond that.
+
+    :param cell_dms: a list or tuple of square distance matrices
+    :param num_processes: How many Python processes to run in parallel
+    :param num_clusters: Each cell will be partitioned into `num_clusters` many
+    clusters for the quantized Gromov-Wasserstein distance computation.
+    :param chunksize: Number of pairwise cell distance computations done by
+    each Python process at one time.
+    :param out_csv: path to a CSV file where the results of the computation will be written
+    :confidence_parameter: This is a real number between 0 and 1, inclusive.
+    If `confidence_parameter ==0`, then there is a 100% chance that the correct nearest
+    neighbors list is obtained. If ``confidence_parameter == 0.05`, then for each cell in
+    the reported list of nearest neighbors, we estimate at most a 5% chance
+    that this cell is not actually in the list of nearest neighbors.
+    :param nearest_neighbors: The algorithm tries to compute only the
+    quantized GW distances between pairs of cells if one is within the first
+    `nearest_neighbors` neighbors of the other; for all other values,
+    the SLB distance is used to give a rough estimate.
+    """
+
+    N = len(cell_dms)
+    np_arange_N = np.arange(N)
+    slb2_vf = slb_parallel(cell_dms, num_processes, chunksize)
+    slb2_dmat = squareform(slb2_vf)
+
+    # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
+    qgw_dmat = np.zeros((N, N), dtype=float)
+    qgw_known = np.full(shape=(N, N), fill_value=False)
+    qgw_known[np_arange_N, np_arange_N] = True
+
+    quantized_cells = [
+        quantized_icdm(
+            cell_dm, np.ones((cell_dm.shape[0],)) / cell_dm.shape[0], num_clusters
+        )
+        for cell_dm in cell_dms
+    ]
+    # Debug
+    total_cells_computed = 0
+    with Pool(
+        initializer=_init_pool, initargs=(quantized_cells,), processes=num_processes
+    ) as pool:
+        indices, estimator_dmat = _get_indices(
+            slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
+        )
+        while len(indices) > 0:
+            if verbose:
+                print(len(indices))
+            total_cells_computed += len(indices)
+            qgw_dists = pool.imap_unordered(
+                _quantized_gw_index, indices, chunksize=chunksize
+            )
+            _update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
+            assert np.count_nonzero(qgw_known) == 2 * total_cells_computed + N
+            indices, estimator_dmat = _get_indices(
+                slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
+            )
+    return slb2_dmat, qgw_dmat, qgw_known, estimator_dmat
 
 
 def combined_slb2_quantized_gw(
@@ -776,38 +855,15 @@ def combined_slb2_quantized_gw(
     """
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     N = len(names)
-    np_arange_N = np.arange(N)
-    slb2_vf = slb_parallel(cell_dms, num_processes, chunksize)
-    slb2_dmat = squareform(slb2_vf)
-
-    # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
-    qgw_dmat = np.zeros((N, N), dtype=float)
-    qgw_known = np.full(shape=(N, N), fill_value=False)
-    qgw_known[np_arange_N, np_arange_N] = True
-
-    quantized_cells = [
-        quantized_icdm(
-            cell_dm, np.ones((cell_dm.shape[0],)) / cell_dm.shape[0], num_clusters
-        )
-        for cell_dm in cell_dms
-    ]
-
-    with Pool(
-        initializer=_init_pool, initargs=(quantized_cells,), processes=num_processes
-    ) as pool:
-        indices, estimator_dmat = _get_indices(
-            slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
-        )
-        while len(indices) > 0:
-            if verbose:
-                print(len(indices))
-            qgw_dists = pool.imap_unordered(
-                _quantized_gw_index, indices, chunksize=chunksize
-            )
-            _update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
-            indices, estimator_dmat = _get_indices(
-                slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
-            )
+    slb2_dmat, qgw_dmat, qgw_known, estimator_dmat = combined_slb2_quantized_gw_memory(
+        cell_dms,
+        num_processes,
+        num_clusters,
+        confidence_parameter,
+        nearest_neighbors,
+        verbose,
+        chunksize,
+    )
 
     with open(out_csv, "w", newline="") as outfile:
         csv_writer = csv.writer(outfile)
