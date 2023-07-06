@@ -703,7 +703,7 @@ def slb_parallel(
         slb2_dists = pool.imap_unordered(
             _global_slb2_pool, it.combinations(iter(range(N)), 2), chunksize=chunksize
         )
-        arr = np.zeros((100, 100))
+        arr = np.zeros((N, N))
         for i, j, x in slb2_dists:
             arr[i, j] = x
             arr[j, i] = x
