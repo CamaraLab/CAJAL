@@ -704,7 +704,11 @@ def slb_parallel(
             _global_slb2_pool, it.combinations(iter(range(N)), 2), chunksize=chunksize
         )
         a = [x for (_, _, x) in slb2_dists]
-    return np.array(a)
+    arr = np.zeros((100, 100))
+    for i, j, x in a:
+        arr[i, j] = x
+        arr[j, i] = x
+    return arr
 
 
 def _get_indices(
@@ -776,8 +780,7 @@ def combined_slb2_quantized_gw_memory(
 
     N = len(cell_dms)
     np_arange_N = np.arange(N)
-    slb2_vf = slb_parallel(cell_dms, num_processes, chunksize)
-    slb2_dmat = squareform(slb2_vf)
+    slb2_dmat = slb_parallel(cell_dms, num_processes, chunksize)
 
     # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
     qgw_dmat = np.zeros((N, N), dtype=float)
