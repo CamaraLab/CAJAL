@@ -722,20 +722,117 @@ def _get_indices(
     slb_vf = squareform(slb_dmat)
     errors = (gw_vf - slb_vf)[gw_vf > 0]
     if errors.shape[0] == 0:
-        estimator_dmat = slb_dmat
+        estimator_dmat = np.copy(slb_dmat)
     else:
-        acceptable_error = np.percentile(errors, confidence_parameter * 100)
+        acceptable_error = (
+            0
+            if confidence_parameter == 0
+            else np.quantile(errors, confidence_parameter)
+        )
         estimator_dmat = squareform(slb_vf + acceptable_error)
         gw_known_x, gw_known_y = np.nonzero(gw_known)
         estimator_dmat[gw_known_x, gw_known_y] = gw_dmat[gw_known_x, gw_known_y]
 
-    cutoff = np.partition(estimator_dmat, nearest_neighbors)[:, nearest_neighbors]
+    cutoff = np.partition(estimator_dmat, nearest_neighbors + 1)[
+        :, nearest_neighbors + 1
+    ]
     X: npt.NDArray[np.int_]
     Y: npt.NDArray[np.int_]
     X, Y = np.nonzero((estimator_dmat <= cutoff[:, np.newaxis]) & (~gw_known))
     indices = zip(*(X, Y))
     reduced_indices = list(set(((i, j) if i < j else (j, i) for i, j in indices)))
     return reduced_indices, estimator_dmat
+
+
+def _cutoff_of(
+    slb_dmat: npt.NDArray[np.float_],
+    median: float,
+    gw_dmat: npt.NDArray[np.float_],
+    gw_known: npt.NDArray[np.bool_],
+    nn: int,
+) -> npt.NDArray[np.float_]:
+    # maxval = np.max(gw_dmat)
+    gw_copy = np.copy(gw_dmat)
+    # gw_copy[~gw_known]=maxval
+    gw_copy[~gw_known] = (slb_dmat)[~gw_known]
+    gw_copy.partition(nn + 1, axis=1)
+    return gw_copy[:, nn + 1]
+
+
+def _tuple_iterator_of(
+    X: npt.NDArray[np.int_], Y: npt.NDArray[np.int_]
+) -> Iterator[tuple[int, int]]:
+    b = set()
+    for i, j in map(tuple, np.stack((X, Y), axis=1, dtype=int).astype(int)):
+        if i < j:
+            b.add((i, j))
+        else:
+            b.add((j, i))
+    return iter(b)
+
+
+# def sort_by_threshold_likelihood(
+#         slb_dmat: npt.NDArray[np.float_],
+#         gw_dmat: npt.NDArray[np.float_],
+#         gw_known: npt.NDArray[np.bool_],
+#         accuracy : float,
+#         nearest_neighbors: int):
+
+
+def _get_indices_v2(
+    slb_dmat: npt.NDArray[np.float_],
+    gw_dmat: npt.NDArray[np.float_],
+    gw_known: npt.NDArray[np.bool_],
+    accuracy: float,
+    nearest_neighbors: int,
+) -> list[tuple[int, int]]:
+    gw_vf = squareform(gw_dmat)
+    N = gw_dmat.shape[0]
+    bins = 200
+    if np.all(gw_vf == 0.0):
+        ind_y = np.argsort(slb_dmat, axis=1)[:, 1 : nearest_neighbors + 1]
+        ind_x = np.broadcast_to(np.arange(N)[:, np.newaxis], (N, nearest_neighbors))
+        xy = np.reshape(np.stack((ind_x, ind_y), axis=2, dtype=int), (-1, 2))
+        return list(_tuple_iterator_of(xy[:, 0], xy[:, 1]))
+
+    # Otherwise, we assume that at least the initial values have been computed.
+    slb_vf = squareform(slb_dmat)
+
+    errors = (gw_vf - slb_vf)[gw_vf > 0]
+    error_quantiles = np.quantile(
+        errors, np.arange(bins + 1).astype(float) / float(bins)
+    )
+    median = error_quantiles[int(bins / 2)]
+    # cutoff = _cutoff_of(gw_dmat,gw_known,nearest_neighbors)
+    cutoff = _cutoff_of(slb_dmat, median, gw_dmat, gw_known, nearest_neighbors)
+
+    acceptable_injuries = (nearest_neighbors * N) * (1 - accuracy)
+    # We want the expectation of injury to be below this.
+    candidates = (~gw_known) & (slb_dmat <= cutoff[:, np.newaxis])
+    X, Y = np.nonzero(candidates)
+    candidate_count = X.shape[0]
+    threshold = cutoff[X] - slb_dmat[X, Y]
+    assert np.all(threshold >= 0)
+    index_sort = np.argsort(threshold)
+    quantiles = np.digitize(threshold, error_quantiles).astype(float) / float(bins)
+
+    K = int(np.searchsorted(np.cumsum(np.sort(quantiles)), acceptable_injuries))
+
+    assert candidate_count == quantiles.shape[0]
+    if K == quantiles.shape[0]:
+        return []
+
+    if (candidate_count - K) < 1000:
+        from_index = K
+        # indices=index_sort[K:]
+    else:
+        # from_index = int((candidate_count + K)/2)
+        from_index = candidate_count - 1000
+        # assert from_index >= K
+        # assert from_index < candidate_count
+    indices = index_sort[from_index:]
+
+    return list(_tuple_iterator_of(X[indices], Y[indices]))
 
 
 def combined_slb2_quantized_gw_memory(
@@ -814,6 +911,81 @@ def combined_slb2_quantized_gw_memory(
                 slb2_dmat, qgw_dmat, qgw_known, confidence_parameter, nearest_neighbors
             )
     return slb2_dmat, qgw_dmat, qgw_known, estimator_dmat
+
+
+# In this version of the algorithm, the user supplies an accuracy parameter between 0 and 1.
+def combined_slb2_quantized_gw_memory_v2(
+    cell_dms: Collection[npt.NDArray[np.float_]],  # Squareform
+    num_processes: int,
+    num_clusters: int,
+    accuracy: float,
+    nearest_neighbors: int,
+    verbose: bool,
+    chunksize: int = 20,
+):
+    """
+    Compute the pairwise SLB distances between each pair of cells in `cell_dms`.
+    Based on this initial estimate of the distances, compute the quantized GW distance between
+    the nearest with `num_clusters` many clusters until the correct nearest-neighbors list is
+    obtained for each cell with a high degree of confidence.
+
+    The idea is that for the sake of clustering we can avoid
+    computing the precise pairwise distances between cells which are far apart,
+    because the clustering will not be sensitive to changes in large
+    distances. Thus, we want to compute as precisely as possible the pairwise
+    GW distances for (say) the 30 nearest neighbors of each point, and use a
+    rough estimation beyond that.
+
+    :param cell_dms: a list or tuple of square distance matrices
+    :param num_processes: How many Python processes to run in parallel
+    :param num_clusters: Each cell will be partitioned into `num_clusters` many
+    clusters for the quantized Gromov-Wasserstein distance computation.
+    :param chunksize: Number of pairwise cell distance computations done by
+    each Python process at one time.
+    :param out_csv: path to a CSV file where the results of the computation will be written
+    :accuracy: This is a real number between 0 and 1, inclusive.
+    :param nearest_neighbors: The algorithm tries to compute only the
+    quantized GW distances between pairs of cells if one is within the first
+    `nearest_neighbors` neighbors of the other; for all other values,
+    the SLB distance is used to give a rough estimate.
+    """
+
+    N = len(cell_dms)
+    np_arange_N = np.arange(N)
+    slb2_dmat = slb_parallel(cell_dms, num_processes, chunksize)
+
+    # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
+    qgw_dmat = np.zeros((N, N), dtype=float)
+    qgw_known = np.full(shape=(N, N), fill_value=False)
+    qgw_known[np_arange_N, np_arange_N] = True
+
+    quantized_cells = [
+        quantized_icdm(
+            cell_dm, np.ones((cell_dm.shape[0],)) / cell_dm.shape[0], num_clusters
+        )
+        for cell_dm in cell_dms
+    ]
+    # Debug
+    total_cells_computed = 0
+    with Pool(
+        initializer=_init_pool, initargs=(quantized_cells,), processes=num_processes
+    ) as pool:
+        indices = _get_indices_v2(
+            slb2_dmat, qgw_dmat, qgw_known, accuracy, nearest_neighbors
+        )
+        while len(indices) > 0:
+            if verbose:
+                print(len(indices))
+            total_cells_computed += len(indices)
+            qgw_dists = pool.imap_unordered(
+                _quantized_gw_index, indices, chunksize=chunksize
+            )
+            _update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
+            assert np.count_nonzero(qgw_known) == 2 * total_cells_computed + N
+            indices = _get_indices_v2(
+                slb2_dmat, qgw_dmat, qgw_known, accuracy, nearest_neighbors
+            )
+    return slb2_dmat, qgw_dmat, qgw_known
 
 
 def combined_slb2_quantized_gw(
