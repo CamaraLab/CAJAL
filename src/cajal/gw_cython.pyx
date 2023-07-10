@@ -202,6 +202,20 @@ def vf_dot(
         for i in range(n):
             C[k]+= vf_ij(A,n,k,i)*B[i]
 
+
+class GW_cell:
+    dmat : npt.NDArray[np.float_] # Squareform distance matrix
+    distribution : npt.NDArray[np.float_] # Probability distribution
+    dmat_dot_dist : npt.NDArray[DTYPE] # Matrix-vector product of the distance
+                                       # matrix with the probability
+                                       # distribution
+    cell_constant : float # ((A * A) @ a) @ a
+    def __init__(self,dmat,distribution,dmat_dot_dist,cell_constant):
+        self.dmat = dmat
+        self.distribution = distribution
+        self.dmat_dot_dist = dmat_dot_dist
+        self.cell_constant = cell_constant
+
 cpdef gw_cython_core(
         np.ndarray[DTYPE_t,ndim=2,mode='c'] A,
         np.ndarray[DTYPE_t,ndim=1,mode='c'] a,
@@ -271,9 +285,15 @@ cpdef gw_cython_core(
         # np.dot(A,neg2_PB,out=C)
         it+=1
 
+
+
 def gw_pairwise(
-        list cell_dms
+        list cell_dms           # A list of GW_cells.
 ):
+    """
+    :param cell_dms: A list of GW_cells.
+    :return: a vectorform GW inter-cell (not intra-cell) distance matrix, as a numpy array
+    """
 
     cdef Py_ssize_t i = 0
     cdef Py_ssize_t j = 0
@@ -290,15 +310,19 @@ def gw_pairwise(
     cdef DTYPE_t c_A, c_B
 
     for i in range(N):
-        A, a, Aa, c_A = cell_dms[i]
+        cellA=cell_dms[i]
+        A = cellA.dmat
+        a = cellA.distribution
+        Aa = cellA.dmat_dot_dist
+        c_A = cellA.cell_constant
         for j in range(i+1,N):
-            B, b, Bb, c_B = cell_dms[j]
+            cellB=cell_dms[j]
+            B = cellB.dmat
+            b = cellB.distribution
+            Bb = cellB.dmat_dot_dist
+            c_B = cellB.cell_constant
             _,gw_dist=gw_cython_core(A,a,Aa,c_A,B,b,Bb,c_B)
             gw_dists[k]=gw_dist
-            # del(B)
-            # del(b)
-            # del(Bb)
-            # del(c_B)
             k+=1
     return gw_dists
 

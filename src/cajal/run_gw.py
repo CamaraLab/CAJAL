@@ -2,6 +2,9 @@
 Functionality to compute Gromov-Wasserstein distances\
 using algorithms in Peyre et al. ICML 2016
 """
+from __future__ import annotations
+from dataclasses import dataclass
+
 # std lib dependencies
 import itertools as it
 import time
@@ -11,7 +14,6 @@ from math import sqrt, ceil
 
 
 # external dependencies
-import ot
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import squareform
@@ -21,7 +23,7 @@ from scipy.sparse import coo_array
 from multiprocessing import Pool
 
 from .slb import slb2 as slb2_cython
-from .gw_cython import frobenius, quantized_gw_2
+from .gw_cython import frobenius, quantized_gw_2, GW_cell, gw_pairwise, gw_cython_core
 
 T = TypeVar("T")
 
@@ -48,6 +50,23 @@ def n_c_2(n: int):
 def icdm_csv_validate(intracell_csv_loc: str) -> None:
     """
     Raise an exception if the file in intracell_csv_loc fails to pass formatting tests.
+    Else return None.
+    :param intracell_csv_loc: The (full) file path for the CSV file containing the intracell
+    distance matrix.
+
+    The file format is as follows:
+    * A line whose first character is '#' is discarded as a comment.
+    * The first line which is not a comment is discarded as a "header" - this line may
+      contain the column titles for each of the columns.
+    * Values separated by commas. Whitespace is not a separator.
+    * The first value in the first non-comment line should be the string 'cell_id', and
+      all values in the first column after that should be the cell id for that line.
+    * All values after the first column should be floats.
+    * Not including the cell id in the first column, each row except the header should contain
+      the entries of an intracell distance matrix lying strictly above the diagonal,
+      as in the footnotes of
+      https://docs.scipy.org/doc/scipy/reference/\
+      generated/scipy.spatial.distance.squareform.html
     """
     with open(intracell_csv_loc, "r", newline="") as icdm_infile:
         csv_reader = csv.reader(icdm_infile, delimiter=",")
@@ -60,11 +79,18 @@ def icdm_csv_validate(intracell_csv_loc: str) -> None:
         for line in csv_reader:
             if line[0] == "#":
                 continue
-            try:
-                float(line[1])
-            except ValueError:
-                print("Unexpected value at file line " + str(linenum) + ", token 2")
-                raise
+            for value in line[1:]:
+                try:
+                    float(value)
+                except ValueError:
+                    print(
+                        "Unexpected value at file line "
+                        + str(linenum)
+                        + ", could not convert value"
+                        + str(value)
+                        + " to a float"
+                    )
+                    raise
 
             line_length = len(header[1:])
             side_length = ceil(sqrt(2 * line_length))
@@ -145,7 +171,8 @@ def cell_iterator_csv(
     intracell_csv_loc: str,
 ) -> Iterator[tuple[str, npt.NDArray[np.float_]]]:
     """
-    Return an iterator over cells in a directory. Intracell distance matrices are in squareform.
+    :param intracell_csv_loc: A full file path to a csv file.
+     Return an iterator over cells in a directory. Intracell distance matrices are in squareform.
     """
     icdm_csv_validate(intracell_csv_loc)
     with open(intracell_csv_loc, "r", newline="") as icdm_csvfile:
@@ -169,6 +196,8 @@ def cell_pair_iterator_csv(
     ]
 ]:
     """
+    :param intracell_csv_loc: A full file path to a csv file.
+
     Return an iterator over pairs of cells in a directory, of the form
     ((indexA, nameA, distance_matrixA),(indexB, nameB, distance_matrixB)).
     Intracell distance matrices are in squareform.
@@ -180,30 +209,6 @@ def cell_pair_iterator_csv(
             for t1, t2 in batched_it
         )
     )
-
-
-def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
-    """
-    Readability/convenience wrapper for ot.gromov.gromov_wasserstein.
-
-    :param A: Squareform distance matrix.
-    :param B: Squareform distance matrix.
-    :return: GW distance between them with square_loss optimization and \
-    uniform distribution on points.
-    """
-    _, log = ot.gromov.gromov_wasserstein(
-        fst_mat,
-        snd_mat,
-        ot.unif(fst_mat.shape[0]),
-        ot.unif(snd_mat.shape[0]),
-        "square_loss",
-        log=True,
-    )
-    gw_dist = log["gw_dist"]
-    # Should be unnecessary but floating point
-    if gw_dist < 0:
-        gw_dist = 0
-    return sqrt(gw_dist) / 2.0
 
 
 def _init_slb_worker(cells):
@@ -233,12 +238,13 @@ def compute_slb2_distance_matrix(
     """
     Compute the pairwise slb2 distances between all intracell distance matrices
     in the file intracell_csv_loc.
+
     :param intracell_csv_loc: File path to an intracell distance matrix file.
     Same format as in `compute_gw_distance_matrix`.
     :param slb2_dist_csv_loc: Output file, where to write the slb2 distances.
     :param num_processes: How many Python processes to run in parallel.
     :param chunksize: How many jobs are fed to the child processes at one time.
-    :param verbose: Prints timing information
+    :param verbose: Prints timing information.
     """
     start = time.time()
     names, cells = zip(
@@ -266,14 +272,22 @@ def compute_slb2_distance_matrix(
     print("GW + File IO time " + str(stop - start))
 
 
+# This is one of two versions of this function; this one is simpler and only expects
+# GW distances. The other is more complicated,
+# and expects the coupling matrices and the GW distances.
 def write_gw_dists(
     gw_dist_csv_loc: str,
     name_name_dist: Iterator[tuple[str, str, float]],
     verbose: Optional[bool] = False,
 ) -> None:
     """
-    Given an iterator name_name_dist containing entries (cellA_name,cellB_name, gw_dist),
+    :param gw_dist_csv_loc: A file path to a (not necessarily existing) file.
+    :param name_name_dist: entries are of the form (cellA_name,cellB_name, gw_dist).
+    :param verbose: Print timing information.
+
+    Given an iterator name_name_dist containing pairwise GW distances between cells,
     writes these entries to a csv file.
+    If the file exists it will be deleted and overwritten.
     """
     chunk_size = 100
     counter = 0
@@ -300,27 +314,42 @@ def write_gw_dists(
     )
 
 
+@dataclass
+class GW_cell_pair_data:
+    cellA_name: str
+    cellA_sidelength: int
+    cellB_name: str
+    cellB_sidelength: int
+    coupling_matrix: Optional[list[float]]
+    gw_dist: float
+
+
 def write_dists_and_coupling_mats(
     gw_dist_csv_loc: str,
     gw_coupling_mat_csv_loc: str,
-    name_name_dist_coupling: Iterator[
-        tuple[tuple[str, int, str, int, list[float]], tuple[str, str, float]]
-    ],
+    gw_cell_pair_data: Iterator[GW_cell_pair_data],
     chunk_size: int = 500,
     verbose: Optional[bool] = False,
 ) -> None:
     """
-    Given an iterator name_name_dist_coupling containing entries
-    (first_object_name, first_object_sidelength, second_object_name,second_object_sidelength, ),
-    writes these entries to a csv file.
+    :param gw_dist_csv_loc: A file path to a (not necessarily existing) file.
+    :param gw_coupling_mat_csv_loc: A file path to a (not necessarily existing) file.
+    :param gw_cell_pair_data: Iterator over GW cell pair data. The cell pairs *should*
+    have coupling matrices.
+    :param verbose: Print timing information.
+
+    Given an iterator over cell pairs with computed intracell distance matrices,
+    writes these entries to a pair of CSV files. One will contain the pairwise
+    Gromov-Wasserstein distances, and the other will contain the coupling matrices.
     """
 
     counter = 0
     start = time.time()
-    batched = _batched(name_name_dist_coupling, chunk_size)
+    batched = _batched(gw_cell_pair_data, chunk_size)
     with open(gw_dist_csv_loc, "w", newline="") as gw_dist_csv_file, open(
         gw_coupling_mat_csv_loc, "w", newline=""
     ) as gw_coupling_mat_csv_file:
+        # Create the files and write headers to them.
         dist_writer = csv.writer(gw_dist_csv_file, delimiter=",")
         coupling_writer = csv.writer(gw_coupling_mat_csv_file, delimiter=",")
         dist_header = ["first_object", "second_object", "gw_dist"]
@@ -334,17 +363,24 @@ def write_dists_and_coupling_mats(
             "coupling",
         ]
         coupling_writer.writerow(coupling_header)
+        # Go through all cells in the iterator and write them to files
         for batch in batched:
-            couplings, dists = [list(tup) for tup in zip(*batch)]
+            for cell_pair in batch:
+                if cell_pair.coupling_matrix is None:
+                    raise ValueError("Coupling matrix is none.")
             couplings = [
-                [A_name, A_sidelength, B_name, B_sidelength] + coupling_mat
-                for (
-                    A_name,
-                    A_sidelength,
-                    B_name,
-                    B_sidelength,
-                    coupling_mat,
-                ) in couplings
+                [
+                    cell_pair.cellA_name,
+                    cell_pair.cellA_sidelength,
+                    cell_pair.cellB_name,
+                    cell_pair.cellB_sidelength,
+                ]
+                + cell_pair.coupling_matrix
+                for cell_pair in batch
+            ]
+            dists = [
+                (cell_pair.cellA_name, cell_pair.cellB_name, cell_pair.gw_dist)
+                for cell_pair in batch
             ]
             counter += len(batch)
             dist_writer.writerows(dists)
@@ -376,37 +412,72 @@ def _coupling_mat_reformat(coupling_mat: npt.NDArray[np.float_]) -> list[float |
     return ell
 
 
-def _gw_dist_coupling(
-    cellA_name: str,
-    cellA_icdm: npt.NDArray[np.float_],
-    cellB_name: str,
-    cellB_icdm: npt.NDArray[np.float_],
-) -> tuple[tuple[str, int, str, int, list[float]], tuple[str, str, float]]:
-    """
-    Compute the Gromov-Wasserstein distance between two cells, and return
-    this information along with other context in a manner which is immediately
-    suitable for being written to a text file.
-    """
-    cellA_sidelength = cellA_icdm.shape[0]
-    cellB_sidelength = cellB_icdm.shape[0]
-    coupling_mat, log = ot.gromov.gromov_wasserstein(
-        cellA_icdm,
-        cellB_icdm,
-        ot.unif(cellA_sidelength),
-        ot.unif(cellB_sidelength),
-        "square_loss",
-        log=True,
-    )
-    coupling_mat = _coupling_mat_reformat(coupling_mat)
-    gw_dist = log["gw_dist"]
-    # This should be unnecessary but floating point reasons
-    if gw_dist < 0:
-        gw_dist = 0
-    return (cellA_name, cellA_sidelength, cellB_name, cellB_sidelength, coupling_mat), (
-        cellA_name,
-        cellB_name,
-        sqrt(gw_dist) / 2.0,
-    )
+# def _gw_dist_coupling(
+#     cellA_name: str,
+#     cellA_icdm: npt.NDArray[np.float_],
+#     cellB_name: str,
+#     cellB_icdm: npt.NDArray[np.float_],
+# ) ->
+#     """
+#     Compute the Gromov-Wasserstein distance between two cells, and return
+#     this information along with other context in a manner which is immediately
+#     suitable for being written to a text file.
+#     """
+#     cellA_sidelength = cellA_icdm.shape[0]
+#     cellB_sidelength = cellB_icdm.shape[0]
+#     coupling_mat, log = ot.gromov.gromov_wasserstein(
+#         cellA_icdm,
+#         cellB_icdm,
+#         ot.unif(cellA_sidelength),
+#         ot.unif(cellB_sidelength),
+#         "square_loss",
+#         log=True,
+#     )
+#     coupling_mat = _coupling_mat_reformat(coupling_mat)
+#     gw_dist = log["gw_dist"]
+#     # This should be unnecessary but floating point reasons
+#     if gw_dist < 0:
+#         gw_dist = 0
+#     return (cellA_name, cellA_sidelength, cellB_name, cellB_sidelength, coupling_mat), (
+#         cellA_name,
+#         cellB_name,
+#         sqrt(gw_dist) / 2.0,
+#     )
+
+
+def _gw_generator_couplings(
+    GW_cells: list[GW_cell],
+) -> Iterator[tuple[int, int, npt.NDArray[np.float_], float]]:
+    N = len(GW_cells)
+    for i in range(N):
+        A = GW_cells[i]
+        for j in range(i + 1, N):
+            B = GW_cells[j]
+            coupling_mat, gw_dist = gw_cython_core(
+                A.dmat,
+                A.distribution,
+                A.dmat_dot_dist,
+                A.cell_constant,
+                B.dmat,
+                B.distribution,
+                B.dmat_dot_dist,
+                B.cell_constant,
+            )
+            yield (i, j, coupling_mat, gw_dist)
+
+
+def _gw_generator_nocouplings(
+    names: list[str], GW_cells: npt.NDArray[np.float_]
+) -> Iterator[tuple[str, str, float]]:
+    N = len(names)
+    k = 0
+    for i in range(N):
+        nameA = names[i]
+        for j in range(i + 1, N):
+            nameB = names[j]
+            gw_dist = GW_cells[k]
+            yield (nameA, nameB, gw_dist)
+            k += 1
 
 
 def compute_gw_distance_matrix(
@@ -418,33 +489,49 @@ def compute_gw_distance_matrix(
     """
     :param intracell_csv_loc: A file containing the intracell distance matrices
     for all cells.
-
     :param gw_dist_csv_loc: An output file containing the Gromov-Wasserstein
     distances, which will be created if it does not exist and overwritten if it
     does.
-
     :param gw_coupling_mat_csv_loc: If this argument is not None, for each pair
     of cells, the coupling matrices will be retained and written to this output
     file. If this argument is None, the coupling matrices will be discarded. Be
     warned that the coupling matrices are large.
     """
-    chunk_size = 100
-    cell_pairs = cell_pair_iterator_csv(intracell_csv_loc, chunk_size)
 
+    cells = list(cell_iterator_csv(intracell_csv_loc))
+    names: list[str]
+    names = [cell[0] for cell in cells]
+    cell_dms: list[npt.NDArray[np.float_]]
+    cell_dms = [cell[1] for cell in cells]
+
+    GW_cells = []
+    for A in cell_dms:
+        N = A.shape[0]
+        u = np.ones((N,), dtype=float) / N
+        GW_cells.append(GW_cell(A, u, A @ u, ((A * A) @ u) @ u))
+
+    # Branch depending on whether we are saving coupling matrices or no.
     if gw_coupling_mat_csv_loc is not None:
-        write_data = (
-            _gw_dist_coupling(cellA_name, cellA_icdm, cellB_name, cellB_icdm)
-            for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
+        gw_gen = _gw_generator_couplings(GW_cells)
+        gw_cell_pair_data = (
+            GW_cell_pair_data(
+                names[i],
+                cell_dms[i].shape[0],
+                names[j],
+                cell_dms[j].shape[0],
+                list(squareform(coupling_matrix, force="tovector")),
+                gw_dist,
+            )
+            for i, j, coupling_matrix, gw_dist in gw_gen
         )
         write_dists_and_coupling_mats(
-            gw_dist_csv_loc, gw_coupling_mat_csv_loc, write_data, verbose=verbose
+            gw_dist_csv_loc, gw_coupling_mat_csv_loc, gw_cell_pair_data
         )
+
     else:
-        write_dists = (
-            (cellA_name, cellB_name, gw(cellA_icdm, cellB_icdm))
-            for (_, cellA_name, cellA_icdm), (_, cellB_name, cellB_icdm) in cell_pairs
-        )
-        write_gw_dists(gw_dist_csv_loc, write_dists, verbose=verbose)
+        gw_dmat = gw_pairwise(GW_cells)
+        gw_cells = _gw_generator_nocouplings(names, gw_dmat)
+        write_gw_dists(gw_dist_csv_loc, gw_cells)
 
 
 class quantized_icdm:
@@ -453,6 +540,8 @@ class quantized_icdm:
     a metric measure space which has been equipped with a given clustering;
     it contains additional data which allows for the rapid computation
     of pairwise GW distances across many cells.
+
+    Users should only need to understand how to call the main constructor.
     """
 
     n: int
@@ -754,7 +843,7 @@ def _cutoff_of(
     # maxval = np.max(gw_dmat)
     gw_copy = np.copy(gw_dmat)
     # gw_copy[~gw_known]=maxval
-    gw_copy[~gw_known] = (slb_dmat)[~gw_known]
+    gw_copy[~gw_known] = (slb_dmat + median)[~gw_known]
     gw_copy.partition(nn + 1, axis=1)
     return gw_copy[:, nn + 1]
 
@@ -786,6 +875,32 @@ def _get_indices_v2(
     accuracy: float,
     nearest_neighbors: int,
 ) -> list[tuple[int, int]]:
+    """
+    Based on the SLB distance matrix and the partially known GW distance matrix,
+    and the desired accuracy, return a list of cell pairs which we should compute.
+    This function does not return *all* cell pairs that must be computed for the desired accuracy;
+    it is expected that the function will be called *repeatedly*, and that a new list of
+    cell pairs will be given every time, roughly in descending order of priority;
+    when the empty list is returned, this indicates that the gw distance
+    table is already at the desired accuracy, and the loop should terminate.
+
+    :param slb_dmat: the SLB distance matrix in squareform, but this would make sense for
+    \any lower bound for gw_dmat
+    :param gw_dmat: A partially defined
+    Gromov-Wasserstein distance matrix in squareform, we should have
+     gw_dmat >= slb_dmat almost everywhere where gw_known is true for this to make sense
+    (I have not yet checked how this behaves in the case where some values of slb_dmat
+    are greater than gw_dmat); should be zero elsewhere.
+    :param gw_known: A matrix of Booleans which is true where the entries of `gw_dmat` are
+    correct/valid and false where the entries are not meaningful/do not yet have the
+    correct value
+    :param accuracy: This is a real number between 0 and 1 inclusive. If the accuracy is 1,
+    then pairwise cells will continue to be computed until all remaining uncomputed
+    cell pairs have an SLB distance which is strictly higher than anything on the list of \
+    `nearest_neighbors` many nearest neighbors of every point; thus the reported array of
+    distances is guaranteed to be correct out to the first `nearest_neighbors` nearest neighbors
+    of every point.
+    """
     gw_vf = squareform(gw_dmat)
     N = gw_dmat.shape[0]
     bins = 200
@@ -816,20 +931,24 @@ def _get_indices_v2(
     index_sort = np.argsort(threshold)
     quantiles = np.digitize(threshold, error_quantiles).astype(float) / float(bins)
 
-    K = int(np.searchsorted(np.cumsum(np.sort(quantiles)), acceptable_injuries))
+    sq = np.sort(quantiles)
+    K1 = int(np.searchsorted(np.cumsum(sq), acceptable_injuries))
+    K2 = int(np.searchsorted(quantiles, 0.5))
+    K = min(K1, K2)
+
+    block_size = N * 5
 
     assert candidate_count == quantiles.shape[0]
     if K == quantiles.shape[0]:
         return []
 
-    if (candidate_count - K) < 1000:
+    if (candidate_count - K) < block_size:
         from_index = K
-        # indices=index_sort[K:]
     else:
-        # from_index = int((candidate_count + K)/2)
-        from_index = candidate_count - 1000
-        # assert from_index >= K
-        # assert from_index < candidate_count
+        from_index = int((candidate_count + K) / 2)
+        # from_index = candidate_count - block_size
+        assert from_index >= K
+        assert from_index < candidate_count
     indices = index_sort[from_index:]
 
     return list(_tuple_iterator_of(X[indices], Y[indices]))
