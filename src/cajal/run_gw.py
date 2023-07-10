@@ -295,7 +295,7 @@ def write_gw_dists(
     batched = _batched(name_name_dist, chunk_size)
     with open(gw_dist_csv_loc, "w", newline="") as gw_csv_file:
         csvwriter = csv.writer(gw_csv_file, delimiter=",")
-        header = ["first_object", "second_object", "gw_dist"]
+        header = ["first_object", "second_object", "dist"]
         csvwriter.writerow(header)
         for batch in batched:
             counter += len(batch)
@@ -771,7 +771,7 @@ def _update_dist_mat(
     return
 
 
-def slb_parallel(
+def slb_parallel_memory(
     cell_dms: Collection[npt.NDArray[np.float_]],
     num_processes: int,
     chunksize: int = 20,
@@ -798,6 +798,18 @@ def slb_parallel(
             arr[j, i] = x
 
     return arr
+
+
+def slb_parallel(
+    intracell_csv_loc: str,
+    num_processes: int,
+    out_csv: str,
+    chunksize: int = 20,
+):
+    names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
+    slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
+    ij = it.combinations(range(len(names)), 2)
+    write_gw_dists(out_csv, ((i, j, slb_dmat[i, j]) for i, j in ij))
 
 
 def _get_indices(
