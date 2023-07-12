@@ -8,6 +8,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 from __future__ import annotations
 
+import os
 import sys
 
 project = "cajal"
@@ -45,9 +46,11 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
+
 html_theme = "sphinx_rtd_theme"
 
 sys.path.insert(0, "../src/")
+sys.path.insert(0, os.path.abspath(".."))
 
 html_static_path = ["_static"]
 html_logo = "images/logo.png"
