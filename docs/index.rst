@@ -38,6 +38,7 @@ and with other single-cell data modalities, among other analyses.
    average_swc_shape
    notebooks/Example_1
    notebooks/Example_2
+   notebooks/Example_3
 
 .. toctree::
    :maxdepth: 2

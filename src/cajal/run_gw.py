@@ -496,6 +496,7 @@ def compute_gw_distance_matrix(
     of cells, the coupling matrices will be retained and written to this output
     file. If this argument is None, the coupling matrices will be discarded. Be
     warned that the coupling matrices are large.
+
     """
 
     cells = list(cell_iterator_csv(intracell_csv_loc))
