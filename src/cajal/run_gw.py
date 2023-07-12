@@ -342,16 +342,15 @@ def write_dists_and_coupling_mats(
     chunk_size: int = 500,
     verbose: Optional[bool] = False,
 ) -> None:
-    """
+    """Given an iterator over cell pairs with computed intracell distance matrices,
+    writes these entries to a pair of CSV files. One will contain the pairwise
+    Gromov-Wasserstein distances, and the other will contain the coupling matrices.
+
     :param gw_dist_csv_loc: A file path to a (not necessarily existing) file.
     :param gw_coupling_mat_csv_loc: A file path to a (not necessarily existing) file.
     :param gw_cell_pair_data: Iterator over GW cell pair data. The cell pairs *should*
     have coupling matrices.
     :param verbose: Print timing information.
-
-    Given an iterator over cell pairs with computed intracell distance matrices,
-    writes these entries to a pair of CSV files. One will contain the pairwise
-    Gromov-Wasserstein distances, and the other will contain the coupling matrices.
     """
 
     counter = 0
@@ -497,17 +496,17 @@ def compute_gw_distance_matrix(
     gw_coupling_mat_csv_loc: Optional[str] = None,
     verbose: Optional[bool] = False,
 ) -> None:
-    """
-    :param intracell_csv_loc: A file containing the intracell distance matrices
-    for all cells.
-    :param gw_dist_csv_loc: An output file containing the Gromov-Wasserstein
-    distances, which will be created if it does not exist and overwritten if it
-    does.
-    :param gw_coupling_mat_csv_loc: If this argument is not None, for each pair
-    of cells, the coupling matrices will be retained and written to this output
-    file. If this argument is None, the coupling matrices will be discarded. Be
-    warned that the coupling matrices are large.
+    """Compute the matrix of pairwise Gromov-Wasserstein distances between cells.
 
+    :param intracell_csv_loc: A file containing the intracell distance matrices
+        for all cells.
+    :param gw_dist_csv_loc: An output file containing the Gromov-Wasserstein
+        distances, which will be created if it does not exist and overwritten if it
+        does.
+    :param gw_coupling_mat_csv_loc: If this argument is not None, for each pair
+        of cells, the coupling matrices will be retained and written to this output
+        file. If this argument is None, the coupling matrices will be discarded. Be
+        warned that the coupling matrices are large.
     """
 
     cells = list(cell_iterator_csv(intracell_csv_loc))
