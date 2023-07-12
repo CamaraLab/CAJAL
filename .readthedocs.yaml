@@ -13,6 +13,8 @@ build:
   jobs:
     pre_install:
       - bash pre_install.sh
+      - echo $(which pandoc)
+      - echo $(whereis pandoc)
 sphinx:
   fail_on_warning: true
   configuration: docs/conf.py
