@@ -172,7 +172,7 @@ def gw(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
         "square_loss",
         log=True,
     )
-    return log["gw_dist"]
+    return sqrt(max(log["gw_dist"], 0.0)) / 2.0
 
 
 def slb2(fst_mat: npt.NDArray, snd_mat: npt.NDArray) -> float:
