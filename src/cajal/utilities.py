@@ -29,10 +29,10 @@ def read_gw_dists(
     Read a GW distance matrix into memory.
 
     :param gw_dist_file_loc: A file path to a Gromov-Wasserstein distance matrix. \
-    The distance matrix should be a CSV file with exactly three columns and possibly \
+    The distance matrix should be a CSV file with at least three columns and possibly \
     a single header line (which is ignored). All \
     following lines should be two strings cell_name1, cell_name2 followed by a \
-    floating point real number.
+    floating point real number. Entries after the three columns are discarded.
 
     :param header: If `header` is True, the very first line of the file is discarded. \
     If `header` is False, all lines are assumed to be relevant.
@@ -49,7 +49,8 @@ def read_gw_dists(
         csvreader = csv.reader(gw_file)
         if header:
             _ = next(csvreader)
-        for first_cell, second_cell, gw_dist_str in csvreader:
+        for line in csvreader:
+            first_cell, second_cell, gw_dist_str = line[0:3]
             gw_dist = float(gw_dist_str)
             first_cell, second_cell = sorted([first_cell, second_cell])
             gw_dist_dict[(first_cell, second_cell)] = gw_dist
