@@ -41,7 +41,7 @@ ability to account for other covariates and assess statistical significance.
 
 More information about the theoretical foundations of the Laplacian score can be found at:
 
-\- Govek, K. W., et al. `Multi-modal analysis and integration of single-cell morphological data using metric geometry. <https://www.biorxiv.org/content/10.1101/2022.05.19.492525v3>`_ (2022). DOI: 10.1101/2022.05.19.492525 (bioRxiv).
+\- Govek, K. W., et al. `CAJAL enables analysis and integration of single-cell morphological data using metric geometry. <https://doi.org/10.1038/s41467-023-39424-2>`_ Nature Communications 14 (2023) 3672.
 
 \- Govek, K. W., Yamajala, V. S., and Camara, P. G. `Clustering-Independent Analysis of Genomic Data using Spectral Simplicial Theory. <https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1007509>`_ PLOS Computational Biology 15 (2019) 11.
 
