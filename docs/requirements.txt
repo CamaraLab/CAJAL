@@ -4,3 +4,4 @@ myst-parser==0.18.1
 docutils==0.17.1
 nbsphinx==0.9.1
 pandoc==2.3
+cython==3.0.0b2
