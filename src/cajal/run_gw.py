@@ -12,18 +12,29 @@ import csv
 from typing import List, Iterable, Iterator, TypeVar, Optional, Collection
 from math import sqrt, ceil
 
+import os
+
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
 
 # external dependencies
-import numpy as np
-import numpy.typing as npt
-from scipy.spatial.distance import squareform
-from scipy import sparse
-from scipy import cluster
-from scipy.sparse import coo_array
-from multiprocessing import Pool
+import numpy as np  # noqa: E402
+import numpy.typing as npt  # noqa: E402
+from scipy.spatial.distance import squareform  # noqa: E402
+from scipy import sparse  # noqa: E402
+from scipy import cluster  # noqa: E402
+from scipy.sparse import coo_array  # noqa: E402
+from multiprocessing import Pool  # noqa: E402
 
-from .slb import slb2 as slb_cython
-from .gw_cython import frobenius, quantized_gw_2, GW_cell, gw_pairwise, gw_cython_core
+from .slb import slb2 as slb_cython  # noqa: E402
+from .gw_cython import (  # noqa: E402
+    frobenius,
+    quantized_gw_2,
+    GW_cell,
+    gw_pairwise,
+    gw_cython_core,
+)
 
 T = TypeVar("T")
 
