@@ -16,11 +16,12 @@ build:
       - mkdir /home/docs/pandoc
       - tar -xvzf pandoc-3.1.5-linux-amd64.tar.gz --strip-components 1 -C /home/docs/pandoc
       - PATH="/home/docs/pandoc/bin:$PATH"
+      - echo $PATH
       - echo $(which pandoc)
       - echo $(whereis pandoc)
 sphinx:
   fail_on_warning: false
   configuration: docs/conf.py
-  
+
 formats:
   - pdf
