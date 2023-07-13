@@ -39,6 +39,8 @@ autodoc_type_aliases = {
     "SWCForest": "swc.SWCForest",
     "WeightedTree": "sample_swc.WeightedTree",
 }
+autodoc_mock_imports = ["cajal.slb", "cajal.gw_cython"]
+
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
