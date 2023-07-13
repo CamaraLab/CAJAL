@@ -152,6 +152,9 @@ QuantizedGromovWasserstein/
 # Cython
 cython_debug
 src/cajal/*.c
+src/cajal/gw_cython.cpp
+src/cajal/slb.cpp
+src/cajal/*.html
 
 # Test scripts
 

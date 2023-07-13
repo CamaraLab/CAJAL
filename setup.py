@@ -5,7 +5,7 @@ import os
 
 
 ROOT = os.path.abspath(os.path.dirname(__file__))
-include_path = [numpy.get_include(), os.path.join(ROOT, "CAJAL/src/cajal")]
+include_path = [numpy.get_include()]
 
 setup(
     ext_modules=cythonize(
