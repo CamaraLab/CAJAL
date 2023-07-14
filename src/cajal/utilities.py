@@ -46,7 +46,7 @@ def read_gw_dists(
     """
     gw_dist_dict: dict[tuple[str, str], float] = {}
     with open(gw_dist_file_loc, "r", newline="") as gw_file:
-        csvreader = csv.reader(gw_file)
+        csvreader = csv.reader(gw_file, delimiter=",")
         if header:
             _ = next(csvreader)
         for line in csvreader:
@@ -110,7 +110,7 @@ def read_gw_couplings(
 
     gw_coupling_mat_dict: dict[tuple[str, str], npt.NDArray[np.float_]] = {}
     with open(gw_couplings_file_loc, "r", newline="") as gw_file:
-        csvreader = csv.reader(gw_file)
+        csvreader = csv.reader(gw_file, delimiter=",")
         linenum = 1
         if header:
             _ = next(csvreader)

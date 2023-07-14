@@ -304,7 +304,7 @@ def gw_pairwise_parallel(
     if gw_dist_csv is not None:
         gw_dist_file = open(gw_dist_csv, "w", newline="")
         gw_dist_writer = csv.writer(gw_dist_file)
-        gw_dist_writer.writerow(["first_object,second_object,gw_distance"])
+        gw_dist_writer.writerow(["first_object", "second_object", "gw_distance"])
     if gw_coupling_mat_csv is not None:
         gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")
         gw_coupling_mat_writer = csv.writer(gw_coupling_mat_file)
