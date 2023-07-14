@@ -38,6 +38,9 @@ autodoc_type_aliases = {
     "FaceArray": "sample_mesh.FaceArray",
     "SWCForest": "swc.SWCForest",
     "WeightedTree": "sample_swc.WeightedTree",
+    "Distribution": "run_gw.Distribution",
+    "SquareMatrix": "run_gw.SquareMatrix",
+    "RectangularMatrix": "run_gw.RectangularMatrix",
 }
 autodoc_mock_imports = ["cajal.slb", "cajal.gw_cython"]
 

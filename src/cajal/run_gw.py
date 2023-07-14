@@ -7,7 +7,7 @@ from __future__ import annotations
 # std lib dependencies
 import itertools as it
 import csv
-from typing import List, Iterator, TypeVar, Optional
+from typing import List, Iterator, TypeVar, Optional, TypeAlias
 from math import sqrt, ceil
 
 import os
@@ -28,6 +28,10 @@ from .gw_cython import (  # noqa: E402
 )
 
 T = TypeVar("T")
+
+Distribution: TypeAlias = npt.NDArray[np.float_]
+SquareMatrix: TypeAlias = npt.NDArray[np.float_]
+RectangularMatrix: TypeAlias = npt.NDArray[np.float_]
 
 
 def _batched(itera: Iterator[T], n: int) -> Iterator[List[T]]:
@@ -51,12 +55,14 @@ def n_c_2(n: int):
 
 def icdm_csv_validate(intracell_csv_loc: str) -> None:
     """
-    Raise an exception if the file in intracell_csv_loc fails to pass formatting tests.
-    Else return None.
-    :param intracell_csv_loc: The (full) file path for the CSV file containing the intracell
-    distance matrix.
+    Raise an exception if the file in intracell_csv_loc fails to pass formatting tests;
+    else return None.
 
-    The file format for an intracell dsitance matrix is as follows:
+    :param intracell_csv_loc: The (full) file path for the CSV file containing the intracell
+        distance matrix.
+
+    The file format for an intracell distance matrix is as follows:
+
     * A line whose first character is '#' is discarded as a comment.
     * The first line which is not a comment is discarded as a "header" - this line may
       contain the column titles for each of the columns.
@@ -107,8 +113,8 @@ def _batched_cell_list_iterator_csv(
     intracell_csv_loc: str, chunk_size: int
 ) -> Iterator[
     tuple[
-        list[tuple[int, str, npt.NDArray[np.float_]]],
-        list[tuple[int, str, npt.NDArray[np.float_]]],
+        list[tuple[int, str, SquareMatrix]],
+        list[tuple[int, str, SquareMatrix]],
     ]
 ]:
     """
@@ -171,7 +177,7 @@ def _batched_cell_list_iterator_csv(
 
 def cell_iterator_csv(
     intracell_csv_loc: str,
-) -> Iterator[tuple[str, npt.NDArray[np.float_]]]:
+) -> Iterator[tuple[str, SquareMatrix]]:
     """
     :param intracell_csv_loc: A full file path to a csv file.
 
@@ -194,18 +200,14 @@ def cell_iterator_csv(
 
 def cell_pair_iterator_csv(
     intracell_csv_loc: str, chunk_size: int
-) -> Iterator[
-    tuple[
-        tuple[int, str, npt.NDArray[np.float_]], tuple[int, str, npt.NDArray[np.float_]]
-    ]
-]:
+) -> Iterator[tuple[tuple[int, str, SquareMatrix], tuple[int, str, SquareMatrix]]]:
     """
     :param intracell_csv_loc: A full file path to a csv file.
+    :param chunk_size: How many lines to read from the file at a time. Does not affect output.
 
     :return: an iterator over pairs of cells, each entry is of the form
-    ((indexA, nameA, distance_matrixA),(indexB, nameB, distance_matrixB)),
-
-    where `indexA` is the line number in the file, and `indexA < indexB`.
+        ((indexA, nameA, distance_matrixA),(indexB, nameB, distance_matrixB)),
+        where `indexA` is the line number in the file, and `indexA < indexB`.
 
     This is almost equivalent to
     itertools.combinations(cell_iterator_csv(intracell_csv_loc),2) but
@@ -247,8 +249,8 @@ def _gw_index(p: tuple[int, int]):
 def gw_pairwise_parallel(
     cells: list[
         tuple[
-            npt.NDArray[np.float_],  # Squareform distance matrix
-            npt.NDArray[np.float_],  # Probability distribution on cells
+            SquareMatrix,  # Squareform distance matrix
+            Distribution,  # Probability distribution on cells
         ]
     ],
     num_processes: int,
@@ -257,8 +259,8 @@ def gw_pairwise_parallel(
     gw_coupling_mat_csv: Optional[str] = None,
     return_coupling_mats: bool = False,
 ) -> tuple[
-    npt.NDArray[np.float_],  # Pairwise GW distance matrix (Squareform)
-    Optional[list[tuple[int, int, npt.NDArray[np.float_]]]],
+    SquareMatrix,  # Pairwise GW distance matrix (Squareform)
+    Optional[list[tuple[int, int, RectangularMatrix]]],
 ]:
     """Compute the pairwise Gromov-Wasserstein distances between cells,
     possibly along with their coupling matrices.
@@ -357,8 +359,8 @@ def compute_gw_distance_matrix(
     return_coupling_mats: bool = False,
     verbose: Optional[bool] = False,
 ) -> tuple[
-    npt.NDArray[np.float_],  # Pairwise GW distance matrix (Squareform)
-    Optional[list[tuple[int, int, npt.NDArray[np.float_]]]],
+    SquareMatrix,  # Pairwise GW distance matrix (Squareform)
+    Optional[list[tuple[int, int, RectangularMatrix]]],
 ]:
     """Compute the matrix of pairwise Gromov-Wasserstein distances between cells.
     This function is a wrapper for :func:`cajal.run_gw.gw_pairwise_parallel` except
@@ -375,7 +377,7 @@ def compute_gw_distance_matrix(
     names: list[str]
     names = [name for name, _ in cell_names_dmats]
     # List of pairs (A, a) where A is a square matrix and `a` a probability distribution
-    cell_dms: list[tuple[npt.NDArray[np.float_], npt.NDArray[np.float_]]]
+    cell_dms: list[tuple[SquareMatrix, Distribution]]
     cell_dms = [
         (c := cell, np.ones((n := c.shape[0],)) / n) for _, cell in cell_names_dmats
     ]
