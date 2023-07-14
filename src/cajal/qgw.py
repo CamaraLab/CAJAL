@@ -280,6 +280,7 @@ def quantized_gw_parallel(
         gw_time += gw_stop - gw_start
         with open(out_csv, "w", newline="") as outcsvfile:
             csvwriter = csv.writer(outcsvfile)
+            csvwriter.writerow(["first_object", "second_object", "quantized_gw"])
             gw_start = time.time()
             t = _batched(gw_dists, 2000)
             for block in t:
