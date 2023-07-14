@@ -24,9 +24,9 @@ from multiprocessing import Pool  # noqa: E402
 from .slb import slb2 as slb_cython  # noqa: E402
 from .gw_cython import (  # noqa: E402
     frobenius,
-    quantized_gw_2,
+    quantized_gw_cython,
 )
-from .run_gw import _batched, write_gw_dists, cell_iterator_csv  # noqa: E402
+from .run_gw import _batched, cell_iterator_csv  # noqa: E402
 
 
 # SLB
@@ -88,7 +88,14 @@ def slb_parallel(
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
     ij = it.combinations(range(len(names)), 2)
-    write_gw_dists(out_csv, ((names[i], names[j], slb_dmat[i, j]) for i, j in ij))
+    with open(out_csv, "w", newline="") as outfile:
+        csv_writer = csv.writer(outfile)
+        csv_writer.writerow(["first_object", "second_object", "slb_dist"])
+        batches = _batched(
+            ((names[i], names[j], str(slb_dmat[i, j])) for i, j in ij), 2000
+        )
+        for batch in batches:
+            csv_writer.writerows(batch)
 
 
 class quantized_icdm:
@@ -180,7 +187,7 @@ def quantized_gw(A: quantized_icdm, B: quantized_icdm):
     """
     Compute the quantized Gromov-Wasserstein distance between two quantized metric measure spaces.
     """
-    T_rows, T_cols, T_data = quantized_gw_2(
+    T_rows, T_cols, T_data = quantized_gw_cython(
         A.distribution,
         A.sub_icdm,
         A.q_indices,
@@ -507,33 +514,16 @@ def combined_slb_quantized_gw(
     chunksize: int = 20,
 ) -> None:
     """
-    Compute the pairwise SLB distances between each pair of cells in `cell_dms`.
-    Based on this initial estimate of the distances, compute the quantized GW distance between
-    the nearest with `num_clusters` many clusters until the correct nearest-neighbors list is
-    obtained for each cell with a high degree of confidence.
+    This is a wrapper around :func:`cajal.run_gw.combined_slb_quantized_gw_memory` with
+    some associated file/IO.
 
+    :param input_icdm_csv_location: file path to a csv file. For format for the icdm
+    see :func:`cajal.run_gw.icdm_csv_validate`.
+    :param gw_out_csv_location: Where to write the output GW distances.
+    :return: None.
 
-
-    The idea is that for the sake of clustering we can avoid
-    computing the precise pairwise distances between cells which are far apart,
-    because the clustering will not be sensitive to changes in large
-    distances. Thus, we want to compute as precisely as possible the pairwise
-    GW distances for (say) the 30 nearest neighbors of each point, and use a
-    rough estimation beyond that.
-
-    :param input_icdm_csv_location: a path to a CSV file containing icdms
-    :param gw_out_csv_location: a path to a CSV file containing icdms
-    :param num_processes: How many Python processes to run in parallel
-    :param num_clusters: Each cell will be partitioned into `num_clusters` many
-    clusters for the quantized Gromov-Wasserstein distance computation.
-    :param chunksize: Number of pairwise cell distance computations done by
-    each Python process at one time.
-    :param out_csv: path to a CSV file where the results of the computation will be written
-    :accuracy: This is a real number between 0 and 1, inclusive.
-    :param nearest_neighbors: The algorithm tries to compute only the
-    quantized GW distances between pairs of cells if one is within the first
-    `nearest_neighbors` neighbors of the other; for all other values,
-    the SLB distance is used to give a rough estimate.
+    For all other parameters see the docstring for
+    :func:`cajal.run_gw.combined_slb_quantized_gw_memory`.
     """
 
     names, cell_dms = zip(*cell_iterator_csv(input_icdm_csv_location))
