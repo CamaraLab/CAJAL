@@ -84,7 +84,16 @@ def slb_parallel(
     num_processes: int,
     out_csv: str,
     chunksize: int = 20,
-):
+) -> None:
+    """
+    Compute the SLB distance in parallel between all cells in the csv file `intracell_csv_loc`.
+    The files are expected to be formatted according to the format in
+    :func:`cajal.run_gw.icdm_csv_validate`.
+
+    :param cell_dms: A collection of distance matrices
+    :param num_processes: How many Python processes to run in parallel
+    :param chunksize: How many SLB distances each Python process computes at a time
+    """
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
     ij = it.combinations(range(len(names)), 2)
