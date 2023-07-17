@@ -3,6 +3,7 @@ Functions for sampling points from a triangular mesh
 """
 from __future__ import annotations
 import os
+import sys
 import csv
 import numpy as np
 import numpy.typing as npt
@@ -20,10 +21,16 @@ from typing import (
     Dict,
     Optional,
     Iterator,
-    TypeAlias,
     Callable,
     Literal,
 )
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+
+    VertexArray: TypeAlias = npt.NDArray[np.float_]
+    FaceArray: TypeAlias = npt.NDArray[np.int_]
+
 from pathos.pools import ProcessPool
 
 from .utilities import write_csv_block
@@ -31,12 +38,11 @@ from .utilities import write_csv_block
 # We represent a mesh as a pair (vertices, faces) : Tuple[VertexArray,FaceArray].
 # A VertexArray is a numpy array of shape (n, 3), where n is the number of vertices in the mesh.
 # Each row of a VertexArray is an XYZ coordinate triple for a point in the mesh.
-VertexArray: TypeAlias = npt.NDArray[np.float_]
+
 # A FaceArray is a numpy array of shape (m, 3) where m is the number of faces in the mesh.
 # Each row of a FaceArray is a list of three natural numbers, corresponding to indices
 # in the corresponding VertexArray,
 # representing triangular faces joining those three points.
-FaceArray: TypeAlias = npt.NDArray[np.int_]
 
 
 def read_obj(file_path: str) -> Tuple[VertexArray, FaceArray]:
@@ -310,13 +316,12 @@ def get_geodesic(
     geodesic distances between points.
     """
 
-    match method:
-        case "networkx":
-            return get_geodesic_networkx_one_mesh(vertices, faces, n_sample)
-        case "heat":
-            return get_geodesic_heat_one_mesh(vertices, faces, n_sample)
-        case _:
-            raise Exception("Invalid method, must be one of 'networkx' or 'heat'")
+    if method == "networkx":
+        return get_geodesic_networkx_one_mesh(vertices, faces, n_sample)
+    elif method == "heat":
+        return get_geodesic_heat_one_mesh(vertices, faces, n_sample)
+
+    raise Exception("Invalid method, must be one of 'networkx' or 'heat'")
 
 
 def _connect_helper(

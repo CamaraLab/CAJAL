@@ -241,72 +241,83 @@ def geodesic_distance(
     :param h2: Represents a point `p2` which lies `h2` above `wt2` in the tree, along \
     the line segment connecting `wt2` to its parent. Similar assumptions as for `h1`.
     """
-    match wt1:
-        # If wt1 is a root, we assume h1 is zero and p1 = wt1, otherwise the input is not sensible.
-        case WeightedTreeRoot(_):
-            assert h1 == 0.0
-            return weighted_dist_from_root(wt2) - h2
-        case WeightedTreeChild(_, depth1, unique_id1, wt_parent1, d1):
-            # Otherwise, suppose that wt1 is at an unweighted depth of depth1,
-            # and that the distance between wt1 and its parent is d1.
-            match wt2:
-                case WeightedTreeRoot(_):
-                    # If wt2 is a root, then the approach is dual to what we have just done.
-                    assert h2 == 0.0
-                    return weighted_dist_from_root(wt_parent1) + d1 - h1
-                case WeightedTreeChild(_, depth2, unique_id2, wt_parent2, d2):
-                    # So let us consider the case where both wt1, wt2 are child nodes.
-                    if unique_id1 == unique_id2:
-                        return abs(h2 - h1)
-                    # p1, p2 don't lie over the same child node.
-                    # Thus, either one is an ancestor of the other
-                    # (with one of wt1, wt2 strictly in between)
-                    # or they have a common ancestor, and dist(p1, p2)
-                    # is the sum of distances from p1, p2 to the common ancestor respectively.
-                    # These three can be combined into the following problem:
-                    # there is a minimal node in the weighted tree
-                    # which lies above both wt1 and wt2, and dist(p1, p2) is the sum
-                    # of the distances from p1, p2 respectively to that common minimal node.
-                    # This includes the case where the minimal node is wt1 or wt2.
-                    # To address these cases in a uniform way we use some cleverness with abs().
-                    dist1 = -h1
-                    dist2 = -h2
-                    while depth1 > depth2:
-                        dist1 += d1
-                        match wt_parent1:
-                            case WeightedTreeRoot(_):
-                                raise Exception("Nodes constructed have wrong depth.")
-                            case WeightedTreeChild(
-                                _, depth1, unique_id1, wt_parent1, d1
-                            ):
-                                pass
-                    while depth2 > depth1:
-                        dist2 += d2
-                        match wt_parent2:
-                            case WeightedTreeRoot(_):
-                                raise Exception("Nodes constructed have wrong depth.")
-                            case WeightedTreeChild(
-                                _, depth2, unique_id2, wt_parent2, d2
-                            ):
-                                pass
-                    # Now we know that both nodes have the same height.
-                    while unique_id1 != unique_id2:
-                        dist1 += d1
-                        dist2 += d2
-                        match wt_parent1:
-                            case WeightedTreeRoot(_):
-                                assert dist1 >= 0
-                                assert dist2 >= 0
-                                assert isinstance(wt_parent2, WeightedTreeRoot)
-                                return dist1 + dist2
-                            case WeightedTreeChild(_, _, unique_id1, wt_parent1, d1):
-                                pass
-                        match wt_parent2:
-                            case WeightedTreeRoot(_):
-                                raise Exception("Nodes constructed have wrong depth.")
-                            case WeightedTreeChild(_, _, unique_id2, wt_parent2, d2):
-                                pass
-                    return abs(dist1) + abs(dist2)
+    if isinstance(wt1, WeightedTreeRoot):
+        # If wt1 is a root, we assume h1 is zero and p1 = wt1
+        # otherwise the input is not sensible.
+        assert h1 == 0.0
+        return weighted_dist_from_root(wt2) - h2
+    elif isinstance(wt1, WeightedTreeChild):
+        # Otherwise, suppose that wt1 is at an unweighted depth of depth1,
+        # and that the distance between wt1 and its parent is d1.
+        depth1 = wt1.depth
+        unique_id1 = wt1.unique_id
+        wt_parent1 = wt1.parent
+        d1 = wt1.dist
+        if isinstance(wt2, WeightedTreeRoot):
+            # If wt2 is a root, then the approach is dual to what we have just done.
+            assert h2 == 0.0
+            return weighted_dist_from_root(wt_parent1) + d1 - h1
+        elif isinstance(wt2, WeightedTreeChild):
+            # So let us consider the case where both wt1, wt2 are child nodes.
+            depth2 = wt2.depth
+            unique_id2 = wt2.unique_id
+            wt_parent2 = wt2.parent
+            d2 = wt2.dist
+            if unique_id1 == unique_id2:
+                return abs(h2 - h1)
+            # p1, p2 don't lie over the same child node.
+            # Thus, either one is an ancestor of the other
+            # (with one of wt1, wt2 strictly in between)
+            # or they have a common ancestor, and dist(p1, p2)
+            # is the sum of distances from p1, p2 to the common ancestor respectively.
+            # These three can be combined into the following problem:
+            # there is a minimal node in the weighted tree
+            # which lies above both wt1 and wt2, and dist(p1, p2) is the sum
+            # of the distances from p1, p2 respectively to that common minimal node.
+            # This includes the case where the minimal node is wt1 or wt2.
+            # To address these cases in a uniform way we use some cleverness with abs().
+            dist1 = -h1
+            dist2 = -h2
+            while depth1 > depth2:
+                dist1 += d1
+                if isinstance(wt_parent1, WeightedTreeRoot):
+                    raise Exception("Nodes constructed have wrong depth.")
+                elif isinstance(wt_parent1, WeightedTreeChild):
+                    depth1 = wt_parent1.depth
+                    unique_id1 = wt_parent1.unique_id
+                    d1 = wt_parent1.dist
+                    wt_parent1 = wt_parent1.parent
+                else:
+                    raise Exception("Case missed.")
+            while depth2 > depth1:
+                dist2 += d2
+                if isinstance(wt_parent2, WeightedTreeRoot):
+                    raise Exception("Nodes constructed have wrong depth.")
+                elif isinstance(wt_parent2, WeightedTreeChild):
+                    depth2 = wt_parent2.depth
+                    unique_id2 = wt_parent2.unique_id
+                    d2 = wt_parent2.dist
+                    wt_parent2 = wt_parent2.parent
+            # Now we know that both nodes have the same height.
+            while unique_id1 != unique_id2:
+                dist1 += d1
+                dist2 += d2
+                if isinstance(wt_parent1, WeightedTreeRoot):
+                    assert dist1 >= 0
+                    assert dist2 >= 0
+                    assert isinstance(wt_parent2, WeightedTreeRoot)
+                    return dist1 + dist2
+                elif isinstance(wt_parent1, WeightedTreeChild):
+                    unique_id1 = wt_parent1.unique_id
+                    d1 = wt_parent1.dist
+                    wt_parent1 = wt_parent1.parent
+                if isinstance(wt_parent2, WeightedTreeRoot):
+                    raise Exception("Nodes constructed have wrong depth.")
+                elif isinstance(wt_parent2, WeightedTreeChild):
+                    unique_id2 = wt_parent2.unique_id
+                    d2 = wt_parent2.dist
+                    wt_parent2 = wt_parent2.parent
+            return abs(dist1) + abs(dist2)
 
 
 def get_sample_pts_geodesic(

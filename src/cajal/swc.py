@@ -6,12 +6,18 @@ filtering \*.swc files. A function for reading \*.swc files from memory.
 from __future__ import annotations
 
 import os
+import sys
 import operator
 from copy import copy
 from dataclasses import dataclass
 from collections import deque
 import csv
-from typing import Callable, Iterator, Literal, Container, Optional, TypeAlias
+from typing import Callable, Iterator, Literal, Container, Optional
+
+if sys.version_info >= (3, 10):
+    import TypeAlias
+
+    SWCForest: TypeAlias = list[NeuronTree]  # noqa: F821
 
 import numpy as np
 from scipy.spatial.distance import euclidean
@@ -95,9 +101,6 @@ class NeuronTree:
             for tree in reversed(current_tree.child_subgraphs):
                 stack.append(tree)
             yield current_tree
-
-
-SWCForest: TypeAlias = list[NeuronTree]
 
 
 def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:
@@ -787,11 +790,8 @@ def diagnostics(
     results = pool.imap(check_errs, file_paths)
 
     for cell_name, result in zip(cell_names, results):
-        match result:
-            case Err(code):
-                print(cell_name + " " + str(code))
-            case None:
-                pass
+        if isinstance(result, Err):
+            print(cell_name + " " + str(result.code))
 
     pool.close()
     pool.join()
@@ -907,11 +907,14 @@ def batch_filter_and_preprocess(
     if err_log is not None:
         with open(err_log, "w", newline="") as outfile:
             for cell_name, result in zip(cell_names, results):
-                match result:
-                    case "success":
-                        pass
-                    case Err(code):
-                        outfile.write(cell_name + " " + str(code) + "\n")
+                if result == "success":
+                    pass
+                elif isinstance(result, Err):
+                    outfile.write(cell_name + " " + str(result.code) + "\n")
+                else:
+                    raise ValueError(
+                        "Should be error result or 'success' string literal."
+                    )
 
     pool.close()
     pool.join()

@@ -6,7 +6,7 @@ import csv
 from scipy.spatial.distance import squareform
 from scipy.sparse import coo_array
 import itertools as it
-from typing import Iterator, Iterable, Optional, TypeVar, Generic
+from typing import Iterator, Iterable, Optional, TypeVar, Generic, Union
 from sklearn.neighbors import NearestNeighbors
 import leidenalg
 import community as community_louvain
@@ -151,7 +151,7 @@ class Err(Generic[T]):
 def write_csv_block(
     out_csv: str,
     sidelength: int,
-    dist_mats: Iterator[tuple[str, Err[T] | npt.NDArray[np.float_]]],
+    dist_mats: Iterator[tuple[str, Union[Err[T], npt.NDArray[np.float_]]]],
     batch_size: int,
 ) -> list[tuple[str, Err[T]]]:
     """
@@ -167,13 +167,12 @@ def write_csv_block(
         ]
         csvwriter.writerow(firstline)
         while next_batch := list(it.islice(dist_mats, batch_size)):
-            good_cells: list[list[str | float]] = []
+            good_cells: list[list[Union[str, float]]] = []
             for name, cell in next_batch:
-                match cell:
-                    case Err(_):
-                        failed_cells.append((name, cell))
-                    case cell:
-                        good_cells.append([name] + cell.tolist())
+                if isinstance(cell, Err):
+                    failed_cells.append((name, cell))
+                else:
+                    good_cells.append([name] + cell.tolist())
             csvwriter.writerows(good_cells)
     return failed_cells
 

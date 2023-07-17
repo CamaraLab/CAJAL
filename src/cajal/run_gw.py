@@ -7,7 +7,11 @@ from __future__ import annotations
 # std lib dependencies
 import itertools as it
 import csv
-from typing import List, Iterator, TypeVar, Optional, TypeAlias
+import sys
+from typing import List, Iterator, TypeVar, Optional
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
 
 from math import sqrt, ceil
 
