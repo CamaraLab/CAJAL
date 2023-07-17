@@ -8,8 +8,7 @@ ROOT = os.path.abspath(os.path.dirname(__file__))
 include_path = [numpy.get_include()]
 
 setup(
-    ext_modules=cythonize(
-        ["src/cajal/*.pyx", "src/cajal/EMD_wrapper.cpp"], language="c++"
-    ),
+    ext_modules=cythonize(["src/cajal/*.pyx", "src/cajal/EMD_wrapper.cpp"]),
+    compiler_directives={"language_level": "3"},
     include_dirs=include_path,
 )

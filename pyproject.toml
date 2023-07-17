@@ -29,7 +29,7 @@ dependencies = [
         "leidenalg",
         "networkx~=2.8.8",
         "numpy",
-	"cython >= 0.23",
+	"cython >= 3",
         "pathos",
         # "pot>=0.7.0",
         "potpourri3d",

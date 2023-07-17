@@ -1,3 +1,5 @@
+# distutils: language=c++
+
 from libc.stdint cimport uint64_t
 cdef extern from "EMD.h":
      cdef int myCMessage(int a, int b)

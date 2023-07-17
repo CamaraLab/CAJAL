@@ -825,7 +825,7 @@ def read_preprocess_save(
 
 
 def get_filenames(
-    infolder: str, name_validate: Callable[[str], bool]
+    infolder: str, name_validate: Callable[[str], bool] = default_name_validate
 ) -> tuple[list[str], list[str]]:
     """
     Get a list of all files in infolder. Filter the list by name_validate. \

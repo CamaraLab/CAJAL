@@ -6,7 +6,6 @@ import csv
 from scipy.spatial.distance import squareform
 from scipy.sparse import coo_array
 import itertools as it
-import math
 from typing import Iterator, Iterable, Optional, TypeVar, Generic
 from sklearn.neighbors import NearestNeighbors
 import leidenalg
@@ -16,7 +15,6 @@ import networkx as nx
 
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import dijkstra
-from scipy.fft import fft, fftfreq
 
 import numpy as np
 import numpy.typing as npt
@@ -211,7 +209,7 @@ def louvain_clustering(gw_mat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[n
     adj_mat = nn_model.kneighbors_graph(gw_mat).todense()
     np.fill_diagonal(adj_mat, 0)
 
-    graph = nx.convert_matrix.from_numpy_matrix(adj_mat)
+    graph = nx.convert_matrix.from_numpy_array(adj_mat)
     # louvain_clus_dict is a dictionary whose keys are nodes of `graph` and whose
     # values are natural numbers indicating communities.
     louvain_clus_dict = community_louvain.best_partition(graph)
@@ -289,16 +287,7 @@ def step_size(icdm: npt.NDArray[np.float_]) -> float:
     Heuristic to estimate the step size a neuron was sampled at.
     :param icdm: Vectorform distance matrix.
     """
-    assert len(icdm.shape) == 1
-    side_length = int(math.ceil(math.sqrt(icdm.shape[0] * 2)))
-    counts, dividing_lines = np.histogram(icdm, bins=side_length)
-    base = dividing_lines[0]
-    delta = dividing_lines[1] - base
-    T = fft(counts)
-    max_bin = np.argmax(T[1:]) + 1
-    xs = fftfreq(side_length, 1)
-    max_unit_freq = xs[max_bin]
-    return (delta / max_unit_freq) + base
+    return np.min(icdm)
 
 
 def orient(
@@ -346,6 +335,8 @@ def avg_shape(
     medoid = identify_medoid(obj_names, gw_dist_dict)
     medoid_matrix = iodms[medoid]
     # Rescale to unit step size.
+    ss = step_size(medoid_matrix)
+    assert ss > 0
     medoid_matrix = medoid_matrix / step_size(medoid_matrix)
     dmat_accumulator_uncapped = np.copy(medoid_matrix)
     dmat_accumulator_capped = cap(medoid_matrix, 2.0)
@@ -414,6 +405,7 @@ def avg_shape_spt(
     G = knn_graph(d, k)
     d = np.multiply(d, G)
     # Get shortest path tree
+
     spt = dijkstra(d, directed=False, indices=0, return_predecessors=True)
     # Get graph representation by only keeping distances on edges from spt
     mask = np.array([True] * (d.shape[0] * d.shape[1])).reshape(d.shape)

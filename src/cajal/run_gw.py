@@ -8,6 +8,7 @@ from __future__ import annotations
 import itertools as it
 import csv
 from typing import List, Iterator, TypeVar, Optional, TypeAlias
+
 from math import sqrt, ceil
 
 import os
@@ -20,6 +21,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 import numpy as np  # noqa: E402
 import numpy.typing as npt  # noqa: E402
 from scipy.spatial.distance import squareform  # noqa: E402
+from scipy.sparse import coo_matrix  # noqa: E402
 from multiprocessing import Pool  # noqa: E402
 
 from .gw_cython import (  # noqa: E402
@@ -246,6 +248,16 @@ def _gw_index(p: tuple[int, int]):
     return (i, j, coupling_mat, gw_dist)
 
 
+def stringify_coupling_mat(A: npt.NDArray[np.float_]) -> list[str]:
+    a = coo_matrix(A)
+    return (
+        [str(a.nnz)]
+        + list(map(str, a.data))
+        + list(map(str, a.row))
+        + list(map(str, a.col))
+    )
+
+
 def gw_pairwise_parallel(
     cells: list[
         tuple[
@@ -310,6 +322,18 @@ def gw_pairwise_parallel(
     if gw_coupling_mat_csv is not None:
         gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")
         gw_coupling_mat_writer = csv.writer(gw_coupling_mat_file)
+        gw_coupling_mat_writer.writerow(
+            [
+                "first_object",
+                "first_object_sidelength",
+                "second_object",
+                "second_object_sidelength",
+                "num_nonzero",
+                "data",
+                "row_indices",
+                "col_indices",
+            ]
+        )
     ij = it.combinations(range(num_cells), 2)
     with Pool(
         initializer=_init_gw_pool, initargs=(GW_cells,), processes=num_processes
@@ -337,7 +361,13 @@ def gw_pairwise_parallel(
                         "Must supply list of cell identifiers for writing to file."
                     )
                 writelist = [
-                    (names[i], names[j], str(coupling_mat))
+                    [
+                        names[i],
+                        str(coupling_mat.shape[0]),
+                        names[j],
+                        str(coupling_mat.shape[1]),
+                    ]
+                    + stringify_coupling_mat(coupling_mat)
                     for (i, j, coupling_mat, _) in batch
                 ]
                 gw_coupling_mat_writer.writerows(writelist)
