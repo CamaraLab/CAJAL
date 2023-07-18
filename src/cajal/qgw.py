@@ -1,3 +1,7 @@
+"""
+Functions for computing the quantized Gromov-Wasserstein distance and the SLB between
+metric measure spaces, and related utilities for file IO and parallel computation.
+"""
 # std lib dependencies
 import itertools as it
 import time
@@ -26,7 +30,12 @@ from .gw_cython import (  # noqa: E402
     frobenius,
     quantized_gw_cython,
 )
-from .run_gw import _batched, cell_iterator_csv  # noqa: E402
+from .run_gw import (  # noqa: E402
+    _batched,
+    cell_iterator_csv,
+    Distribution,
+    SquareMatrix,
+)
 
 
 # SLB
@@ -51,15 +60,18 @@ def _global_slb_pool(p: tuple[int, int]):
 
 
 def slb_parallel_memory(
-    cell_dms: Collection[npt.NDArray[np.float_]],
+    cell_dms: Collection[SquareMatrix],
     num_processes: int,
     chunksize: int = 20,
-) -> npt.NDArray[np.float_]:
+) -> SquareMatrix:
     """
     Compute the SLB distance in parallel between all cells in `cell_dms`.
-    :param cell_dms: A collection of distance matrices
+    :param cell_dms: A collection of distance matrices. Probability distributions
+    other than uniform are currently unsupported.
     :param num_processes: How many Python processes to run in parallel
     :param chunksize: How many SLB distances each Python process computes at a time
+
+    :return: a square matrix giving pairwise SLB distances between points.
     """
     cell_dms_sorted = [np.sort(squareform(cell, force="tovector")) for cell in cell_dms]
     N = len(cell_dms)
@@ -109,12 +121,16 @@ def slb_parallel(
 
 class quantized_icdm:
     """
-    This class represents a "quantized" intracell distance matrix, i.e.,
-    a metric measure space which has been equipped with a given clustering;
-    it contains additional data which allows for the rapid computation
-    of pairwise GW distances across many cells.
+    This class represents a "quantized" intracell distance matrix, i.e., a
+    metric measure space which has been equipped with a given clustering; it
+    contains additional data which allows for the rapid computation of pairwise
+    GW distances across many cells. Users should only need to understand how to
+    use the constructor.
 
-    Users should only need to understand how to call the main constructor.
+    :param cell_dm: An intracell distance matrix in squareform.
+    :param p: A probability distribution on the points of the metric space
+    :param num_clusters: How many clusters to subdivide the cell into; the more
+        clusters, the more accuracy, but the longer the computation.
     """
 
     n: int
@@ -139,16 +155,11 @@ class quantized_icdm:
 
     def __init__(
         self,
-        cell_dm: npt.NDArray[np.float64],
-        p: npt.NDArray[np.float64],
+        cell_dm: SquareMatrix,
+        p: Distribution,
         num_clusters: int,
     ):
-        """
-        :param cell_dm: An intracell distance matrix in squareform.
-        :param p: A probability distribution on the points of the metric space
-        :param num_clusters: How many clusters to subdivide the cell into; the more clusters,
-        the more accuracy, but the longer the computation.
-        """
+        """ """
         assert len(cell_dm.shape) == 2
         self.n = cell_dm.shape[0]
         cell_dm_sq = np.multiply(cell_dm, cell_dm)
@@ -260,11 +271,13 @@ def quantized_gw_parallel(
     """
     Compute the quantized Gromov-Wasserstein distance in parallel between all cells in a family
     of cells.
+
     :param intracell_csv_loc: path to a CSV file containing the cells to process
     :param num_processes: number of Python processes to run in parallel
     :param num_clusters: Each cell will be partitioned into `num_clusters` many clusters.
-    :out_csv: file path where a CSV file containing the quantized GW distances will be written
-    :chunksize: How many q-GW distances should be computed at a time by each parallel process.
+    :param out_csv: file path where a CSV file containing
+         the quantized GW distances will be written
+    :param chunksize: How many q-GW distances should be computed at a time by each parallel process.
     """
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     quantized_cells = [
@@ -299,7 +312,6 @@ def quantized_gw_parallel(
                 csvwriter.writerows(block)
                 gw_start = time.time()
                 fileio_time += gw_start - gw_stop
-    return
 
 
 def _cutoff_of(
@@ -464,15 +476,15 @@ def combined_slb_quantized_gw_memory(
     :param cell_dms: a list or tuple of square distance matrices
     :param num_processes: How many Python processes to run in parallel
     :param num_clusters: Each cell will be partitioned into `num_clusters` many
-    clusters for the quantized Gromov-Wasserstein distance computation.
+        clusters for the quantized Gromov-Wasserstein distance computation.
     :param chunksize: Number of pairwise cell distance computations done by
-    each Python process at one time.
+        each Python process at one time.
     :param out_csv: path to a CSV file where the results of the computation will be written
-    :accuracy: This is a real number between 0 and 1, inclusive.
+    :param accuracy: This is a real number between 0 and 1, inclusive.
     :param nearest_neighbors: The algorithm tries to compute only the
-    quantized GW distances between pairs of cells if one is within the first
-    `nearest_neighbors` neighbors of the other; for all other values,
-    the SLB distance is used to give a rough estimate.
+        quantized GW distances between pairs of cells if one is within the first
+        `nearest_neighbors` neighbors of the other; for all other values,
+        the SLB distance is used to give a rough estimate.
     """
 
     N = len(cell_dms)
@@ -524,16 +536,14 @@ def combined_slb_quantized_gw(
     chunksize: int = 20,
 ) -> None:
     """
-    This is a wrapper around :func:`cajal.run_gw.combined_slb_quantized_gw_memory` with
-    some associated file/IO.
+    This is a wrapper around :func:`cajal.qgw.combined_slb_quantized_gw_memory` with
+    some associated file/IO. For all parameters not listed here see the docstring for
+    :func:`cajal.qgw.combined_slb_quantized_gw_memory`.
 
     :param input_icdm_csv_location: file path to a csv file. For format for the icdm
-    see :func:`cajal.run_gw.icdm_csv_validate`.
+        see :func:`cajal.run_gw.icdm_csv_validate`.
     :param gw_out_csv_location: Where to write the output GW distances.
     :return: None.
-
-    For all other parameters see the docstring for
-    :func:`cajal.run_gw.combined_slb_quantized_gw_memory`.
     """
 
     names, cell_dms = zip(*cell_iterator_csv(input_icdm_csv_location))

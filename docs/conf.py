@@ -17,7 +17,7 @@ copyright = "2022, Pablo Cámara"
 author = "Cámara Lab"
 
 # This release should be updated manually.
-release = "0.20"
+release = "0.30"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

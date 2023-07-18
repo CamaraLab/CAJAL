@@ -9,6 +9,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean, pdist
 from pathos.pools import ProcessPool
+from tqdm import tqdm
 
 from .swc import (
     NeuronNode,
@@ -433,7 +434,7 @@ def compute_icdm_all_euclidean(
     out_csv: str,
     n_sample: int,
     preprocess: Callable[[SWCForest], Err[T] | SWCForest] = lambda forest: forest,
-    num_cores: int = 8,
+    num_processes: int = 8,
 ) -> list[tuple[str, Err[T]]]:
     r"""
     For each \*.swc file in infolder, read the \*.swc file into memory as an
@@ -471,8 +472,8 @@ def compute_icdm_all_euclidean(
         will be sampled. By default, no preprocessing is performed, and the
         neuron is processed as-is.
 
-    :param num_cores: the intracell distance matrices will be computed in
-        parallel processes, num_cores is the number of processes to run
+    :param num_processes: the intracell distance matrices will be computed in
+        parallel processes, num_processes is the number of processes to run
         simultaneously. Recommended to set equal to the number of cores on your
         machine.
     :return: List of pairs (cell_name, error), where cell_name is the cell for
@@ -486,12 +487,13 @@ def compute_icdm_all_euclidean(
     def rpce(file_path: str) -> Err[T] | npt.NDArray[np.float_]:
         return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
 
-    pool = ProcessPool(nodes=num_cores)
+    pool = ProcessPool(nodes=num_processes)
     icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
     icdms = pool.imap(rpce, file_paths)
+    tq_icdms = tqdm(icdms, total=len(cell_names))
     failed_cells: list[tuple[str, Err[T]]]
     failed_cells = write_csv_block(
-        out_csv, n_sample, zip(cell_names, icdms), 3 * num_cores
+        out_csv, n_sample, zip(cell_names, tq_icdms), 3 * num_processes
     )
     pool.close()
     pool.join()
@@ -503,7 +505,7 @@ def compute_icdm_all_geodesic(
     infolder: str,
     out_csv: str,
     n_sample: int,
-    num_cores: int = 8,
+    num_processes: int = 8,
     preprocess: Callable[[SWCForest], Err[T] | NeuronTree] = lambda forest: forest[0],
 ) -> list[tuple[str, Err[T]]]:
     """
@@ -522,11 +524,12 @@ def compute_icdm_all_geodesic(
     def rpcg(file_path) -> Err[T] | npt.NDArray[np.float_]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
 
-    pool = ProcessPool(nodes=num_cores)
+    pool = ProcessPool(nodes=num_processes)
     icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
     icdms = pool.imap(rpcg, file_paths)
+    tq_icdms = tqdm(icdms, total=len(cell_names))
     failed_cells: list[tuple[str, Err[T]]]
-    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, icdms), 10)
+    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, tq_icdms), 10)
     pool.close()
     pool.join()
     pool.clear()
