@@ -2,6 +2,7 @@
 # Minimum requirements for the build system to execute
 requires = [
 	 "setuptools >= 40.8.0",
+	 "pip>=23.1",
 	 "wheel",
 	 "Cython",
 	 "numpy"
@@ -14,7 +15,7 @@ name = "cajal"
 version = "0.3.0"
 description="A library for multi-modal cell morphology analyses using Gromov-Wasserstein (GW) distance."
 readme="./README.md"
-requires-python="~=3.10"
+requires-python=">=3.10"
 
 authors= [ { name="Pablo Cámara", email='pcamara@pennmedicine.upenn.edu' } ]
 classifiers=[
@@ -32,6 +33,7 @@ dependencies = [
 	"cython >= 3",
         "pathos",
         # "pot>=0.7.0",
+	"tqdm>=4.64.1",
         "potpourri3d",
         "python-louvain",
         "scipy",
