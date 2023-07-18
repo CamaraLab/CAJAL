@@ -11,20 +11,15 @@ from typing import List, Iterator, TypeVar, Optional, TypeAlias
 
 from math import sqrt, ceil
 
-import os
-
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
-
 # external dependencies
-import numpy as np  # noqa: E402
-import numpy.typing as npt  # noqa: E402
-from scipy.spatial.distance import squareform  # noqa: E402
-from scipy.sparse import coo_matrix  # noqa: E402
-from multiprocessing import Pool  # noqa: E402
+from threadpoolctl import ThreadpoolController
+import numpy as np
+import numpy.typing as npt
+from scipy.spatial.distance import squareform
+from scipy.sparse import coo_matrix
+from multiprocessing import Pool
 
-from .gw_cython import (  # noqa: E402
+from .gw_cython import (
     GW_cell,
     gw_cython_core,
 )
@@ -34,6 +29,7 @@ T = TypeVar("T")
 Distribution: TypeAlias = npt.NDArray[np.float_]
 SquareMatrix: TypeAlias = npt.NDArray[np.float_]
 RectangularMatrix: TypeAlias = npt.NDArray[np.float_]
+controller = ThreadpoolController()
 
 
 def _batched(itera: Iterator[T], n: int) -> Iterator[List[T]]:
@@ -229,6 +225,10 @@ def _init_gw_pool(GW_cells: list[GW_cell]):
     _GW_CELLS = GW_cells
 
 
+controller = ThreadpoolController()
+
+
+@controller.wrap(limits=1, user_api="blas")
 def _gw_index(p: tuple[int, int]):
     i, j = p
     A: GW_cell
