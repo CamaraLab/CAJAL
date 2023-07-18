@@ -1,8 +1,11 @@
 # cython: profile=True
 # distutils: language=c++
 # distutils: sources = src/cajal/EMD_wrapper.cpp
+
+# This code is closely modelled on code from the Python Optimal Transport library, https://github.com/PythonOT/POT, and implements the gradient descent algorithm from Peyre et al. ICML 2016 "Gromov-Wasserstein averaging of Kernel and Distance matrices." Thanks very much to Rémi Flamary. 
+
 """
-GW
+Cython implementations of the Gromov-Wasserstein distance between metric measure spaces by gradient descent.
 """
 
 cimport cython

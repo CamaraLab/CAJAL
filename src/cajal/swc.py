@@ -99,7 +99,7 @@ class NeuronTree:
 
 
 if sys.version_info >= (3, 10):
-    import TypeAlias
+    from typing import TypeAlias
 
     SWCForest: TypeAlias = list[NeuronTree]  # noqa: F821
 else:

@@ -11,40 +11,6 @@ from math import ceil,sqrt
 DTYPE=np.float64
 ctypedef np.float_t DTYPE_t
 
-# def slb2(np.ndarray[DTYPE_t,ndim=1] f, np.ndarray[DTYPE_t,ndim=1] g):
-#     # Assume f, g are of shape (flen,) and (glen,), and are sorted.
-#     cdef int flen = f.shape[0]
-#     cdef int glen = g.shape[0]
-#     cdef float acc, progress, fnext, gnext
-#     cdef int i, j
-
-#     i = 0
-#     j = 0
-#     acc=0
-#     progress=0
-
-#     while i < flen or j < glen:
-#         if i < (flen - 1):
-#             fnext = (<float>(i + 1))/(<float>flen)
-#             if j < (glen - 1):
-#                 gnext = (<float>(j + 1))/ (<float>glen)
-#                 if fnext < gnext:
-#                     acc+=((f[i]-g[j])**2) * (fnext-progress)
-#                     progress = fnext
-#                     i += 1
-#                 else:
-#                     acc+=((f[i]-g[j])**2) * (gnext-progress)
-#                     progress = gnext
-#                     j += 1
-#             else:
-#                 acc+=((f[i]-g[j])**2) * (fnext-progress)
-#                 progress = fnext
-#                 i += 1
-#         else:
-#             if j < (glen-1) and (<float>(glen-1)/<float>glen)>progress:
-#                 acc +=((f[flen-1]-g[glen-1])**2) * ((<float>(glen-1)/<float>glen)-progress)
-#             return acc
-#     return acc
 
 def slb2(np.ndarray[DTYPE_t,ndim=1] f, np.ndarray[DTYPE_t,ndim=1] g):
     # Assume f, g are of shape (flen,) and (glen,), and are sorted.
