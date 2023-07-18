@@ -3,7 +3,7 @@ Functions for sampling points from an SWC reconstruction of a neuron.
 """
 
 import math
-from typing import Iterator, Callable
+from typing import Iterator, Callable, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -29,6 +29,7 @@ from .weighted_tree import (
     weighted_depth_wt,
 )
 from .utilities import write_csv_block, Err, T
+
 
 # Warning: Of 509 neurons downloaded from the Allen Brain Initiative
 # database, about 5 had a height of at least 1000 nodes. Therefore on
@@ -394,8 +395,10 @@ def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
 
 
 def read_preprocess_compute_euclidean(
-    file_name: str, n_sample: int, preprocess: Callable[[SWCForest], Err[T] | SWCForest]
-) -> Err[T] | npt.NDArray[np.float_]:
+    file_name: str,
+    n_sample: int,
+    preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]],
+) -> Union[Err[T], npt.NDArray[np.float_]]:
     r"""
     Read the \*.swc file `file_name` from disk as an `SWCForest`. \
     Apply the function `preprocess` to the forest. If it returns an error, return that error. \
@@ -412,8 +415,8 @@ def read_preprocess_compute_euclidean(
 def read_preprocess_compute_geodesic(
     file_name: str,
     n_sample: int,
-    preprocess: Callable[[SWCForest], Err[T] | NeuronTree],
-) -> Err[T] | npt.NDArray[np.float_]:
+    preprocess: Callable[[SWCForest], Union[Err[T], NeuronTree]],
+) -> Union[Err[T], npt.NDArray[np.float_]]:
     r"""
     Read the \*.swc file `file_name` from disk as an `SWCForest`. \
     Apply the function `preprocess` to the forest. If preprocessing returns an error,\
@@ -433,7 +436,7 @@ def compute_icdm_all_euclidean(
     infolder: str,
     out_csv: str,
     n_sample: int,
-    preprocess: Callable[[SWCForest], Err[T] | SWCForest] = lambda forest: forest,
+    preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
     num_processes: int = 8,
 ) -> list[tuple[str, Err[T]]]:
     r"""
@@ -484,11 +487,11 @@ def compute_icdm_all_euclidean(
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
     assert len(cell_names) == len(file_paths)
 
-    def rpce(file_path: str) -> Err[T] | npt.NDArray[np.float_]:
+    def rpce(file_path: str) -> Union[Err[T], npt.NDArray[np.float_]]:
         return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
 
     pool = ProcessPool(nodes=num_processes)
-    icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
+    icdms: Iterator[Union[Err[T], npt.NDArray[np.float_]]]
     icdms = pool.imap(rpce, file_paths)
     tq_icdms = tqdm(icdms, total=len(cell_names))
     failed_cells: list[tuple[str, Err[T]]]
@@ -506,7 +509,9 @@ def compute_icdm_all_geodesic(
     out_csv: str,
     n_sample: int,
     num_processes: int = 8,
-    preprocess: Callable[[SWCForest], Err[T] | NeuronTree] = lambda forest: forest[0],
+    preprocess: Callable[
+        [SWCForest], Union[Err[T], NeuronTree]
+    ] = lambda forest: forest[0],
 ) -> list[tuple[str, Err[T]]]:
     """
     This function is substantially the same as \
@@ -521,7 +526,7 @@ def compute_icdm_all_geodesic(
 
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
 
-    def rpcg(file_path) -> Err[T] | npt.NDArray[np.float_]:
+    def rpcg(file_path) -> Union[Err[T], npt.NDArray[np.float_]]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
 
     pool = ProcessPool(nodes=num_processes)

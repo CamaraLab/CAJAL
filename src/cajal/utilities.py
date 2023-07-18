@@ -306,7 +306,8 @@ def orient(
         gw_coupling_mat = gw_coupling_mat_dict[(obj_name, medoid)]
     else:
         gw_coupling_mat = coo_matrix.transpose(gw_coupling_mat_dict[(medoid, obj_name)])
-    i_reorder = np.asarray(np.argmax(gw_coupling_mat, axis=0))[0]
+
+    i_reorder = np.argmax(gw_coupling_mat.todense(), axis=0)
     return iodm[i_reorder][:, i_reorder]
 
 

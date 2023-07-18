@@ -1,6 +1,7 @@
 import os
 import math
 from shutil import rmtree
+from typing import Union
 
 from src.cajal.utilities import Err
 from src.cajal.swc import (
@@ -15,10 +16,10 @@ from src.cajal.swc import (
     num_nodes,
     has_soma_node,
     filter_forest,
+    SWCForest,
     preprocessor_eu,
     write_swc,
     NeuronNode,
-    SWCForest,
     total_length,
     discrete_depth,
     diagnostics,
@@ -161,7 +162,7 @@ def test_1():
         filter_tests(forest)
 
 
-def only_even_nodes(forest: SWCForest) -> Err[str] | SWCForest:
+def only_even_nodes(forest: SWCForest) -> Union[Err[str], SWCForest]:
     node_cts = sum(node_type_counts_forest(forest).values())
     if node_cts % 2 == 0:
         return forest

@@ -14,11 +14,6 @@ from collections import deque
 import csv
 from typing import Callable, Iterator, Literal, Container, Optional
 
-if sys.version_info >= (3, 10):
-    import TypeAlias
-
-    SWCForest: TypeAlias = list[NeuronTree]  # noqa: F821
-
 import numpy as np
 from scipy.spatial.distance import euclidean
 from pathos.pools import ProcessPool
@@ -101,6 +96,14 @@ class NeuronTree:
             for tree in reversed(current_tree.child_subgraphs):
                 stack.append(tree)
             yield current_tree
+
+
+if sys.version_info >= (3, 10):
+    import TypeAlias
+
+    SWCForest: TypeAlias = list[NeuronTree]  # noqa: F821
+else:
+    SWCForest = list[NeuronTree]  # noqa: F821
 
 
 def read_swc_node_dict(file_path: str) -> dict[int, NeuronNode]:

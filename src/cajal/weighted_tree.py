@@ -4,6 +4,7 @@ geodesic point of view. Defines functions for manipulating and processing Weight
 """
 from __future__ import annotations
 from dataclasses import dataclass
+from typing import Union
 
 import numpy as np
 from scipy.spatial.distance import euclidean
@@ -25,7 +26,7 @@ class WeightedTreeChild:
     dist: float
 
 
-WeightedTree = WeightedTreeRoot | WeightedTreeChild
+WeightedTree = Union[WeightedTreeRoot, WeightedTreeChild]
 
 
 def WeightedTree_of(tree: NeuronTree) -> WeightedTreeRoot:
