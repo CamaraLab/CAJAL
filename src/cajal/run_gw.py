@@ -334,13 +334,25 @@ def gw_pairwise_parallel(
                 "col_indices",
             ]
         )
+    NN = len(GW_cells)
+    total_num_pairs = int((NN * (NN - 1)) / 2)
     ij = it.combinations(range(num_cells), 2)
     with Pool(
         initializer=_init_gw_pool, initargs=(GW_cells,), processes=num_processes
     ) as pool:
         gw_data = pool.imap_unordered(_gw_index, ij, chunksize=20)
         gw_data_batched = _batched(gw_data, 2000)
+        k = 0
         for batch in gw_data_batched:
+            k += len(batch)
+            print(
+                str(k)
+                + " cell pairs computed, out of "
+                + str(total_num_pairs)
+                + "("
+                + f"{(100*k/total_num_pairs):.1f}"
+                + "% complete)"
+            )
             for i, j, coupling_mat, gw_dist in batch:
                 gw_dmat[i, j] = gw_dist
                 gw_dmat[j, i] = gw_dist
@@ -405,6 +417,7 @@ def compute_gw_distance_matrix(
 
     cell_names_dmats = list(cell_iterator_csv(intracell_csv_loc))
     names: list[str]
+
     names = [name for name, _ in cell_names_dmats]
     # List of pairs (A, a) where A is a square matrix and `a` a probability distribution
     cell_dms: list[tuple[SquareMatrix, Distribution]]
