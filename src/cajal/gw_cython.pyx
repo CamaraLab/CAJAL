@@ -166,7 +166,7 @@ def gw_pairwise(
     cdef int N = len(cell_dms)
     
     # cdef list[double] gw_dists= ((N * (N-1))/2)*[0.0]
-    cdef np.ndarray[DTYPE_t,ndim=1,mode='c'] gw_dists = np.zeros( (((N * (N-1))/2),),dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t,ndim=1,mode='c'] gw_dists = np.zeros( (int((N * (N-1))/2),),dtype=DTYPE)
     cdef double gw_dist
 
     cdef np.ndarray[DTYPE_t,ndim=2,mode='c'] A, B
