@@ -408,8 +408,19 @@ def read_preprocess_compute_euclidean(
     forest = preprocess(loaded_forest)
     if isinstance(forest, Err):
         return forest
-    icdm = icdm_euclidean(forest, n_sample)
-    return icdm
+    if isinstance(forest, NeuronTree):
+        icdm = icdm_euclidean([forest], n_sample)
+        return icdm
+    if isinstance(forest, list):
+        if all([isinstance(tree, NeuronTree) for tree in forest]):
+            icdm = icdm_euclidean(forest, n_sample)
+            return icdm
+    raise TypeError(
+        "For computing Euclidean distance, preprocessing function must \
+        return a list of NeuronTrees or an instance of the Err class. \
+        Preprocessing function returned data of type "
+        + str(type(forest))
+    )
 
 
 def read_preprocess_compute_geodesic(
@@ -429,6 +440,13 @@ def read_preprocess_compute_geodesic(
     tree = preprocess(loaded_forest)
     if isinstance(tree, Err):
         return tree
+    if isinstance(tree, list) or (not isinstance(tree, NeuronTree)):
+        raise ValueError(
+            "For computing geodesic distance, preprocessing function must \
+            return a NeuronTree or an instance of the Err class. \
+            Preprocessing function returned data of type "
+            + str(type(tree))
+        )
     return icdm_geodesic(tree, n_sample)
 
 
@@ -493,12 +511,23 @@ def compute_icdm_all_euclidean(
     icdms: Iterator[Union[Err[T], npt.NDArray[np.float_]]]
     failed_cells: list[tuple[str, Err[T]]]
     with ProcessPool(nodes=num_processes) as pool:
+        pool.restart()
+        pool.clear()
         icdms = pool.imap(rpce, file_paths)
         tq_icdms = tqdm(icdms, total=len(cell_names))
-        failed_cells = write_csv_block(
-            out_csv, n_sample, zip(cell_names, tq_icdms), 3 * num_processes
-        )
-    return failed_cells
+        try:
+            failed_cells = write_csv_block(
+                out_csv, n_sample, zip(cell_names, tq_icdms), 3 * num_processes
+            )
+        except Exception as e:
+            pool.terminate()
+            pool.clear()
+            raise e
+        else:
+            pool.close()
+            pool.join()
+            pool.clear()
+            return failed_cells
 
 
 def compute_icdm_all_geodesic(
@@ -529,7 +558,20 @@ def compute_icdm_all_geodesic(
     icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
     failed_cells: list[tuple[str, Err[T]]]
     with ProcessPool(nodes=num_processes) as pool:
+        pool.restart()
+        pool.clear()
         icdms = pool.imap(rpcg, file_paths)
         tq_icdms = tqdm(icdms, total=len(cell_names))
-        failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, tq_icdms), 10)
-    return failed_cells
+        try:
+            failed_cells = write_csv_block(
+                out_csv, n_sample, zip(cell_names, tq_icdms), 10
+            )
+        except Exception as e:
+            pool.terminate()
+            pool.clear()
+            raise e
+        else:
+            pool.close()
+            pool.join()
+            pool.clear()
+            return failed_cells
