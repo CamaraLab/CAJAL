@@ -379,7 +379,7 @@ def compute_icdm_all(
     out_csv: str,
     metric: Literal["euclidean"] | Literal["geodesic"],
     n_sample: int = 50,
-    num_cores: int = 8,
+    num_processes: int = 8,
     segment: bool = True,
     method: Literal["networkx"] | Literal["heat"] = "heat",
 ) -> List[str]:
@@ -393,7 +393,7 @@ def compute_icdm_all(
         titled `out_csv`.
     :param metric: How to compute the distance between points.
     :param n_sample: How many points to sample from each cell.
-    :param num_cores: Number of independent processes which will be created.
+    :param num_processes: Number of independent processes which will be created.
         Recommended to set this equal to the number of cores on your machine.
     :param method: How to compute geodesic distance.
         The "networkx" method is more precise, and takes between 5 - 15 seconds for
@@ -416,7 +416,7 @@ def compute_icdm_all(
         fewer than `n_sample` points.
     """
 
-    pool = ProcessPool(nodes=num_cores)
+    pool = ProcessPool(nodes=num_processes)
     dist_mats = compute_intracell_all(infolder, n_sample, metric, pool, segment, method)
     batch_size = 1000
     failed_cells = write_csv_block(out_csv, n_sample, dist_mats, batch_size)

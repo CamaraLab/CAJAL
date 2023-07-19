@@ -133,7 +133,7 @@ def compute_icdm_all(
     infolder: str,
     out_csv: str,
     n_sample: int,
-    num_cores: int = 8,
+    num_processes: int = 8,
     background: int = 0,
     discard_cells_with_holes: bool = False,
     only_longest: bool = False,
@@ -159,11 +159,11 @@ def compute_icdm_all(
          we sample points from only the longest boundary (presumably \
          the exterior) or from all boundaries, exterior and interior.
 
-    :param num_cores: How many threads to run while sampling.
+    :param num_processes: How many threads to run while sampling.
     :return: None (writes to file)
     """
 
-    pool = ProcessPool(nodes=num_cores)
+    pool = ProcessPool(nodes=num_processes)
     name_dist_mat_pairs = _compute_intracell_all(
         infolder, n_sample, pool, background, discard_cells_with_holes, only_longest
     )
