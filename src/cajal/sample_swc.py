@@ -490,17 +490,14 @@ def compute_icdm_all_euclidean(
     def rpce(file_path: str) -> Union[Err[T], npt.NDArray[np.float_]]:
         return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
 
-    pool = ProcessPool(nodes=num_processes)
     icdms: Iterator[Union[Err[T], npt.NDArray[np.float_]]]
-    icdms = pool.imap(rpce, file_paths)
-    tq_icdms = tqdm(icdms, total=len(cell_names))
     failed_cells: list[tuple[str, Err[T]]]
-    failed_cells = write_csv_block(
-        out_csv, n_sample, zip(cell_names, tq_icdms), 3 * num_processes
-    )
-    pool.close()
-    pool.join()
-    pool.clear()
+    with ProcessPool(nodes=num_processes) as pool:
+        icdms = pool.imap(rpce, file_paths)
+        tq_icdms = tqdm(icdms, total=len(cell_names))
+        failed_cells = write_csv_block(
+            out_csv, n_sample, zip(cell_names, tq_icdms), 3 * num_processes
+        )
     return failed_cells
 
 
