@@ -511,8 +511,6 @@ def compute_icdm_all_euclidean(
     icdms: Iterator[Union[Err[T], npt.NDArray[np.float_]]]
     failed_cells: list[tuple[str, Err[T]]]
     with ProcessPool(nodes=num_processes) as pool:
-        pool.restart()
-        pool.clear()
         icdms = pool.imap(rpce, file_paths)
         tq_icdms = tqdm(icdms, total=len(cell_names))
         try:
@@ -558,8 +556,6 @@ def compute_icdm_all_geodesic(
     icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
     failed_cells: list[tuple[str, Err[T]]]
     with ProcessPool(nodes=num_processes) as pool:
-        pool.restart()
-        pool.clear()
         icdms = pool.imap(rpcg, file_paths)
         tq_icdms = tqdm(icdms, total=len(cell_names))
         try:
