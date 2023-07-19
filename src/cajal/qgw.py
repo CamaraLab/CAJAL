@@ -224,7 +224,7 @@ def quantized_gw(A: quantized_icdm, B: quantized_icdm):
 
     P = sparse.coo_matrix((T_data, (T_rows, T_cols)), shape=(A.n, B.n)).tocsr()
     gw_loss = A.c_A + B.c_A - 2.0 * frobenius(A.icdm, P.dot(P.dot(B.icdm).T))
-    return sqrt(gw_loss) / 2.0
+    return sqrt(max(gw_loss, 0)) / 2.0
 
 
 def _block_quantized_gw(indices):
