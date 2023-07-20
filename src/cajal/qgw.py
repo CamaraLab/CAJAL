@@ -337,7 +337,7 @@ def _tuple_iterator_of(
     X: npt.NDArray[np.int_], Y: npt.NDArray[np.int_]
 ) -> Iterator[tuple[int, int]]:
     b = set()
-    for i, j in map(tuple, np.stack((X, Y), axis=1, dtype=int).astype(int)):
+    for i, j in map(tuple, np.stack((X, Y), axis=1).astype(int)):
         if i < j:
             b.add((i, j))
         else:
