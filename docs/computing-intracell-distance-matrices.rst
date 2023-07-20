@@ -70,11 +70,11 @@ you can use the following code.
 		    preprocess=swc.preprocessor_eu(
 		        structure_ids=[1,3,4],
 			soma_component_only=True),
-		    num_cores = 8
+		    num_processes = 8
 		    )
 
 The `n_sample` argument specifies the number of points from each cell that will be
-sampled (we recommend between 50-100). The `num_cores` argument specifies the
+sampled (we recommend between 50-100). The `num_processes` argument specifies the
 number of processes that will be launched in parallel, and we recommend setting
 it to the number of cores on your machine.
 

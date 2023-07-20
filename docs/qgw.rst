@@ -1,5 +1,5 @@
-Quantized Gromov-Wasserstein and Sampled Gromov-Wasserstein
-===========================================================
+Second Lower Bound and Quantized Gromov-Wasserstein
+===================================================
 .. module:: cajal.qgw
 
 .. autofunction:: cajal.qgw.slb_parallel_memory

@@ -19,7 +19,8 @@ file specified by the argument `gw_dist_csv_loc`.
 
         run_gw.compute_gw_distance_matrix(
             intracell_csv_loc = "/home/jovyan/CAJAL/CAJAL/data/swc_icd.csv",
-            gw_dist_csv_loc = "/home/jovyan/CAJAL/CAJAL/data/gw_dists.csv")
+            gw_dist_csv_loc = "/home/jovyan/CAJAL/CAJAL/data/gw_dists.csv",
+            num_processes = 8)
 
 By default, the coupling matrices which represent the best possible pariting
 between two cells are not retained. However, :func:`cajal.run_gw.compute_gw_distance_matrix` also provides functionality to
