@@ -9,6 +9,7 @@ import itertools as it
 import csv
 import sys
 from typing import List, Iterator, TypeVar, Optional
+from tqdm import tqdm
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -340,23 +341,13 @@ def gw_pairwise_parallel(
         )
     NN = len(GW_cells)
     total_num_pairs = int((NN * (NN - 1)) / 2)
-    ij = it.combinations(range(num_cells), 2)
+    ij = tqdm(it.combinations(range(num_cells), 2), total=total_num_pairs)
     with Pool(
         initializer=_init_gw_pool, initargs=(GW_cells,), processes=num_processes
     ) as pool:
         gw_data = pool.imap_unordered(_gw_index, ij, chunksize=20)
         gw_data_batched = _batched(gw_data, 2000)
-        k = 0
         for batch in gw_data_batched:
-            k += len(batch)
-            print(
-                str(k)
-                + " cell pairs computed, out of "
-                + str(total_num_pairs)
-                + "("
-                + f"{(100*k/total_num_pairs):.1f}"
-                + "% complete)"
-            )
             for i, j, coupling_mat, gw_dist in batch:
                 gw_dmat[i, j] = gw_dist
                 gw_dmat[j, i] = gw_dist

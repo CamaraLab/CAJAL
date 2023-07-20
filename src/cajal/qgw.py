@@ -8,6 +8,7 @@ import time
 import csv
 from typing import Iterable, Iterator, Collection
 from math import sqrt
+from tqdm import tqdm
 
 import os
 
@@ -108,7 +109,9 @@ def slb_parallel(
     """
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
-    ij = it.combinations(range(len(names)), 2)
+    NN = len(names)
+    total_num_pairs = int((NN * (NN - 1)) / 2)
+    ij = tqdm(it.combinations(range(NN), 2), total=total_num_pairs)
     with open(out_csv, "w", newline="") as outfile:
         csv_writer = csv.writer(outfile)
         csv_writer.writerow(["first_object", "second_object", "slb_dist"])
@@ -287,7 +290,8 @@ def quantized_gw_parallel(
         for cell_dm in cell_dms
     ]
     N = len(quantized_cells)
-    index_pairs = it.combinations(iter(range(N)), 2)
+    total_num_pairs = int((N * (N - 1)) / 2)
+    index_pairs = tqdm(it.combinations(iter(range(N)), 2), total=total_num_pairs)
 
     gw_time = 0.0
     fileio_time = 0.0
@@ -380,7 +384,7 @@ def _get_indices(
     if np.all(gw_vf == 0.0):
         ind_y = np.argsort(slb_dmat, axis=1)[:, 1 : nearest_neighbors + 1]
         ind_x = np.broadcast_to(np.arange(N)[:, np.newaxis], (N, nearest_neighbors))
-        xy = np.reshape(np.stack((ind_x, ind_y), axis=2, dtype=int), (-1, 2))
+        xy = np.reshape(np.stack((ind_x, ind_y), axis=2), (-1, 2))
         return list(_tuple_iterator_of(xy[:, 0], xy[:, 1]))
 
     # Otherwise, we assume that at least the initial values have been computed.

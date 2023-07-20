@@ -33,7 +33,6 @@ dependencies = [
         "numpy",
 	"cython >= 3",
         "pathos",
-        # "pot>=0.7.0",
 	"tqdm>=4.64.1",
         "potpourri3d",
         "python-louvain",
