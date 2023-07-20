@@ -5,7 +5,7 @@
 
 CAJAL is a Python library for multi-modal cell morphology analyses using Gromov-Wasserstein (GW) distance. Detailed information about the methods implemented in CAJAL can be found in:
 
-K. W. Govek, P. Nicodemus, Y. Lin, J. Crawford, A. B. Saturnino, H. Cui, K. Zoga, M. P. Hart, P.  G. Camara, _Multimodal analysis and integration of single-cell morphological data usig metric geometry_. bioRxiv (2022). [DOI:10.1101/2022.05.19.492525](https://www.biorxiv.org/content/10.1101/2022.05.19.492525v3.full)
+K. W. Govek, P. Nicodemus, Y. Lin, J. Crawford, A. B. Saturnino, H. Cui, K. Zoga, M. P. Hart, P.  G. Camara, _CAJAL enables analysis and integration of single-cell morphological data using metric geometry_. **Nature Communications** 14 (2023) 3672. [DOI:10.1038/s41467-023-39424-2](https://doi.org/10.1038/s41467-023-39424-2)
 
 ## Installation
 Until we upload the package to PyPI, the pip installation works from GitHub:

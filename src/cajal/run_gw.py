@@ -382,7 +382,6 @@ def gw_pairwise_parallel(
         gw_dist_file.close()
     if gw_coupling_mat_csv is not None:
         gw_coupling_mat_file.close()
-
     if return_coupling_mats:
         return (gw_dmat, gw_coupling_mats)
     return (gw_dmat, None)

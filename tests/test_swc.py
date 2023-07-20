@@ -147,9 +147,7 @@ def test_1():
         write_swc(outfile, forest)
         read_forest, _ = read_swc(outfile)
         os.remove(outfile)
-        assert sorted(linear_forest, key=num_nodes, reverse=True) == sorted(
-            read_forest, key=num_nodes, reverse=True
-        )
+        assert sorted(linear_forest, key=num_nodes, reverse=True) == read_forest
         filtered_forest = filter_forest(
             linear_forest, lambda node: is_prime(node.sample_number)
         )
