@@ -367,7 +367,7 @@ def gw_pairwise_parallel(
                     raise Exception(
                         "Must supply list of cell identifiers for writing to file."
                     )
-                coupling_mat_writelist = [
+                writelist = [
                     [
                         names[i],
                         str(coupling_mat.shape[0]),
@@ -377,7 +377,7 @@ def gw_pairwise_parallel(
                     + stringify_coupling_mat(coupling_mat)
                     for (i, j, coupling_mat, _) in batch
                 ]
-                gw_coupling_mat_writer.writerows(coupling_mat_writelist)
+                gw_coupling_mat_writer.writerows(writelist)
     if gw_dist_csv is not None:
         gw_dist_file.close()
     if gw_coupling_mat_csv is not None:
