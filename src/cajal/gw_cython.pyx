@@ -149,6 +149,7 @@ cpdef gw_cython_core(
         newcost=c_A+c_B
         newcost+=frobenius(C,P)
         if newcost >= cost:
+            cost = max(cost,0)
             return (P,sqrt(cost)/2.0)
         cost=newcost 
         # np.dot(A,neg2_PB,out=C)
