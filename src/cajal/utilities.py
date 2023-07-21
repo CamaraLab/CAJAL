@@ -376,14 +376,24 @@ def avg_shape_spt(
     k: int,
 ):
     """
-    :param obj_names: Keys for the gw_dist_dict and iodms.
+    Given a set of cells together with their intracell distance matrices and
+    the (precomputed) pairwise GW coupling matrices between cells, construct a
+    morphological "average" of cells in the cluster. This function:
+
+    * aligns all cells in the cluster with each other using the coupling matrices
+    * takes a "local average" of all intracell distance matrices, forming a
+      distance matrix which models the average local connectivity structure of the neurons
+    * draws a minimum spanning tree through the intracell distance graph,
+      allowing us to visualize this average morphology
+
+    :param obj_names: Keys for the gw_dist_dict and iodms; unique identifiers for the cells.
     :param gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) \
-    to Gromov-Wasserstein distances.
+        to Gromov-Wasserstein distances between them.
     :param iodms: (intra-object distance matrices) - \
-    Maps object names to intra-object distance matrices. Matrices are assumed to be given \
-    in vector form rather than squareform.
+        Maps object names to intra-object distance matrices. Matrices are assumed to be given \
+        in vector form rather than squareform.
     :gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to \
-    Gromov-Wasserstein coupling matrices from cellA to cellB.
+        Gromov-Wasserstein coupling matrices from cellA to cellB.
     :param k: how many neighbors in the nearest-neighbors graph.
     """
     dmat_avg_capped, dmat_avg_uncapped = avg_shape(
