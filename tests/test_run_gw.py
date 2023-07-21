@@ -1,4 +1,4 @@
-from src.cajal.run_gw import compute_gw_distance_matrix
+from cajal.run_gw import compute_gw_distance_matrix
 import os
 
 
