@@ -33,6 +33,10 @@ and with other single-cell data modalities, among other analyses.
    computing-gw-distances
    benchmarking
    average_swc_shape
+
+.. toctree::
+   :maxdepth: 1
+   :caption: TUTORIALS
    notebooks/Example_1
    notebooks/Example_2
    notebooks/Example_3
