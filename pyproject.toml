@@ -29,7 +29,7 @@ classifiers=[
 dependencies = [
 	"igraph",
         "leidenalg",
-        "networkx~=2.8.8",
+        "networkx>=2.8.8",
         "numpy",
 	"cython >= 3",
         "pathos",
@@ -40,7 +40,7 @@ dependencies = [
         "scikit-image",
         "tifffile",
         "trimesh",
-        "umap-learn~=0.5.3"
+        "umap-learn>=0.5.3"
 	]
 
 [project.optional-dependencies]
