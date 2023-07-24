@@ -7,11 +7,8 @@ CAJAL: a Python package for the analysis of single-cell morphological data
 ==========================================================================
 
 CAJAL is a Python package designed to explore and analyze the morphology of cells
-and its relationship with other single-cell data.
-
-CAJAL leverages the Python Optimal Transport library to compute the
-Gromov-Wasserstein (GW) distance between every pair of cells in a given sample. This
-distance quantifies the degree to which the shape of one cell can
+and its relationship with other single-cell data using the Gromov-Wasserstein (GW) distance.
+This distance quantifies the degree to which the shape of one cell can
 be transformed into that of another with minimal stretching or bending. One of the
 key benefits of using the GW distance is that it does not require any prior
 knowledge or model for the morphology of the cells. This feature makes CAJAL suitable
@@ -36,6 +33,11 @@ and with other single-cell data modalities, among other analyses.
    computing-gw-distances
    benchmarking
    average_swc_shape
+
+.. toctree::
+   :maxdepth: 1
+   :caption: TUTORIALS
+
    notebooks/Example_1
    notebooks/Example_2
    notebooks/Example_3
