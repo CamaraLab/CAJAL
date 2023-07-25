@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def match_descriptors(descriptors1, descriptors2, metric: Incomplete | None = ..., p: int = ..., max_distance=..., cross_check: bool = ..., max_ratio: float = ...): ...

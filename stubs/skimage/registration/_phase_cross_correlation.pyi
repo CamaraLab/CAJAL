@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def phase_cross_correlation(reference_image, moving_image, *, upsample_factor: int = ..., space: str = ..., return_error: bool = ..., reference_mask: Incomplete | None = ..., moving_mask: Incomplete | None = ..., overlap_ratio: float = ..., normalization: str = ...): ...

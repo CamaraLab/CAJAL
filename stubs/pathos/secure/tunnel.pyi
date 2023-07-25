@@ -1,0 +1,13 @@
+from _typeshed import Incomplete
+
+class TunnelException(Exception): ...
+
+class Tunnel:
+    MINPORT: int
+    MAXPORT: int
+    verbose: bool
+    connected: bool
+    def connect(self, host, port: Incomplete | None = ..., through: Incomplete | None = ...): ...
+    def disconnect(self) -> None: ...
+    name: Incomplete
+    def __init__(self, name: Incomplete | None = ..., **kwds) -> None: ...

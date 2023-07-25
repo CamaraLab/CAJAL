@@ -1,0 +1,3 @@
+from tifffile import imwrite as imsave
+
+def imread(fname, **kwargs): ...

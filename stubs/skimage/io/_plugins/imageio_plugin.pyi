@@ -1,0 +1,3 @@
+from imageio import imsave as imsave
+
+def imread(*args, **kwargs): ...

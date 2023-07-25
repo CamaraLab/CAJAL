@@ -1,0 +1,3 @@
+import numpy as np
+
+def sliding_min_max(values: np.ndarray, start: np.ndarray, end: np.ndarray, min_periods: int, is_max: bool) -> np.ndarray: ...

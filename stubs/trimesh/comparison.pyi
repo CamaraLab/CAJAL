@@ -1,0 +1,9 @@
+from . import util as util
+from .constants import tol as tol
+from _typeshed import Incomplete
+
+id_sigfig: Incomplete
+
+def identifier_simple(mesh): ...
+def identifier_hash(identifier): ...
+def face_ordering(mesh): ...

@@ -1,0 +1,9 @@
+import numpy as np
+from pandas import DataFrame as DataFrame, MultiIndex as MultiIndex, Series as Series, concat as concat
+from pandas._typing import Dict as Dict, IndexLabel as IndexLabel
+from pandas.core.dtypes.missing import remove_na_arraylike as remove_na_arraylike
+from pandas.plotting._matplotlib.misc import unpack_single_str_list as unpack_single_str_list
+
+def create_iter_data_given_by(data: DataFrame, kind: str = ...) -> Dict[str, Union[DataFrame, Series]]: ...
+def reconstruct_data_with_by(data: DataFrame, by: IndexLabel, cols: IndexLabel) -> DataFrame: ...
+def reformat_hist_y_given_by(y: Union[Series, np.ndarray], by: Union[IndexLabel, None]) -> Union[Series, np.ndarray]: ...
