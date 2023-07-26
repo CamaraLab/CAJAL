@@ -453,19 +453,6 @@ def _update_dist_mat(
         dist_mat_known[j, i] = True
     return
 
-PointCloud = npt.NDArray[np.float_]
-
-def combined_slb_qgw_two_sets(
-        reference_cells = list[tuple[PointCloud,int]],
-        query_cells = list[tuple[PointCloud,int]],
-        chunk_size : int,
-        nearest_neighbors : int
-):
-    """
-    Compute a list of nearest neighbors of each point using
-    """
-    
-        
 
 def combined_slb_quantized_gw_memory(
     cell_dms: Collection[npt.NDArray[np.float_]],  # Squareform
