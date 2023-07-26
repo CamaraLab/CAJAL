@@ -53,19 +53,19 @@ def matrix_tensor(
     np.multiply(LCCbar_otimes_T,2.,out=LCCbar_otimes_T)
     np.subtract(c_C_Cbar,LCCbar_otimes_T,out=LCCbar_otimes_T)
 
-def frobenius(DTYPE_t[:,:] A, DTYPE_t[:,:] B) -> DTYPE_t:
+# def frobenius(DTYPE_t[:,:] A, DTYPE_t[:,:] B) -> DTYPE_t:
 
-    cdef int n = A.shape[0]
-    cdef int m = A.shape[1]
-    assert n==B.shape[0]
-    assert m==B.shape[1]
-    cdef DTYPE_t sumval = 0.0
-    cdef int i, j
+#     cdef int n = A.shape[0]
+#     cdef int m = A.shape[1]
+#     assert n==B.shape[0]
+#     assert m==B.shape[1]
+#     cdef DTYPE_t sumval = 0.0
+#     cdef int i, j
     
-    for i in range(A.shape[0]):
-        for j in range(A.shape[1]):
-            sumval+=A[i,j]*B[i,j]
-    return sumval
+#     for i in range(A.shape[0]):
+#         for j in range(A.shape[1]):
+#             sumval+=A[i,j]*B[i,j]
+#     return sumval
 
 
 def n_c_2(int n):
@@ -122,7 +122,7 @@ cpdef gw_cython_core(
     cdef np.ndarray[np.float64_t,ndim=2,mode='c'] C = np.multiply(Aa[:,np.newaxis],(-2.0*Bb)[np.newaxis,:],order='C')
     cdef np.ndarray[np.float64_t,ndim=2,mode='c'] P = np.zeros((n,m),dtype=DTYPE,order='C')
     cost=c_A+c_B
-    cost+=frobenius(C,P)
+    cost+=float(np.tensordot(C,P))
 
     while it<max_iters_descent:
         result_code=EMD_wrap(n,m, <double*> a.data, <double*> b.data,
@@ -140,19 +140,15 @@ cpdef gw_cython_core(
                 raise Warning("MAX_ITER_REACHED")
             
         # P_sparse = scipy.sparse.csc_matrix(P,shape=(n,m), dtype=DTYPE)
-        # AP = sparse.csc_matrix.dot(A,P_sparse)
         np.dot(A,P,out=AP)
         np.multiply(AP,-2.0,out=AP)
         np.matmul(AP,B,out=C)
-        # neg2_PB = (-2.0*P_sparse).dot(B)
-        # newcost = (c_A+c_B)+frobenius(AP,neg2_PB)
         newcost=c_A+c_B
-        newcost+=frobenius(C,P)
+        newcost+=float(np.tensordot(C,P))
         if newcost >= cost:
             cost = max(cost,0)
             return (P,sqrt(cost)/2.0)
         cost=newcost 
-        # np.dot(A,neg2_PB,out=C)
         it+=1
 
 

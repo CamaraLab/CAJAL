@@ -28,7 +28,6 @@ from multiprocessing import Pool  # noqa: E402
 
 from .slb import slb2 as slb_cython  # noqa: E402
 from .gw_cython import (  # noqa: E402
-    frobenius,
     quantized_gw_cython,
 )
 from .run_gw import (  # noqa: E402
@@ -226,7 +225,7 @@ def quantized_gw(A: quantized_icdm, B: quantized_icdm):
     )
 
     P = sparse.coo_matrix((T_data, (T_rows, T_cols)), shape=(A.n, B.n)).tocsr()
-    gw_loss = A.c_A + B.c_A - 2.0 * frobenius(A.icdm, P.dot(P.dot(B.icdm).T))
+    gw_loss = A.c_A + B.c_A - 2.0 * float(np.tensordot((A.icdm, P.dot(P.dot(B.icdm).T))))
     return sqrt(max(gw_loss, 0)) / 2.0
 
 
@@ -454,6 +453,19 @@ def _update_dist_mat(
         dist_mat_known[j, i] = True
     return
 
+PointCloud = npt.NDArray[np.float_]
+
+def combined_slb_qgw_two_sets(
+        reference_cells = list[tuple[PointCloud,int]],
+        query_cells = list[tuple[PointCloud,int]],
+        chunk_size : int,
+        nearest_neighbors : int
+):
+    """
+    Compute a list of nearest neighbors of each point using
+    """
+    
+        
 
 def combined_slb_quantized_gw_memory(
     cell_dms: Collection[npt.NDArray[np.float_]],  # Squareform

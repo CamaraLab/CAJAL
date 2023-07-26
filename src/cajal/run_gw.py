@@ -33,7 +33,7 @@ T = TypeVar("T")
 
 Distribution: TypeAlias = npt.NDArray[np.float_]
 SquareMatrix: TypeAlias = npt.NDArray[np.float_]
-RectangularMatrix: TypeAlias = npt.NDArray[np.float_]
+Matrix: TypeAlias = npt.NDArray[np.float_]
 controller = ThreadpoolController()
 
 
@@ -277,7 +277,7 @@ def gw_pairwise_parallel(
     return_coupling_mats: bool = False,
 ) -> tuple[
     SquareMatrix,  # Pairwise GW distance matrix (Squareform)
-    Optional[list[tuple[int, int, RectangularMatrix]]],
+    Optional[list[tuple[int, int, Matrix]]],
 ]:
     """Compute the pairwise Gromov-Wasserstein distances between cells,
     possibly along with their coupling matrices.
@@ -386,6 +386,22 @@ def gw_pairwise_parallel(
         return (gw_dmat, gw_coupling_mats)
     return (gw_dmat, None)
 
+@controller.wrap(limits=1, user_api="blas")
+def gw(
+        A : SquareMatrix,
+        a : Distribution,
+        B : SquareMatrix,
+        b : Distribution,
+        max_iters_descent : int = 1000,
+        max_iters_ot : int = 200000
+) -> tuple[Matrix,float]:
+
+    Aa = A @ a
+    c_A = ((A * A) @ a) @ a
+    Bb = B @ b
+    c_B = ((B * B) @ b) @ b
+    return gw_cython_core(A,a,Aa,c_A,B,b,Bb,c_B,max_iters_descent,max_iters_ot)
+
 
 def compute_gw_distance_matrix(
     intracell_csv_loc: str,
@@ -396,7 +412,7 @@ def compute_gw_distance_matrix(
     verbose: Optional[bool] = False,
 ) -> tuple[
     SquareMatrix,  # Pairwise GW distance matrix (Squareform)
-    Optional[list[tuple[int, int, RectangularMatrix]]],
+    Optional[list[tuple[int, int, Matrix]]],
 ]:
     """Compute the matrix of pairwise Gromov-Wasserstein distances between cells.
     This function is a wrapper for :func:`cajal.run_gw.gw_pairwise_parallel` except
