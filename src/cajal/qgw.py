@@ -6,31 +6,23 @@ metric measure spaces, and related utilities for file IO and parallel computatio
 import itertools as it
 import time
 import csv
-from typing import Iterable, Iterator, Collection
+from typing import Iterable, Iterator, Collection, Optional
 from math import sqrt
 from tqdm import tqdm
 
-import os
-
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
-
 # external dependencies
-import numpy as np  # noqa: E402
-import numpy.typing as npt  # noqa: E402
-from scipy.spatial.distance import squareform  # noqa: E402
-from scipy import sparse  # noqa: E402
-from scipy import cluster  # noqa: E402
+import numpy as np
+import numpy.typing as npt
+from scipy.spatial.distance import squareform
+from scipy import sparse
+from scipy import cluster
 
-# from scipy.sparse import coo_array  # noqa: E402
-from multiprocessing import Pool  # noqa: E402
+from multiprocessing import Pool
 
-from .slb import slb2 as slb_cython  # noqa: E402
-from .gw_cython import (  # noqa: E402
-    quantized_gw_cython,
-)
-from .run_gw import (  # noqa: E402
+from .slb import slb2 as slb_cython
+from .gw_cython import quantized_gw_cython, qgw_init_cost
+
+from .run_gw import (
     _batched,
     cell_iterator_csv,
     Distribution,
@@ -205,27 +197,47 @@ class quantized_icdm:
         self.A_s_a_s = np.dot(A_s, q_arr)
 
 
-def quantized_gw(A: quantized_icdm, B: quantized_icdm):
+def quantized_gw(A: quantized_icdm, B: quantized_icdm,
+                 initial_plan : Optional[npt.NDArray[np.float_]] = None):
     """
     Compute the quantized Gromov-Wasserstein distance between two quantized metric measure spaces.
+
+    :param initial_plan: An initial guess at a transport plan from A.sub_icdm to B.sub_icdm.
     """
-    T_rows, T_cols, T_data = quantized_gw_cython(
-        A.distribution,
-        A.sub_icdm,
-        A.q_indices,
-        A.q_distribution,
-        A.A_s_a_s,
-        A.c_As,
-        B.distribution,
-        B.sub_icdm,
-        B.q_indices,
-        B.q_distribution,
-        B.A_s_a_s,
-        B.c_As,
-    )
+
+    if initial_plan is None:
+        T_rows, T_cols, T_data = quantized_gw_cython(
+            A.distribution,
+            A.sub_icdm,
+            A.q_indices,
+            A.q_distribution,
+            A.A_s_a_s,
+            A.c_As,
+            B.distribution,
+            B.sub_icdm,
+            B.q_indices,
+            B.q_distribution,
+            B.A_s_a_s,
+            B.c_As,
+        )
+    else:
+        init_cost = -2 * (A.sub_icdm @ initial_plan @ B.sub_icdm)
+        T_rows, T_cols, T_data = qgw_init_cost(
+            A.distribution,
+            A.sub_icdm,
+            A.q_indices,
+            A.q_distribution,
+            A.c_As,
+            B.distribution,
+            B.sub_icdm,
+            B.q_indices,
+            B.q_distribution,
+            B.c_As,
+            init_cost
+        )
 
     P = sparse.coo_matrix((T_data, (T_rows, T_cols)), shape=(A.n, B.n)).tocsr()
-    gw_loss = A.c_A + B.c_A - 2.0 * float(np.tensordot((A.icdm, P.dot(P.dot(B.icdm).T))))
+    gw_loss = A.c_A + B.c_A - 2.0 * float(np.tensordot(A.icdm, P.dot(P.dot(B.icdm).T)))
     return sqrt(max(gw_loss, 0)) / 2.0
 
 

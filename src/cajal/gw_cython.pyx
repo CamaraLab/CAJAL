@@ -85,43 +85,31 @@ class GW_cell:
         self.dmat_dot_dist = dmat_dot_dist
         self.cell_constant = cell_constant
 
-cpdef gw_cython_core(
-        np.ndarray[DTYPE_t,ndim=2,mode='c'] A,
-        np.ndarray[DTYPE_t,ndim=1,mode='c'] a,
-        np.ndarray[DTYPE_t,ndim=1,mode='c'] Aa,
-        DTYPE_t c_A,        
-        np.ndarray[DTYPE_t,ndim=2,mode='c'] B,
-        np.ndarray[DTYPE_t,ndim=1,mode='c'] b,
-        np.ndarray[DTYPE_t,ndim=1,mode='c'] Bb,
-        DTYPE_t c_B,
-        int max_iters_descent =1000,
-        uint64_t max_iters_ot = 200000,
+cpdef gw_cython_init_cost(
+    np.ndarray[DTYPE_t,ndim=2,mode='c'] A,
+    np.ndarray[DTYPE_t,ndim=1,mode='c'] a,
+    DTYPE_t c_A,
+    np.ndarray[DTYPE_t,ndim=2,mode='c'] B,
+    np.ndarray[DTYPE_t,ndim=1,mode='c'] b,
+    DTYPE_t c_B,
+    np.ndarray[DTYPE_t,ndim=2,mode='c'] C,
+    int max_iters_descent =1000,
+    uint64_t max_iters_ot = 200000,
 ):
 
     cdef int it = 0
     cdef int n = a.shape[0]
     cdef int m = b.shape[0]
     cdef int result_code
-    # cdef DTYPE_t alpha
-    # cdef DTYPE_t gw_loss_T
-    # cdef DTYPE_t new_gw_loss_T
     cdef DTYPE_t cost=0.0
-    cdef double temp=0.0        # I believe this number is not useful. I could be wrong.
     cdef DTYPE_t newcost=0.0
-    # np.ndarray[np.float64_t,ndim=1] Aa = np.dot(A,a)
     cdef np.ndarray[double, ndim=1, mode="c"] alpha=np.zeros(n)
     cdef np.ndarray[double, ndim=1, mode="c"] beta=np.zeros(m)
     cdef np.ndarray[DTYPE_t, ndim=2, mode="c"] neg2_PB
-    # cdef np.ndarray[double, ndim=2, mode="fortran"] AP
     cdef np.ndarray[double, ndim=2, mode="c"] AP=np.zeros((n,m),dtype=DTYPE,order='C')
-    # cdef np.ndarray[double, ndim=2, mode="c"] PB=np.zeros((n,m),dtype=DTYPE,order='C')
-
-    # np.ndarray[np.float64_t,ndim=1] Bb = np.dot(B,b)
-
-    # Cost matrix, C= initialized to -2*APB
-    cdef np.ndarray[np.float64_t,ndim=2,mode='c'] C = np.multiply(Aa[:,np.newaxis],(-2.0*Bb)[np.newaxis,:],order='C')
     cdef np.ndarray[np.float64_t,ndim=2,mode='c'] P = np.zeros((n,m),dtype=DTYPE,order='C')
     cost=c_A+c_B
+    cdef double temp=0.0
     cost+=float(np.tensordot(C,P))
 
     while it<max_iters_descent:
@@ -150,7 +138,31 @@ cpdef gw_cython_core(
             return (P,sqrt(cost)/2.0)
         cost=newcost 
         it+=1
+    
 
+cpdef gw_cython_core(
+        np.ndarray[DTYPE_t,ndim=2,mode='c'] A,
+        np.ndarray[DTYPE_t,ndim=1,mode='c'] a,
+        np.ndarray[DTYPE_t,ndim=1,mode='c'] Aa,
+        DTYPE_t c_A,
+        np.ndarray[DTYPE_t,ndim=2,mode='c'] B,
+        np.ndarray[DTYPE_t,ndim=1,mode='c'] b,
+        np.ndarray[DTYPE_t,ndim=1,mode='c'] Bb,
+        DTYPE_t c_B,
+        int max_iters_descent =1000,
+        uint64_t max_iters_ot = 200000
+):
+    cdef np.ndarray[np.float64_t,ndim=2,mode='c'] C = np.multiply(Aa[:,np.newaxis],(-2.0*Bb)[np.newaxis,:],order='C')
+    return gw_cython_init_cost(
+        A,
+        a,
+        c_A,
+        B,
+        b,
+        c_B,
+        C,
+        max_iters_descent,
+        max_iters_ot)
 
 def gw_pairwise(
         list cell_dms           # A list of GW_cells.
@@ -339,8 +351,7 @@ cdef sparse_oneD_OT_gw(
                 j+=1
 
 
-# Turning off bounds checking doesn't improve performance on my end.
-def quantized_gw_cython(
+def qgw_init_cost(
         # a is the probability distribution on points of A
         np.ndarray[np.float64_t,ndim=1] a,
         # A_s=A_sample is a sub_matrix of A, of size ns x ns
@@ -352,7 +363,6 @@ def quantized_gw_cython(
         np.ndarray[Py_ssize_t,ndim=1] A_si,
         # Probability distribution on sample points of A_s; of length ns
         np.ndarray[np.float64_t,ndim=1] a_s,
-        np.ndarray[np.float64_t,ndim=1] A_s_a_s,
         DTYPE_t c_As,
         # b is the probability distribution on points of B
         np.ndarray[np.float64_t,ndim=1] b,
@@ -363,8 +373,9 @@ def quantized_gw_cython(
         # Probability distribution on sample points of B_s; of length ms
         np.ndarray[np.float64_t,ndim=1] b_s,
         # np.dot(np.multiply(B_s,B_s),b_s)
-        np.ndarray[np.float64_t,ndim=1] B_s_b_s,
         DTYPE_t c_Bs,
+        # Initial cost matrix of tisze ns x ms
+        np.ndarray[np.float64_t,ndim=2] C,
 ):
 
     cdef int n = a.shape[0]
@@ -376,11 +387,8 @@ def quantized_gw_cython(
     cdef int a_local_len
     cdef int b_local_len
     cdef np.ndarray[np.float64_t,ndim=2] quantized_coupling # size ns x ms
-
-    quantized_coupling, _=gw_cython_core(
-        A_s,a_s,A_s_a_s,c_As,
-        B_s,b_s,B_s_b_s,c_Bs)
-
+    
+    quantized_coupling, _=gw_cython_init_cost(A_s,a_s,c_As,B_s,b_s,c_Bs,C)
     # We can count, roughly, how many elements we'll need in the coupling matrix.
     cdef int num_elts =0
     for i in range(ns):
@@ -421,4 +429,46 @@ def quantized_gw_cython(
                     quantized_coupling[i,j])#float
                 k+= (A_si[i+1]-A_si[i])+(B_si[j+1]-B_si[j])-1
     return (T_rows,T_cols,T_vals)
+    
 
+
+# Turning off bounds checking doesn't improve performance on my end.
+def quantized_gw_cython(
+        # a is the probability distribution on points of A
+        np.ndarray[np.float64_t,ndim=1] a,
+        # A_s=A_sample is a sub_matrix of A, of size ns x ns
+        np.ndarray[np.float64_t,ndim=2] A_s,
+        # A_si = A_sample_indices
+        # Indices for sampled points of A, of length ns+1
+        # Should satisfy A_s[x,y]=A[A_si[x],A_si[y]] for all x,y < ns
+        # should satisfy A_si[ns]=n
+        np.ndarray[Py_ssize_t,ndim=1] A_si,
+        # Probability distribution on sample points of A_s; of length ns
+        np.ndarray[np.float64_t,ndim=1] a_s,
+        np.ndarray[np.float64_t,ndim=1] A_s_a_s,
+        DTYPE_t c_As,
+        # b is the probability distribution on points of B
+        np.ndarray[np.float64_t,ndim=1] b,
+        # B_sample, size ms x ms
+        np.ndarray[np.float64_t,ndim=2] B_s,
+        # B_sample_indices, size ms+1
+        np.ndarray[Py_ssize_t,ndim=1] B_si,
+        # Probability distribution on sample points of B_s; of length ms
+        np.ndarray[np.float64_t,ndim=1] b_s,
+        # np.dot(np.multiply(B_s,B_s),b_s)
+        np.ndarray[np.float64_t,ndim=1] B_s_b_s,
+        DTYPE_t c_Bs,
+):
+    cdef np.ndarray[np.float64_t,ndim=2,mode='c'] C = np.multiply(A_s_a_s[:,np.newaxis],(-2.0*B_s_b_s)[np.newaxis,:],order='C')
+    return qgw_init_cost(
+        a,
+        A_s,
+        A_si,
+        a_s,
+        c_As,
+        b,
+        B_s,
+        B_si,
+        b_s,
+        c_Bs,
+        C)
