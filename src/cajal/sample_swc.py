@@ -164,6 +164,22 @@ def get_sample_pts_euclidean(
         treelist = new_treelist
     return sample_pts_list
 
+def euclidean_point_cloud(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_]:
+    r"""
+    Compute the (Euclidean) point cloud matrix for the forest, \
+    with n sample points.
+    :param forest: The cell to be sampled.
+    :param num_samples: How many points to be sampled.
+    :return: A rectangular matrix of shape (n,3).
+    """
+    if len(forest) >= num_samples:
+        pts: list[npt.NDArray[np.float_]] = []
+        for i in range(num_samples):
+            pts.append(np.array(forest[i].root.coord_triple))
+    else:
+        step_size = _binary_stepwise_search(forest, num_samples)
+        pts = get_sample_pts_euclidean(forest, step_size)
+    return np.stack(pts)
 
 def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_]:
     r"""
@@ -173,15 +189,7 @@ def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_
     :param num_samples: How many points to be sampled.
     :return: A condensed (vectorform) matrix of length n\* (n-1)/2.
     """
-    if len(forest) >= num_samples:
-        pts: list[npt.NDArray[np.float_]] = []
-        for i in range(num_samples):
-            pts.append(np.array(forest[i].root.coord_triple))
-    else:
-        step_size = _binary_stepwise_search(forest, num_samples)
-        pts = get_sample_pts_euclidean(forest, step_size)
-    pts_matrix = np.stack(pts)
-    return pdist(pts_matrix)
+    return pdist(euclidean_point_cloud(forest,num_samples))
 
 
 def _sample_at_given_stepsize_wt(
@@ -448,6 +456,7 @@ def compute_icdm_all_euclidean(
     n_sample: int,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
     num_processes: int = 8,
+    name_validate Callable[str,bool] = default_name_validate
 ) -> list[tuple[str, Err[T]]]:
     r"""
     For each \*.swc file in infolder, read the \*.swc file into memory as an
@@ -489,12 +498,14 @@ def compute_icdm_all_euclidean(
         parallel processes, num_processes is the number of processes to run
         simultaneously. Recommended to set equal to the number of cores on your
         machine.
+    :param name_validate: A boolean test on strings. Files will be read from the directory
+        if name_validate is True (truthy).
     :return: List of pairs (cell_name, error), where cell_name is the cell for
         which sampling failed, and `error` is a wrapper around a message indicating
         why the neuron was not sampled from.
     """
 
-    cell_names, file_paths = get_filenames(infolder, default_name_validate)
+    cell_names, file_paths = get_filenames(infolder, name_validate)
     assert len(cell_names) == len(file_paths)
 
     def rpce(file_path: str) -> Union[Err[T], npt.NDArray[np.float_]]:
