@@ -19,7 +19,7 @@ from scipy import cluster
 
 from multiprocessing import Pool
 
-from .slb import slb2 as slb_cython
+from .slb import slb as slb_cython, l2
 from .gw_cython import quantized_gw_cython, qgw_init_cost
 
 from .run_gw import (
@@ -29,6 +29,53 @@ from .run_gw import (
     SquareMatrix,
 )
 
+def distance_inverse_cdf(
+        dist_mat : npt.NDArray[np.float_],
+        measure : npt.NDArray[np.float_]
+):
+    """
+    :param dX: Vectorform (one-dimensional) distance matrix for a space, of
+    length N \* (N-1)/2, where N is the number of points in dX.
+    :param measure: Probability distribution on points of X, array of length N,
+    entries are nonnegative and sum to one.
+
+    :return: The inverse cumulative distribution function of the space, what
+    Memoli calls "f_X^{-1}"; intuitively, a real valued function on the unit
+    interval such that f_X^{-1}(u) is the distance `d` in X such that u is the
+    proportion of pairs points in X that are at least as close together as `d`.
+    """
+    index_X = np.argsort(dist_mat)
+    dX = np.sort(dist_mat)
+    mX_otimes_mX_sq=np.matmul(measure[:,np.newaxis],measure[np.newaxis,:])
+    mX_otimes_mX = squareform(mX_otimes_mX_sq,force='tovector',checks=False)[index_X]
+
+    f = np.insert(dX,0,0.0)
+    u = np.insert(mX_otimes_mX, 0, measure@measure)
+
+    return (f,u)
+    
+def slb_distribution(
+        dX : npt.NDArray[np.float_],
+        mX : npt.NDArray[np.float_],
+        dY : npt.NDArray[np.float_],
+        mY : npt.NDArray[np.float_],        
+):
+    """
+    Compute the SLB distance between two cells equipped with a choice of distribution.
+
+    :param dX: Vectorform distance matrix for a space X, of length N * (N-1)/2,
+        (where N is the number of points in X)
+    :param mX: Probability distribution vector on X.
+    :param dY: Vectorform distance matrix, of length M * (M-1)/2
+        (where M is the number of points in X)
+    :param mY: Probability distribution vector on X.
+    """
+
+    f,u=distance_inverse_cdf(dX,mX)
+    g,v=distance_inverse_cdf(dY,mY)
+    cum_u=np.cumsum(u)
+    cum_v=np.cumsum(v)
+    return 0.5 * sqrt( l2(f,u,cum_u,g,v,cum_v))
 
 # SLB
 def _init_slb_pool(sorted_cells):
@@ -52,7 +99,7 @@ def _global_slb_pool(p: tuple[int, int]):
 
 
 def slb_parallel_memory(
-    cell_dms: Collection[SquareMatrix],
+    cell_dms: Iterable[SquareMatrix],
     num_processes: int,
     chunksize: int = 20,
 ) -> SquareMatrix:
@@ -66,7 +113,7 @@ def slb_parallel_memory(
     :return: a square matrix giving pairwise SLB distances between points.
     """
     cell_dms_sorted = [np.sort(squareform(cell, force="tovector")) for cell in cell_dms]
-    N = len(cell_dms)
+    N = len(cell_dms_sorted)
     with Pool(
         initializer=_init_slb_pool,
         initargs=(cell_dms_sorted,),
