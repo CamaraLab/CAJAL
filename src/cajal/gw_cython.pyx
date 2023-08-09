@@ -152,6 +152,18 @@ cpdef gw_cython_core(
         int max_iters_descent =1000,
         uint64_t max_iters_ot = 200000
 ):
+    """
+    :param A: A squareform distance matrix.
+    :param a: A probability distribution on points of A.
+    :param Aa: Should be equal to the matrix-vector product A@a.
+    :param c_A: Should be equal to the scalar ((A * A)@a)@a.
+    :param B: A squareform distance matrix.
+    :param b: A probability distribution on points of B.
+    :param Bb: Should be equal to the matrix-vector product B@b.
+    :param c_B: Should be equal to the scalar ((B * B)@b)@b.
+    :return: A pair (P, gw_dist) where P is a transport plan and gw_dist is the associated cost.
+    """
+
     cdef np.ndarray[np.float64_t,ndim=2,mode='c'] C = np.multiply(Aa[:,np.newaxis],(-2.0*Bb)[np.newaxis,:],order='C')
     return gw_cython_init_cost(
         A,

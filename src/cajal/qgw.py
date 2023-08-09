@@ -6,14 +6,14 @@ metric measure spaces, and related utilities for file IO and parallel computatio
 import itertools as it
 import time
 import csv
-from typing import Iterable, Iterator, Collection, Optional
+from typing import Iterable, Iterator, Collection, Optional, Literal
 from math import sqrt
 from tqdm import tqdm
 
 # external dependencies
 import numpy as np
 import numpy.typing as npt
-from scipy.spatial.distance import squareform
+from scipy.spatial.distance import squareform, pdist
 from scipy import sparse
 from scipy import cluster
 
@@ -22,20 +22,15 @@ from multiprocessing import Pool
 from .slb import slb as slb_cython, l2
 from .gw_cython import quantized_gw_cython, qgw_init_cost
 
-from .run_gw import (
-    _batched,
-    cell_iterator_csv,
-    Distribution,
-    SquareMatrix,
-)
+from .run_gw import _batched, cell_iterator_csv, Distribution, DistanceMatrix, Matrix, uniform
+
 
 def distance_inverse_cdf(
-        dist_mat : npt.NDArray[np.float_],
-        measure : npt.NDArray[np.float_]
+    dist_mat: npt.NDArray[np.float_], measure: npt.NDArray[np.float_]
 ):
     """
     :param dX: Vectorform (one-dimensional) distance matrix for a space, of
-    length N \* (N-1)/2, where N is the number of points in dX.
+    length N * (N-1)/2, where N is the number of points in dX.
     :param measure: Probability distribution on points of X, array of length N,
     entries are nonnegative and sum to one.
 
@@ -46,19 +41,20 @@ def distance_inverse_cdf(
     """
     index_X = np.argsort(dist_mat)
     dX = np.sort(dist_mat)
-    mX_otimes_mX_sq=np.matmul(measure[:,np.newaxis],measure[np.newaxis,:])
-    mX_otimes_mX = squareform(mX_otimes_mX_sq,force='tovector',checks=False)[index_X]
+    mX_otimes_mX_sq = np.matmul(measure[:, np.newaxis], measure[np.newaxis, :])
+    mX_otimes_mX = squareform(mX_otimes_mX_sq, force="tovector", checks=False)[index_X]
 
-    f = np.insert(dX,0,0.0)
-    u = np.insert(mX_otimes_mX, 0, measure@measure)
+    f = np.insert(dX, 0, 0.0)
+    u = np.insert(mX_otimes_mX, 0, measure @ measure)
 
-    return (f,u)
-    
+    return (f, u)
+
+
 def slb_distribution(
-        dX : npt.NDArray[np.float_],
-        mX : npt.NDArray[np.float_],
-        dY : npt.NDArray[np.float_],
-        mY : npt.NDArray[np.float_],        
+    dX: npt.NDArray[np.float_],
+    mX: npt.NDArray[np.float_],
+    dY: npt.NDArray[np.float_],
+    mY: npt.NDArray[np.float_],
 ):
     """
     Compute the SLB distance between two cells equipped with a choice of distribution.
@@ -71,11 +67,12 @@ def slb_distribution(
     :param mY: Probability distribution vector on X.
     """
 
-    f,u=distance_inverse_cdf(dX,mX)
-    g,v=distance_inverse_cdf(dY,mY)
-    cum_u=np.cumsum(u)
-    cum_v=np.cumsum(v)
-    return 0.5 * sqrt( l2(f,u,cum_u,g,v,cum_v))
+    f, u = distance_inverse_cdf(dX, mX)
+    g, v = distance_inverse_cdf(dY, mY)
+    cum_u = np.cumsum(u)
+    cum_v = np.cumsum(v)
+    return 0.5 * sqrt(l2(f, u, cum_u, g, v, cum_v))
+
 
 # SLB
 def _init_slb_pool(sorted_cells):
@@ -99,10 +96,10 @@ def _global_slb_pool(p: tuple[int, int]):
 
 
 def slb_parallel_memory(
-    cell_dms: Iterable[SquareMatrix],
+    cell_dms: Iterable[DistanceMatrix],
     num_processes: int,
     chunksize: int = 20,
-) -> SquareMatrix:
+) -> DistanceMatrix:
     """
     Compute the SLB distance in parallel between all cells in `cell_dms`.
     :param cell_dms: A collection of distance matrices. Probability distributions
@@ -172,6 +169,10 @@ class quantized_icdm:
     :param p: A probability distribution on the points of the metric space
     :param num_clusters: How many clusters to subdivide the cell into; the more
         clusters, the more accuracy, but the longer the computation.
+    :param clusters: Labels for a clustering of the points in the cell. If no clustering
+        is supplied, one will be derived by hierarchical clustering until
+        `num_clusters` clusters are formed. If a clustering is supplied, then
+        `num_clusters` is ignored.
     """
 
     n: int
@@ -180,6 +181,10 @@ class quantized_icdm:
     # "distribution" is a dimensional vector of length n,
     # a probability distribution on points of the space
     distribution: npt.NDArray[np.float64]
+    # The number of clusters in the quantized cell, which is *NOT* guaranteed
+    # to be equal to the value of "clusters" specified in the constructor. Check this
+    # field when iterating over clusters rather than assuming it has the number of clusters
+    # given by the argument `clusters` to the constructor.
     ns: int
     # A square sub-matrix of icdm, the distance matrix between sampled points. Of side length ns.
     sub_icdm: npt.NDArray[np.float64]
@@ -194,31 +199,30 @@ class quantized_icdm:
     A_s_a_s: npt.NDArray[np.float64]
     # This field is equal to np.dot(np.dot(np.multiply(icdm,icdm),distribution),distribution)
 
-    def __init__(
-        self,
-        cell_dm: SquareMatrix,
+    def _sort_icdm_and_distribution(
+        cell_dm: DistanceMatrix,
         p: Distribution,
-        num_clusters: int,
-    ):
-        """ """
-        assert len(cell_dm.shape) == 2
-        self.n = cell_dm.shape[0]
-        cell_dm_sq = np.multiply(cell_dm, cell_dm)
-        self.c_A = np.dot(np.dot(cell_dm_sq, p), p)
-        Z = cluster.hierarchy.linkage(squareform(cell_dm), method="centroid")
-        clusters = cluster.hierarchy.fcluster(
-            Z, num_clusters, criterion="maxclust", depth=0
-        )
-        actual_num_clusters: int = len(set(clusters))
-        self.ns = actual_num_clusters
+        clusters: npt.NDArray[np.int_],
+    ) -> tuple[DistanceMatrix, Distribution, npt.NDArray[np.int_]]:
+        """
+        Sort the cell distance matrix so that points in the same cluster are grouped
+        together and the points of each cell are in descending order.
+
+        :param clusters: A vector of integer cluster labels telling which
+            cluster each point belongs to, cluster labels are assumed to be contiguous and
+            start at 1.
+
+        :return: A sorted cell distance matrix, distribution, and a vector of
+            integers marking the initial starting points of each cluster. (This
+            has one more element than the number of distinct clusters, the last
+            element is the length of the cell.)
+        """
+
         indices: npt.NDArray[np.int_] = np.argsort(clusters)
-        original_cell_dm = cell_dm
         cell_dm = cell_dm[indices, :][:, indices]
         p = p[indices]
-        q: list[float]
-        q = []
-        clusters = np.sort(clusters)
-        for i in range(1, actual_num_clusters + 1):
+
+        for i in range(1, len(set(clusters)) + 1):
             permutation = np.nonzero(clusters == i)[0]
             this_cluster = cell_dm[permutation, :][:, permutation]
             medoid = np.argmin(sum(this_cluster))
@@ -227,25 +231,86 @@ class quantized_icdm:
             cell_dm[:, permutation] = cell_dm[:, permutation[new_local_indices]]
             indices[permutation] = indices[permutation[new_local_indices]]
             p[permutation] = p[permutation[new_local_indices]]
-            q.append(np.sum(p[permutation]))
+            # q.append(np.sum(p[permutation]))
+
+        q_indices = np.asarray(
+            np.nonzero(np.r_[1, np.diff(np.sort(clusters)), 1])[0], order="C"
+        )
+
+        return (np.asarray(cell_dm, order="C"), p, q_indices)
+
+    def __init__(
+        self,
+        cell_dm: DistanceMatrix,
+        p: Distribution,
+        num_clusters: Optional[int],
+        clusters: Optional[npt.NDArray[np.int_]] = None,
+    ):
+        # Validate the data.
+        assert len(cell_dm.shape) == 2
+
+        self.n = cell_dm.shape[0]
+
+        if clusters is None:
+            # Cluster the data and set icdm, distribution, and ns.
+            Z = cluster.hierarchy.linkage(squareform(cell_dm), method="centroid")
+            clusters = cluster.hierarchy.fcluster(
+                Z, num_clusters, criterion="maxclust", depth=0
+            )
+
+        icdm, distribution, q_indices = quantized_icdm._sort_icdm_and_distribution(
+            cell_dm, p, clusters
+        )
+
+        self.icdm = icdm
+        self.distribution = distribution
+        self.ns = len(set(clusters))
+        self.q_indices = q_indices
+
+        clusters_sort = np.sort(clusters)
         self.icdm = np.asarray(cell_dm, order="C")
         self.distribution = p
+
+        # Compute the quantized distribution.
+        q = []
+        for i in range(self.ns):
+            q.append(np.sum(distribution[q_indices[i] : q_indices[i + 1]]))
         q_arr = np.array(q, dtype=np.float64, order="C")
         self.q_distribution = q_arr
         assert abs(np.sum(q_arr) - 1.0) < 1e-7
-        medoids = np.nonzero(np.r_[1, np.diff(clusters)])[0]
+        medoids = np.nonzero(np.r_[1, np.diff(clusters_sort)])[0]
+
         A_s = cell_dm[medoids, :][:, medoids]
-        assert np.all(np.equal(original_cell_dm[:, indices][indices, :], cell_dm))
+        # assert np.all(np.equal(original_cell_dm[:, indices][indices, :], cell_dm))
         self.sub_icdm = np.asarray(A_s, order="C")
-        self.q_indices = np.asarray(
-            np.nonzero(np.r_[1, np.diff(clusters), 1])[0], order="C"
-        )
+        self.c_A = np.dot(np.dot(np.multiply(cell_dm, cell_dm), p), p)
         self.c_As = np.dot(np.multiply(A_s, A_s), q_arr) @ q_arr
         self.A_s_a_s = np.dot(A_s, q_arr)
 
+    def of_ptcloud(
+        X: Matrix,
+        distribution: Distribution,
+        num_clusters: int,
+        method: Literal["kmeans"] | Literal["hierarchical"] = "kmeans",
+    ):
+        dmat = squareform(pdist(X), force="tomatrix")
+        if method == "hierarchical":
+            return quantized_icdm(dmat, distribution, num_clusters)
+        # Otherwise use kmeans.
+        # TODO: This will probably give way shorter than the amount of cells.
+        _, clusters = cluster.vq.kmeans2(
+            X,
+            num_clusters,
+            minit='++'
+        )
+        return quantized_icdm(dmat, distribution, None, clusters)
 
-def quantized_gw(A: quantized_icdm, B: quantized_icdm,
-                 initial_plan : Optional[npt.NDArray[np.float_]] = None):
+
+def quantized_gw(
+    A: quantized_icdm,
+    B: quantized_icdm,
+    initial_plan: Optional[npt.NDArray[np.float_]] = None,
+) -> tuple[sparse.csr_matrix, float]:
     """
     Compute the quantized Gromov-Wasserstein distance between two quantized metric measure spaces.
 
@@ -280,12 +345,12 @@ def quantized_gw(A: quantized_icdm, B: quantized_icdm,
             B.q_indices,
             B.q_distribution,
             B.c_As,
-            init_cost
+            init_cost,
         )
 
     P = sparse.coo_matrix((T_data, (T_rows, T_cols)), shape=(A.n, B.n)).tocsr()
     gw_loss = A.c_A + B.c_A - 2.0 * float(np.tensordot(A.icdm, P.dot(P.dot(B.icdm).T)))
-    return sqrt(max(gw_loss, 0)) / 2.0
+    return P, sqrt(max(gw_loss, 0)) / 2.0
 
 
 def _block_quantized_gw(indices):
@@ -343,7 +408,7 @@ def quantized_gw_parallel(
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     quantized_cells = [
         quantized_icdm(
-            cell_dm, np.ones((cell_dm.shape[0],)) / cell_dm.shape[0], num_clusters
+            cell_dm, uniform(cell_dm.shape[0]) , num_clusters
         )
         for cell_dm in cell_dms
     ]
@@ -560,7 +625,7 @@ def combined_slb_quantized_gw_memory(
 
     quantized_cells = [
         quantized_icdm(
-            cell_dm, np.ones((cell_dm.shape[0],)) / cell_dm.shape[0], num_clusters
+            cell_dm, uniform(cell_dm.shape[0]), num_clusters
         )
         for cell_dm in cell_dms
     ]

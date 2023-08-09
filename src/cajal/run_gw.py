@@ -32,7 +32,9 @@ from .gw_cython import (
 T = TypeVar("T")
 
 Distribution: TypeAlias = npt.NDArray[np.float_]
-SquareMatrix: TypeAlias = npt.NDArray[np.float_]
+# A DistanceMatrix is a square symmetric matrix with zeros along the diagonal
+# and nonnegative entries.
+DistanceMatrix: TypeAlias = npt.NDArray[np.float_]
 Matrix: TypeAlias = npt.NDArray[np.float_]
 controller = ThreadpoolController()
 
@@ -116,8 +118,8 @@ def _batched_cell_list_iterator_csv(
     intracell_csv_loc: str, chunk_size: int
 ) -> Iterator[
     tuple[
-        list[tuple[int, str, SquareMatrix]],
-        list[tuple[int, str, SquareMatrix]],
+        list[tuple[int, str, DistanceMatrix]],
+        list[tuple[int, str, DistanceMatrix]],
     ]
 ]:
     """
@@ -180,7 +182,7 @@ def _batched_cell_list_iterator_csv(
 
 def cell_iterator_csv(
     intracell_csv_loc: str,
-) -> Iterator[tuple[str, SquareMatrix]]:
+) -> Iterator[tuple[str, DistanceMatrix]]:
     """
     :param intracell_csv_loc: A full file path to a csv file.
 
@@ -203,7 +205,7 @@ def cell_iterator_csv(
 
 def cell_pair_iterator_csv(
     intracell_csv_loc: str, chunk_size: int
-) -> Iterator[tuple[tuple[int, str, SquareMatrix], tuple[int, str, SquareMatrix]]]:
+) -> Iterator[tuple[tuple[int, str, DistanceMatrix], tuple[int, str, DistanceMatrix]]]:
     """
     :param intracell_csv_loc: A full file path to a csv file.
     :param chunk_size: How many lines to read from the file at a time. Does not affect output.
@@ -266,7 +268,7 @@ def stringify_coupling_mat(A: npt.NDArray[np.float_]) -> list[str]:
 def gw_pairwise_parallel(
     cells: list[
         tuple[
-            SquareMatrix,  # Squareform distance matrix
+            DistanceMatrix,  # Squareform distance matrix
             Distribution,  # Probability distribution on cells
         ]
     ],
@@ -276,7 +278,7 @@ def gw_pairwise_parallel(
     gw_coupling_mat_csv: Optional[str] = None,
     return_coupling_mats: bool = False,
 ) -> tuple[
-    SquareMatrix,  # Pairwise GW distance matrix (Squareform)
+    DistanceMatrix,  # Pairwise GW distance matrix (Squareform)
     Optional[list[tuple[int, int, Matrix]]],
 ]:
     """Compute the pairwise Gromov-Wasserstein distances between cells,
@@ -388,9 +390,9 @@ def gw_pairwise_parallel(
 
 @controller.wrap(limits=1, user_api="blas")
 def gw(
-        A : SquareMatrix,
+        A : DistanceMatrix,
         a : Distribution,
-        B : SquareMatrix,
+        B : DistanceMatrix,
         b : Distribution,
         max_iters_descent : int = 1000,
         max_iters_ot : int = 200000
@@ -402,6 +404,11 @@ def gw(
     c_B = ((B * B) @ b) @ b
     return gw_cython_core(A,a,Aa,c_A,B,b,Bb,c_B,max_iters_descent,max_iters_ot)
 
+def uniform(n : int) -> npt.NDArray[np.float_]:
+    """
+    The uniform distribution on n points, as a vector of floats.
+    """
+    return np.ones((n,))/n
 
 def compute_gw_distance_matrix(
     intracell_csv_loc: str,
@@ -411,7 +418,7 @@ def compute_gw_distance_matrix(
     return_coupling_mats: bool = False,
     verbose: Optional[bool] = False,
 ) -> tuple[
-    SquareMatrix,  # Pairwise GW distance matrix (Squareform)
+    DistanceMatrix,  # Pairwise GW distance matrix (Squareform)
     Optional[list[tuple[int, int, Matrix]]],
 ]:
     """Compute the matrix of pairwise Gromov-Wasserstein distances between cells.
@@ -430,9 +437,9 @@ def compute_gw_distance_matrix(
 
     names = [name for name, _ in cell_names_dmats]
     # List of pairs (A, a) where A is a square matrix and `a` a probability distribution
-    cell_dms: list[tuple[SquareMatrix, Distribution]]
+    cell_dms: list[tuple[DistanceMatrix, Distribution]]
     cell_dms = [
-        (c := cell, np.ones((n := c.shape[0],)) / n) for _, cell in cell_names_dmats
+        (c := cell, uniform(c.shape[0])) for _, cell in cell_names_dmats
     ]
 
     return gw_pairwise_parallel(
