@@ -648,7 +648,9 @@ def combined_slb_quantized_gw_memory(
         )
         while len(indices) > 0:
             if verbose:
-                print(len(indices))
+                print("Cell pairs computed so far: " + str( (np.count_nonzero(qgw_known)-N)/2 ))
+                print("Cell pairs to be computed this iteration: " + str(len(indices)))
+                
             total_cells_computed += len(indices)
             qgw_dists = pool.imap_unordered(
                 _quantized_gw_index, indices, chunksize=chunksize
@@ -682,7 +684,11 @@ def combined_slb_quantized_gw(
     :return: None.
     """
 
-    names, cell_dms = zip(*cell_iterator_csv(input_icdm_csv_location))
+    if verbose:
+        print("Reading files...")
+        names, cell_dms = zip(*tqdm(cell_iterator_csv(input_icdm_csv_location)))
+    else:
+        names, cell_dms = zip(*cell_iterator_csv(input_icdm_csv_location))
     slb_dmat, qgw_dmat, qgw_known = combined_slb_quantized_gw_memory(
         cell_dms,
         num_processes,
