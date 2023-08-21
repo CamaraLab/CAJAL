@@ -287,6 +287,10 @@ class quantized_icdm:
         self.c_As = np.dot(np.multiply(A_s, A_s), q_arr) @ q_arr
         self.A_s_a_s = np.dot(A_s, q_arr)
 
+    def of_tuple(p):
+        cell_dm, p, num_clusters, clusters=p
+        return quantized_icdm(cell_dm,p, num_clusters,clusters)
+
     def of_ptcloud(
         X: Matrix,
         distribution: Distribution,
@@ -415,8 +419,8 @@ def quantized_gw_parallel(
     with Pool(
         processes=num_processes
     ) as pool:
-        args = [ (cell_dm, uniform(cell_dm.shape[0]) , num_clusters) for cell_dm in cell_dms ]
-        quantized_cells = list(tqdm(pool.starmap(quantized_icdm,args),total=len(names)))
+        args = [ (cell_dm, uniform(cell_dm.shape[0]) , num_clusters, None) for cell_dm in cell_dms ]
+        quantized_cells = list(tqdm(pool.imap(quantized_icdm.of_tuple,args),total=len(names)))
     N = len(quantized_cells)
     total_num_pairs = int((N * (N - 1)) / 2)
     # index_pairs = tqdm(it.combinations(iter(range(N)), 2), total=total_num_pairs)
