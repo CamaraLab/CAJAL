@@ -116,7 +116,7 @@ def ternary_distance(
     feature3_name: str,
     density_estimation: Literal["histogram"] | Literal["gaussian_kde"],
     bins: int,
-    levels: int = 4,
+    contour_lines: int = 4,
     **kwargs
 ):
     """
@@ -145,6 +145,6 @@ def ternary_distance(
     ax.grid()
     ax.scatter(d12, d23, d31, **kwargs)
 
-    level_marks = np.linspace(np.min(coloring), np.max(coloring), levels + 1)
+    level_marks = np.linspace(np.min(coloring), np.max(coloring), contour_lines + 2)
     ax.tricontour(d12, d23, d31, coloring, level_marks)
     plt.show()
