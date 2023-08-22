@@ -9,7 +9,7 @@ import itertools as it
 import csv
 import sys
 from typing import List, Iterator, TypeVar, Optional
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias

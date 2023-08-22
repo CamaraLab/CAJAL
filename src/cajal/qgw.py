@@ -8,7 +8,7 @@ import time
 import csv
 from typing import Iterable, Iterator, Collection, Optional, Literal
 from math import sqrt
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 
 # external dependencies
 import numpy as np
@@ -397,6 +397,7 @@ def quantized_gw_parallel(
     out_csv: str,
     chunksize: int = 20,
     verbose: bool = False,
+    write_blocksize : int =100
 ) -> None:
     """
     Compute the quantized Gromov-Wasserstein distance in parallel between all cells in a family
@@ -411,7 +412,9 @@ def quantized_gw_parallel(
     """
     if verbose:
         print("Reading files...")
-        names, cell_dms = zip(*tqdm(cell_iterator_csv(intracell_csv_loc)))
+        cells = [cell for cell in tqdm(cell_iterator_csv(intracell_csv_loc))]
+        names, cell_dms = zip(*cells)
+        del cells
     else:
         names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
     if verbose:
@@ -426,10 +429,7 @@ def quantized_gw_parallel(
     # index_pairs = tqdm(it.combinations(iter(range(N)), 2), total=total_num_pairs)
     index_pairs = it.combinations(iter(range(N)), 2)
 
-    gw_time = 0.0
-    fileio_time = 0.0
     print("Computing pairwise Gromov-Wasserstein distances...")    
-    gw_start = time.time()
     with Pool(
         initializer=_init_qgw_pool, initargs=(quantized_cells,), processes=num_processes
     ) as pool:
@@ -438,20 +438,16 @@ def quantized_gw_parallel(
             _quantized_gw_index, index_pairs, chunksize=chunksize
             ),
             total = total_num_pairs)
-        gw_stop = time.time()
-        gw_time += gw_stop - gw_start
         with open(out_csv, "w", newline="") as outcsvfile:
             csvwriter = csv.writer(outcsvfile)
             csvwriter.writerow(["first_object", "second_object", "quantized_gw"])
-            gw_start = time.time()
-            t = _batched(gw_dists, 2000)
+            # for i,j,gw_dist in gw_dists:
+            #     csvwriter.writerow((names[i],names[j],gw_dist))
+            t = _batched(gw_dists, write_blocksize)
             for block in t:
                 block = [(names[i], names[j], gw_dist) for (i, j, gw_dist) in block]
-                gw_stop = time.time()
-                gw_time += gw_stop - gw_start
                 csvwriter.writerows(block)
-                gw_start = time.time()
-                fileio_time += gw_start - gw_stop
+
 
 
 def _cutoff_of(
