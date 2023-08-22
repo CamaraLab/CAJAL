@@ -67,7 +67,7 @@ def slb(np.ndarray[DTYPE_t,ndim=1] f, np.ndarray[DTYPE_t,ndim=1] g):
                 if i == 0:
                     intval=(g[j])**2
                 else:
-                    intval=(g[j]-f([i-1]))**2
+                    intval=(g[j]-f[i-1])**2
                 acc+=intval*(2.0)/(m**2)
                 j+=1
             # Postcondition:  1/n + 2(i+1)/n^2 >= 1/m + 2(j+1)/m^2,
