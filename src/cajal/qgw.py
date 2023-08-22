@@ -441,13 +441,8 @@ def quantized_gw_parallel(
         with open(out_csv, "w", newline="") as outcsvfile:
             csvwriter = csv.writer(outcsvfile)
             csvwriter.writerow(["first_object", "second_object", "quantized_gw"])
-            # for i,j,gw_dist in gw_dists:
-            #     csvwriter.writerow((names[i],names[j],gw_dist))
-            t = _batched(gw_dists, write_blocksize)
-            for block in t:
-                block = [(names[i], names[j], gw_dist) for (i, j, gw_dist) in block]
-                csvwriter.writerows(block)
-
+            for i,j,gw_dist in gw_dists:
+                csvwriter.writerow((names[i],names[j],gw_dist))
 
 
 def _cutoff_of(
