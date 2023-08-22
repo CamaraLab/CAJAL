@@ -198,7 +198,7 @@ class quantized_icdm:
     c_As: float
     A_s_a_s: npt.NDArray[np.float64]
     # This field is equal to np.dot(np.dot(np.multiply(icdm,icdm),distribution),distribution)
-
+    @staticmethod
     def _sort_icdm_and_distribution(
         cell_dm: DistanceMatrix,
         p: Distribution,
@@ -292,6 +292,7 @@ class quantized_icdm:
         cell_dm, p, num_clusters, clusters=p
         return quantized_icdm(cell_dm,p, num_clusters,clusters)
 
+    @staticmethod
     def of_ptcloud(
         X: Matrix,
         distribution: Distribution,
@@ -471,7 +472,7 @@ def _tuple_iterator_of(
     for i, j in map(tuple, np.stack((X, Y), axis=1).astype(int)):
         if i < j:
             b.add((i, j))
-        else:
+        elif i > j:
             b.add((j, i))
     return iter(b)
 
@@ -647,7 +648,8 @@ def combined_slb_quantized_gw_memory(
         )
         while len(indices) > 0:
             if verbose:
-                print("Cell pairs computed so far: " + str( (np.count_nonzero(qgw_known)-N)/2 ))
+                print("Cell pairs computed so far: " +
+                      str( (np.count_nonzero(qgw_known)-N)/2 ))
                 print("Cell pairs to be computed this iteration: " + str(len(indices)))
                 
             total_cells_computed += len(indices)
