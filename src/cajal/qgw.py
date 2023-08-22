@@ -287,6 +287,7 @@ class quantized_icdm:
         self.c_As = np.dot(np.multiply(A_s, A_s), q_arr) @ q_arr
         self.A_s_a_s = np.dot(A_s, q_arr)
 
+    @staticmethod
     def of_tuple(p):
         cell_dm, p, num_clusters, clusters=p
         return quantized_icdm(cell_dm,p, num_clusters,clusters)
@@ -316,9 +317,11 @@ def quantized_gw(
     initial_plan: Optional[npt.NDArray[np.float_]] = None,
 ) -> tuple[sparse.csr_matrix, float]:
     """
-    Compute the quantized Gromov-Wasserstein distance between two quantized metric measure spaces.
+    Compute the quantized Gromov-Wasserstein distance
+    between two quantized metric measure spaces.
 
-    :param initial_plan: An initial guess at a transport plan from A.sub_icdm to B.sub_icdm.
+    :param initial_plan: An initial guess at a transport
+    plan from A.sub_icdm to B.sub_icdm.
     """
 
     if initial_plan is None:
@@ -387,7 +390,8 @@ def _quantized_gw_index(p: tuple[int, int]):
     and j in the global list of quantized cells.
     """
     i, j = p
-    return (i, j, quantized_gw(_QUANTIZED_CELLS[i], _QUANTIZED_CELLS[j]))
+    retval : tuple[int,int,float]
+    return (i, j, quantized_gw(_QUANTIZED_CELLS[i], _QUANTIZED_CELLS[j])[1])
 
 
 def quantized_gw_parallel(
