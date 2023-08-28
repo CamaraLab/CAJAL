@@ -249,9 +249,8 @@ def _indices_from_cdf_prob(
     # cells by descending order of cdf_prob.
     undershooting_prob_indices = np.argsort(-cdf_prob)
     median_estimate_cutoff_index = int(
-        np.searchsorted(cdf_prob[undershooting_prob_indices], 0.4999)
+        np.searchsorted(-cdf_prob[undershooting_prob_indices], -0.5)
     )
-
     total_expected_injuries = np.sum(cdf_prob)
     incremental_expected_injuries = np.cumsum(
         cdf_prob[undershooting_prob_indices]
