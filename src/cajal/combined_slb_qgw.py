@@ -72,9 +72,10 @@ class _Error_Distribution:
         # `slb_bins` many equally sized bins, and the error distribution will be estimated
         # within each bin. If `slb_bins == 1`, this amounts to assuming that the
         # conditional error is independent of SLB.
-        # slb_bins should not be chosen too large relative to the total number of cell pairs,
-        # or each bin will have very few samples from which to estimate the error distribution
-        # within that bin.
+        # slb_bins should not be chosen too large relative to the
+        # total number of cell pairs, or each bin will have very few
+        # samples from which to estimate the error distribution within
+        # that bin.
         self._slb_bins = slb_bins
         # This determines how many quantiles each SLB_bin will be split into;
         # it determines with what precision we try to estimate the conditional probability.
@@ -164,25 +165,6 @@ class _Error_Distribution:
         return probabilities
 
 
-# def build_distribution_estimate(SLB_dmat: DistanceMatrix, bins: int):
-#     """
-#     Define and return a function `distribution_estimate` which accepts \
-#     a GW distance matrix and computes its conditional error distribution. \
-#     This function is a closure/ partially applied function.
-
-#     :param SLB_dmat: The SLB distance matrix.
-#     :param SLB_dmat: A number of bins to partition the SLB_values are.
-#         Conditional error distributions will be computed within each bin.
-#     """
-
-#     def estimator(
-#         GW_dmat: DistanceMatrix,
-#         GW_known: BooleanSquareMatrix,
-#     ):
-#         # observed_error = (GW_dmat - SLB_dmat)
-#         pass
-
-
 def _get_initial_indices(
     slb_dmat: DistanceMatrix,
     qgw_dmat: DistanceMatrix,
@@ -204,6 +186,7 @@ def _get_initial_indices(
     ind_x = np.broadcast_to(np.arange(N)[:, np.newaxis], (N, nearest_neighbors + 1))
     xy = np.reshape(np.stack((ind_x, ind_y), axis=2), (-1, 2))
     b = _tuple_set_of(xy[:, 0], xy[:, 1])
+
 
     # This will be of shape (slb_bins + 1,).
     slb_quantile_bins = np.quantile(
@@ -445,7 +428,7 @@ def combined_slb_quantized_gw_memory(
     N = len(cell_dms)
     np_arange_N = np.arange(N)
     slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
-    slb_bins = 200
+    slb_bins = 5
     ed = _Error_Distribution(slb_dmat, slb_bins, sn)
 
     # Partial quantized Gromov-Wasserstein table, will be filled in gradually.

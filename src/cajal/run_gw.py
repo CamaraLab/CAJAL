@@ -206,16 +206,19 @@ def cell_pair_iterator_csv(
     intracell_csv_loc: str, chunk_size: int
 ) -> Iterator[tuple[tuple[int, str, DistanceMatrix], tuple[int, str, DistanceMatrix]]]:
     """
-    :param intracell_csv_loc: A full file path to a csv file.
-    :param chunk_size: How many lines to read from the file at a time. Does not affect output.
-
-    :return: an iterator over pairs of cells, each entry is of the form
-        ((indexA, nameA, distance_matrixA),(indexB, nameB, distance_matrixB)),
-        where `indexA` is the line number in the file, and `indexA < indexB`.
+    Return an iterator over pairs of cells.
 
     This is almost equivalent to
     itertools.combinations(cell_iterator_csv(intracell_csv_loc),2) but
     with more efficient file IO.
+
+    :param intracell_csv_loc: A full file path to a csv file.
+    :param chunk_size: How many lines to read from the file at a time.
+        Does not affect output.
+
+    :return: an iterator over pairs of cells, each entry is of the form
+        ((indexA, nameA, distance_matrixA),(indexB, nameB, distance_matrixB)),
+        where `indexA` is the line number in the file, and `indexA < indexB`.
     """
     batched_it = _batched_cell_list_iterator_csv(intracell_csv_loc, chunk_size)
     return it.chain.from_iterable(
@@ -224,7 +227,6 @@ def cell_pair_iterator_csv(
             for t1, t2 in batched_it
         )
     )
-
 
 def _init_gw_pool(GW_cells: list[GW_cell]):
     global _GW_CELLS
@@ -254,7 +256,7 @@ def _gw_index(p: tuple[int, int]):
     return (i, j, coupling_mat, gw_dist)
 
 
-def stringify_coupling_mat(A: npt.NDArray[np.float_]) -> list[str]:
+def _stringify_coupling_mat(A: npt.NDArray[np.float_]) -> list[str]:
     a = coo_matrix(A)
     return (
         [str(a.nnz)]
@@ -375,7 +377,7 @@ def gw_pairwise_parallel(
                         names[j],
                         str(coupling_mat.shape[1]),
                     ]
-                    + stringify_coupling_mat(coupling_mat)
+                    + _stringify_coupling_mat(coupling_mat)
                     for (i, j, coupling_mat, _) in batch
                 ]
                 gw_coupling_mat_writer.writerows(dist_coupling_mat_writelist)
@@ -386,6 +388,7 @@ def gw_pairwise_parallel(
     if return_coupling_mats:
         return (gw_dmat, gw_coupling_mats)
     return (gw_dmat, None)
+
 
 @controller.wrap(limits=1, user_api="blas")
 def gw(
@@ -421,6 +424,7 @@ def compute_gw_distance_matrix(
     Optional[list[tuple[int, int, Matrix]]],
 ]:
     """Compute the matrix of pairwise Gromov-Wasserstein distances between cells.
+
     This function is a wrapper for :func:`cajal.run_gw.gw_pairwise_parallel` except
     that it reads icdm's from a file rather than from a list.
     For the file format of icdm's see :func:`cajal.run_gw.icdm_csv_validate`.
@@ -430,7 +434,6 @@ def compute_gw_distance_matrix(
 
     For other parameters see :func:`cajal.run_gw.gw_pairwise_parallel`.
     """
-
     cell_names_dmats = list(cell_iterator_csv(intracell_csv_loc))
     names: list[str]
 
