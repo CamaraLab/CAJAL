@@ -235,15 +235,26 @@ def _indices_from_cdf_prob(
         exp_decay : float,
 ) -> list[tuple[int, int]]:
     # This array is crucial. It contains the list of cell pair indices
-    # to be computed in order of priority.
-    overshooting_prob_indices = np.argsort(cdf_prob)
+    # to be computed in order of priority - in *descending* order of
+    # cdf_prob.  When cdf_prob is large, say 70%, it means that 70% of
+    # the time, the observed error will be less than that value.  If
+    # cdf_prob >= 50%, it means that there is at least a 50% chance
+    # that the actual GW value will be *less* than the cutoff, and we
+    # should compute the value of the cell pair.  If cdf_prob is 30%,
+    # then most probably the actual GW value is larger than the cutoff
+    # and so the cell pair is not a nearest neighbor; however, there
+    # is a 30% chance that the actual GW value is less than the
+    # cutoff, and so the expected injury of the cell pair to the
+    # nearest neighbors list is 30%. Thus, we should prioritize the
+    # cells by descending order of cdf_prob.
+    undershooting_prob_indices = np.argsort(-cdf_prob)
     median_estimate_cutoff_index = int(
-        np.searchsorted(cdf_prob[overshooting_prob_indices], 0.5)
+        np.searchsorted(cdf_prob[undershooting_prob_indices], 0.4999)
     )
-    overshooting_prob = 1 - cdf_prob
-    total_expected_injuries = np.sum(overshooting_prob)
+
+    total_expected_injuries = np.sum(cdf_prob)
     incremental_expected_injuries = np.cumsum(
-        overshooting_prob[overshooting_prob_indices]
+        cdf_prob[undershooting_prob_indices]
     )
     acceptable_injuries = (nearest_neighbors * N) * (1 - accuracy)
     acceptable_injury_index = int(
@@ -255,10 +266,10 @@ def _indices_from_cdf_prob(
     cutoff_index = max(acceptable_injury_index, median_estimate_cutoff_index)
     block_size = 2500
     if cutoff_index <= block_size:
-        indices = overshooting_prob_indices[:cutoff_index]
+        indices = undershooting_prob_indices[:cutoff_index]
         return list(_tuple_set_of(X[indices], Y[indices]))
 
-    indices = overshooting_prob_indices[: int(cutoff_index / exp_decay)]
+    indices = undershooting_prob_indices[: int(cutoff_index / exp_decay)]
     return list(_tuple_set_of(X[indices], Y[indices]))
 
 
