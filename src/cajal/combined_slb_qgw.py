@@ -225,6 +225,43 @@ def _get_initial_indices(
     return b.union(set(it.chain.from_iterable(bin_samples)))
 
 
+def _indices_from_cdf_prob(
+        N : int,
+        X : npt.NDArray[np.int_],
+        Y : npt.NDArray[np.int_],
+        cdf_prob : Array,
+        nearest_neighbors : int,
+        accuracy : float,
+        exp_decay : float,
+) -> list[tuple[int, int]]:
+    # This array is crucial. It contains the list of cell pair indices
+    # to be computed in order of priority.
+    overshooting_prob_indices = np.argsort(cdf_prob)
+    median_estimate_cutoff_index = int(
+        np.searchsorted(cdf_prob[overshooting_prob_indices], 0.5)
+    )
+    overshooting_prob = 1 - cdf_prob
+    total_expected_injuries = np.sum(overshooting_prob)
+    incremental_expected_injuries = np.cumsum(
+        overshooting_prob[overshooting_prob_indices]
+    )
+    acceptable_injuries = (nearest_neighbors * N) * (1 - accuracy)
+    acceptable_injury_index = int(
+        np.searchsorted(
+            incremental_expected_injuries,
+            total_expected_injuries - acceptable_injuries,
+        )
+    )
+    cutoff_index = max(acceptable_injury_index, median_estimate_cutoff_index)
+    block_size = 2500
+    if cutoff_index <= block_size:
+        indices = overshooting_prob_indices[:cutoff_index]
+        return list(_tuple_set_of(X[indices], Y[indices]))
+
+    indices = overshooting_prob_indices[: int(cutoff_index / exp_decay)]
+    return list(_tuple_set_of(X[indices], Y[indices]))
+
+
 def _get_indices(
     ed: _Error_Distribution,
     slb_dmat: DistanceMatrix,
@@ -282,33 +319,9 @@ def _get_indices(
     cutoff = estimator_matrix_sorted[:, nearest_neighbors + 1]
     distance_below_threshold = cutoff[:, np.newaxis] - slb_dmat
     cdf_prob = ed.cdf(Xuk, Yuk, distance_below_threshold[Xuk, Yuk])
-
-    # This array is crucial. It contains the list of cell pair indices
-    # to be computed in order of priority.
-    overshooting_prob_indices = np.argsort(cdf_prob)
-    median_estimate_cutoff_index = int(
-        np.searchsorted(cdf_prob[overshooting_prob_indices], 0.5)
+    return _indices_from_cdf_prob(
+        N, Xuk, Yuk, cdf_prob, nearest_neighbors, accuracy, exp_decay
     )
-    overshooting_prob = 1 - cdf_prob
-    total_expected_injuries = np.sum(overshooting_prob)
-    incremental_expected_injuries = np.cumsum(
-        overshooting_prob[overshooting_prob_indices]
-    )
-    acceptable_injuries = (nearest_neighbors * N) * (1 - accuracy)
-    acceptable_injury_index = int(
-        np.searchsorted(
-            incremental_expected_injuries,
-            total_expected_injuries - acceptable_injuries,
-        )
-    )
-    cutoff_index = max(acceptable_injury_index, median_estimate_cutoff_index)
-    block_size = 2500
-    if cutoff_index <= block_size:
-        indices = overshooting_prob_indices[:cutoff_index]
-        return list(_tuple_set_of(Xuk[indices], Yuk[indices]))
-
-    indices = overshooting_prob_indices[: int(cutoff_index / exp_decay)]
-    return list(_tuple_set_of(Xuk[indices], Yuk[indices]))
 
 
 def _update_dist_mat(
