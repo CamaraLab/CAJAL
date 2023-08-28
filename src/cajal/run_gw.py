@@ -1,7 +1,5 @@
-"""
-Functionality to compute Gromov-Wasserstein distances\
-using algorithms in Peyre et al. ICML 2016
-"""
+"""Functionality to compute Gromov-Wasserstein distances \
+using algorithms in Peyre et al. ICML 2016."""
 from __future__ import annotations
 
 # std lib dependencies
@@ -39,8 +37,8 @@ Matrix: TypeAlias = npt.NDArray[np.float_]
 controller = ThreadpoolController()
 
 
-def _batched(itera: Iterator[T], n: int) -> Iterator[List[T]]:
-    "Batch data into tuples of length n. The last batch may be shorter."
+def _batched(itera : Iterator[T], n: int) -> Iterator[List[T]]:
+    """Batch data into tuples of length n. The last batch may be shorter."""
     # batched('ABCDEFG', 3) --> ABC DEF G
     if n < 1:
         raise ValueError("n must be at least one")
@@ -55,12 +53,13 @@ def _is_sorted(int_list: List[int]) -> bool:
 
 
 def n_c_2(n: int):
+    """Compute the number of pairs of distinct elements from a set of n."""
     return (n * (n - 1)) // 2
 
 
 def icdm_csv_validate(intracell_csv_loc: str) -> None:
     """
-    Raise an exception if the file in intracell_csv_loc fails to pass formatting tests;
+    Raise an exception if the file in intracell_csv_loc fails to pass formatting tests; \
     else return None.
 
     :param intracell_csv_loc: The (full) file path for the CSV file containing the intracell
@@ -123,6 +122,13 @@ def _batched_cell_list_iterator_csv(
     ]
 ]:
     """
+    Return an iterator over pairs of distinct cells from a file.
+
+    Increasing chunk_size increases memory usage but reduces the frequency of file reads.
+    Note that for parallelization concerns it is best to communicate large batches of work \
+    to a child process at one time. However, numpy is already parallelizing the GW computations \
+    under the hood so this is probably an irrelevant concern.
+
     :param intracell_csv_loc: A full file path to a csv file.
     :param chunk_size: A size parameter.
 
@@ -131,14 +137,7 @@ def _batched_cell_list_iterator_csv(
     (cell_id, cell_name, icdm), where cell_id is a natural number,
     cell_name is a string, and icdm is a square n x n distance matrix.
     cell_id is guaranteed to be unique.
-
-    Increasing chunk_size increases memory usage but reduces the frequency of file reads.
-
-    Note that for parallelization concerns it is best to communicate large batches of work \
-    to a child process at one time. However, numpy is already parallelizing the GW computations \
-    under the hood so this is probably an irrelevant concern.
     """
-
     # Validate input
     icdm_csv_validate(intracell_csv_loc)
 
@@ -390,25 +389,25 @@ def gw_pairwise_parallel(
 
 @controller.wrap(limits=1, user_api="blas")
 def gw(
-        A : DistanceMatrix,
-        a : Distribution,
-        B : DistanceMatrix,
-        b : Distribution,
-        max_iters_descent : int = 1000,
-        max_iters_ot : int = 200000
-) -> tuple[Matrix,float]:
+    A: DistanceMatrix,
+    a: Distribution,
+    B: DistanceMatrix,
+    b: Distribution,
+    max_iters_descent: int = 1000,
+    max_iters_ot: int = 200000,
+) -> tuple[Matrix, float]:
 
     Aa = A @ a
     c_A = ((A * A) @ a) @ a
     Bb = B @ b
     c_B = ((B * B) @ b) @ b
-    return gw_cython_core(A,a,Aa,c_A,B,b,Bb,c_B,max_iters_descent,max_iters_ot)
+    return gw_cython_core(A, a, Aa, c_A, B, b, Bb, c_B, max_iters_descent, max_iters_ot)
+
 
 def uniform(n : int) -> npt.NDArray[np.float_]:
-    """
-    The uniform distribution on n points, as a vector of floats.
-    """
-    return np.ones((n,))/n
+    """Compute the uniform distribution on n points, as a vector of floats."""
+    return np.ones((n,)) / n
+
 
 def compute_gw_distance_matrix(
     intracell_csv_loc: str,
