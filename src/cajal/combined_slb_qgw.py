@@ -263,6 +263,45 @@ def _indices_from_cdf_prob(
     return list(_tuple_set_of(X[indices], Y[indices]))
 
 
+def cutoff_of(
+        estimator_matrix : DistanceMatrix,
+        nn : int
+):
+    """Return the vector of current cutoffs for the nn-th nearest neighbor."""
+    return np.sort(estimator_matrix, axis=1)[:, nn + 1]
+
+
+def unknown_indices_of(gw_known : BooleanSquareMatrix):
+    """Return upper-triangular indices (i,j) where gw is unknown."""
+    Xuk_ts, Yuk_ts = np.nonzero(np.logical_not(gw_known))
+    upper_triangular = Xuk_ts <= Yuk_ts
+    Xuk = Xuk_ts[upper_triangular]
+    Yuk = Yuk_ts[upper_triangular]
+    return Xuk, Yuk
+
+
+def estimator_matrix_of(
+        slb_dmat : DistanceMatrix,
+        gw_dmat : DistanceMatrix,
+        gw_known : BooleanSquareMatrix,
+        ed : _Error_Distribution,
+        Xuk : npt.NDArray[np.int_],
+        Yuk : npt.NDArray[np.int_],
+):
+    """
+    Compute a best-estimate gw matrix.
+
+    The matrix agrees with gw_dmat where those values are known, and
+    elsewhere is a best guess imputed from SLB and the inferred error
+    distribution of SLB vs GW.
+    """
+    estimator_matrix = np.copy(slb_dmat)
+    estimator_matrix[gw_known] = gw_dmat[gw_known]
+    conditional_median_error = ed.get_median(Xuk, Yuk)
+    estimator_matrix[Xuk, Yuk] += conditional_median_error
+    return estimator_matrix
+
+
 def _get_indices(
     ed: _Error_Distribution,
     slb_dmat: DistanceMatrix,
@@ -310,15 +349,9 @@ def _get_indices(
     # We assume that at least the initial values have been computed.
     N = slb_dmat.shape[0]
     # ed maintains an internal state representing the conditional error distribution.
-    Xuk_ts, Yuk_ts = np.nonzero(np.logical_not(gw_known))
-    upper_triangular = Xuk_ts <= Yuk_ts
-    Xuk = Xuk_ts[upper_triangular]
-    Yuk = Yuk_ts[upper_triangular]
-    conditional_median_error = ed.get_median(Xuk, Yuk)
-    estimator_matrix = np.copy(slb_dmat)
-    estimator_matrix[Xuk, Yuk] += conditional_median_error
-    estimator_matrix_sorted = np.sort(estimator_matrix, axis=1)
-    cutoff = estimator_matrix_sorted[:, nearest_neighbors + 1]
+    Xuk, Yuk = unknown_indices_of(gw_known)
+    estimator_matrix = estimator_matrix_of(slb_dmat, gw_dmat, gw_known, ed, Xuk, Yuk)
+    cutoff = cutoff_of(estimator_matrix, nearest_neighbors)
     distance_below_threshold = cutoff[:, np.newaxis] - slb_dmat
     cdf_prob = ed.cdf(Xuk, Yuk, distance_below_threshold[Xuk, Yuk])
     return _indices_from_cdf_prob(
@@ -438,6 +471,7 @@ def combined_slb_quantized_gw_memory(
     np_arange_N = np.arange(N)
     slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
     slb_bins = 5
+    sn = max(sn, 1)
     ed = _Error_Distribution(slb_dmat, slb_bins, sn)
 
     # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
