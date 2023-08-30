@@ -254,7 +254,7 @@ class quantized_icdm:
         cell_dm = cell_dm[indices, :][:, indices]
         p = p[indices]
 
-        for i in range(1, len(set(clusters)) + 1):
+        for i in set(clusters):
             permutation = np.nonzero(clusters == i)[0]
             this_cluster = cell_dm[permutation, :][:, permutation]
             medoid = np.argmin(sum(this_cluster))
