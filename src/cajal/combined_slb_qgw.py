@@ -165,30 +165,28 @@ class _Error_Distribution:
         return probabilities
 
 
-def _get_initial_indices(
-    slb_dmat: DistanceMatrix,
-    qgw_dmat: DistanceMatrix,
-    qgw_known: BooleanSquareMatrix,
-    nearest_neighbors: int,
-    slb_bins: int,
-    sn: SamplingNumber,
-    ed: _Error_Distribution,
-):
-
+def _nn_indices_from_slb(
+        slb_dmat: DistanceMatrix,
+        nearest_neighbors: int):
+    N = slb_dmat.shape[0]
     # The following line of code was changed from:
     # ind_y = np.argsort(slb_dmat, axis=1)[:, 1 : nearest_neighbors + 1]
     # to include the 0th column, because if a row of slb_dmat contains
     # zeros off the diagonal (i.e. if the reported SLB between two
     # distinct cells is zero) then the 0th column of ind_y may
     # represent a pair (i,j) for distinct i,j.
-    N = slb_dmat.shape[0]
     ind_y = np.argsort(slb_dmat, axis=1)[:, : nearest_neighbors + 1]
     ind_x = np.broadcast_to(np.arange(N)[:, np.newaxis], (N, nearest_neighbors + 1))
     xy = np.reshape(np.stack((ind_x, ind_y), axis=2), (-1, 2))
     b = _tuple_set_of(xy[:, 0], xy[:, 1])
+    return b
 
 
-    # This will be of shape (slb_bins + 1,).
+def _sample_indices_by_bin(
+        slb_dmat: DistanceMatrix,
+        slb_bins: int,
+        sn: SamplingNumber
+):
     slb_quantile_bins = np.quantile(
         squareform(slb_dmat, force="tovector"),
         np.arange(slb_bins + 1).astype(float) / float(slb_bins),
@@ -198,14 +196,24 @@ def _get_initial_indices(
     # possibly inclusive on the left (but not necessarily),
     # definitely inclusive on the right.
     slb_quantiles = np.digitize(slb_dmat, slb_quantile_bins)
-    # slb_quantiles[slb_quantiles >= slb_bins] = slb_bins - 1
     bin_samples: list[list[tuple[int, int]]] = [[] for i in range(slb_bins + 2)]
     for i in range(slb_dmat.shape[0]):
         for j in range(i + 1, slb_dmat.shape[1]):
             quantile = slb_quantiles[i, j]
             if len(bin_samples[quantile]) < sn:
                 bin_samples[quantile].append((i, j))
-    return b.union(set(it.chain.from_iterable(bin_samples)))
+    return set(it.chain.from_iterable(bin_samples))
+
+
+def _get_initial_indices(
+    slb_dmat: DistanceMatrix,
+    nearest_neighbors: int,
+    slb_bins: int,
+    sn: SamplingNumber,
+):
+    b1 = _nn_indices_from_slb(slb_dmat, nearest_neighbors)
+    b2 = _sample_indices_by_bin(slb_dmat, slb_bins, sn)
+    return b1.union(b2)
 
 
 def _indices_from_cdf_prob(
@@ -299,16 +307,17 @@ def _get_indices(
         of every point.
     """
     # xy is of shape (a,2)
-    # Otherwise, we assume that at least the initial values have been computed.
+    # We assume that at least the initial values have been computed.
     N = slb_dmat.shape[0]
-    error_mat = gw_dmat - slb_dmat
     # ed maintains an internal state representing the conditional error distribution.
-    ed.update_distribution(error_mat, gw_known)
-    Xuk, Yuk = np.nonzero(np.logical_not(gw_known))
+    Xuk_ts, Yuk_ts = np.nonzero(np.logical_not(gw_known))
+    upper_triangular = Xuk_ts <= Yuk_ts
+    Xuk = Xuk_ts[upper_triangular]
+    Yuk = Yuk_ts[upper_triangular]
     conditional_median_error = ed.get_median(Xuk, Yuk)
     estimator_matrix = np.copy(slb_dmat)
     estimator_matrix[Xuk, Yuk] += conditional_median_error
-    estimator_matrix_sorted = np.sort(estimator_matrix, axis=0)
+    estimator_matrix_sorted = np.sort(estimator_matrix, axis=1)
     cutoff = estimator_matrix_sorted[:, nearest_neighbors + 1]
     distance_below_threshold = cutoff[:, np.newaxis] - slb_dmat
     cdf_prob = ed.cdf(Xuk, Yuk, distance_below_threshold[Xuk, Yuk])
@@ -447,12 +456,9 @@ def combined_slb_quantized_gw_memory(
         # This function does not have side effects.
         indices = _get_initial_indices(
             slb_dmat,
-            qgw_dmat,
-            qgw_known,
             nearest_neighbors,
             slb_bins,
             sn,
-            ed,
         )
         while len(indices) > 0:
             if verbose:
@@ -471,6 +477,7 @@ def combined_slb_quantized_gw_memory(
             _update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
             assert np.count_nonzero(qgw_known) == 2 * total_cells_computed + N
             # This function does not have side effects.
+            ed.update_distribution(qgw_dmat - slb_dmat, qgw_known)
             indices = _get_indices(
                 ed,
                 slb_dmat,

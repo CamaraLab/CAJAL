@@ -5,7 +5,8 @@ import csv
 import itertools as it
 from math import sqrt
 from multiprocessing import Pool
-from typing import Iterable, Literal, NewType, Optional, Set, Iterator
+from typing import (Collection, Iterable, Iterator, Literal, NewType, Optional,
+                    Set)
 
 # external dependencies
 import numpy as np
@@ -145,6 +146,47 @@ def slb_parallel(
         )
         for batch in batches:
             csv_writer.writerows(batch)
+
+
+def quantize_icdm_reduced(
+        A: DistanceMatrix,
+        p: Distribution,
+        clustering : npt.NDArray[np.int_],
+        compute_gw_loss : bool
+) -> tuple[DistanceMatrix, Distribution]:
+    """Cluster the cells of A based on the given clustering and return a \
+    new matrix / distribution pair (metric measure space) based on the clustering.
+
+    The new metric measure place has as its points the medoids of the original clusters,
+    and the distances are inherited from the original space.
+
+    The function is named "reduced" because it discards information
+    which is relevant to the computation of the quantized GW of
+    Chowdhury, Miller and Needham. Their concept is an upper bound for
+    GW, this notion of "reduced quantized GW" is not. Because GW is a
+    metric, it is possible to bound the error of this approximation in
+    terms of the clustering. If the radius of each cluster (as
+    measured from the medoid) is at most :math:`epsilon`, then the
+    GW distance of the pairing will be at most epsilon.
+    (For any clustering there is an obvious transport plan whose GW
+    distortion can be computed easily.)
+
+    The order of points in the new space reflects the numerical ordering of
+    values in the `clustering` vector, i.e., if `clustering==[4,2,5,4,2]` then
+    the first point in p will correspond to cluster 2, the second point will correspond \
+    to cluster 4 and the third point will correspond to cluster 5.
+
+    """
+    medoid_list = []
+    new_dist_probs = []
+    for i in sorted(set(clustering)):
+        indices = clustering == i
+        local_dmat = A[:, indices][indices, :]
+        medoid_list.append(np.argmin(sum(local_dmat)))
+        new_dist_probs.append(np.sum(p[indices]))
+    medoid_indices = np.array(medoid_list)
+    medoid_icdm = A[medoid_indices, :][:, medoid_indices]
+    return medoid_icdm, np.array(new_dist_probs)
 
 
 class quantized_icdm:
@@ -377,6 +419,33 @@ def _quantized_gw_index(p: tuple[int, int]):
     return (i, j, quantized_gw(_QUANTIZED_CELLS[i], _QUANTIZED_CELLS[j])[1])
 
 
+def quantized_gw_parallel_memory(
+        quantized_cells : Collection[quantized_icdm],
+        num_processes: int,
+        chunksize: int = 20,
+):
+    """
+    Compute the quantized Gromov-Wasserstein distances between all pairs of cells in the list.
+
+    Coupling matrices will be discarded.
+    """
+    N = len(quantized_cells)
+    total_num_pairs = int((N * (N - 1)) / 2)
+    # index_pairs = tqdm(it.combinations(iter(range(N)), 2), total=total_num_pairs)
+    index_pairs = it.combinations(iter(range(N)), 2)
+    gw_dists = []
+    with Pool(
+        initializer=_init_qgw_pool, initargs=(quantized_cells,), processes=num_processes
+    ) as pool:
+        gw_dists = tqdm(
+            pool.imap_unordered(_quantized_gw_index, index_pairs, chunksize=chunksize),
+            total=total_num_pairs,
+        )
+        gw_dists_list = list(gw_dists)
+    gw_dists_list.sort(key=lambda p : p[0] * N + p[1])
+    return gw_dists_list
+
+
 def quantized_gw_parallel(
     intracell_csv_loc: str,
     num_processes: int,
@@ -389,6 +458,9 @@ def quantized_gw_parallel(
     """
     Compute the quantized Gromov-Wasserstein distance in parallel between all cells in a family \
     of cells.
+
+    Read icdms from file, quantize them, compute pairwise qGW
+    distances between icdms, and write the result to file.
 
     :param intracell_csv_loc: path to a CSV file containing the cells to process
     :param num_processes: number of Python processes to run in parallel
@@ -414,25 +486,15 @@ def quantized_gw_parallel(
         quantized_cells = list(
             tqdm(pool.imap(quantized_icdm.of_tuple, args), total=len(names))
         )
-    N = len(quantized_cells)
-    total_num_pairs = int((N * (N - 1)) / 2)
-    # index_pairs = tqdm(it.combinations(iter(range(N)), 2), total=total_num_pairs)
-    index_pairs = it.combinations(iter(range(N)), 2)
 
     print("Computing pairwise Gromov-Wasserstein distances...")
-    with Pool(
-        initializer=_init_qgw_pool, initargs=(quantized_cells,), processes=num_processes
-    ) as pool:
-        gw_dists = tqdm(
-            pool.imap_unordered(_quantized_gw_index, index_pairs, chunksize=chunksize),
-            total=total_num_pairs,
-        )
-        with open(out_csv, "w", newline="") as outcsvfile:
-            csvwriter = csv.writer(outcsvfile)
-            csvwriter.writerow(["first_object", "second_object", "quantized_gw"])
-            for i, j, gw_dist in gw_dists:
-                csvwriter.writerow((names[i], names[j], gw_dist))
-    return
+    gw_dists = quantized_gw_parallel_memory(quantized_cells, num_processes, chunksize)
+
+    with open(out_csv, "w", newline="") as outcsvfile:
+        csvwriter = csv.writer(outcsvfile)
+        csvwriter.writerow(["first_object", "second_object", "quantized_gw"])
+        for i, j, gw_dist in gw_dists:
+            csvwriter.writerow((names[i], names[j], gw_dist))
 
 
 # A BooleanSquareMatrix is a square matrix of booleans.

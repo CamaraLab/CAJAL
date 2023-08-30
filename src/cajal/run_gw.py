@@ -228,6 +228,7 @@ def cell_pair_iterator_csv(
         )
     )
 
+
 def _init_gw_pool(GW_cells: list[GW_cell]):
     global _GW_CELLS
     _GW_CELLS = GW_cells
