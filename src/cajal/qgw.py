@@ -2,33 +2,32 @@
 metric measure spaces, and related utilities for file IO and parallel computation."""
 import csv
 # std lib dependencies
+import sys
 import itertools as it
+from typing import Iterable, Iterator, Collection, Optional, Literal, NewType, Set
 from math import sqrt
 from multiprocessing import Pool
-from typing import (Collection, Iterable, Iterator, Literal, NewType, Optional,
-                    Set)
+
+if "ipykernel" in sys.modules:
+    from tqdm.notebook import tqdm
+else:
+    from tqdm import tqdm
 
 # external dependencies
 import numpy as np
 import numpy.typing as npt
 from scipy import cluster, sparse
 from scipy.spatial.distance import pdist, squareform
-from tqdm.notebook import tqdm
 
 from .gw_cython import qgw_init_cost, quantized_gw_cython
 from .run_gw import (DistanceMatrix, Distribution, Matrix, _batched,
-                     cell_iterator_csv, uniform)
+                     cell_iterator_csv, uniform, Array)
 from .slb import l2
-from .slb import slb as slb_cython
-
-# An "Array" is a one-dimensional array of floating point numbers.
-Array = NewType("Array", npt.NDArray[np.float_])
 
 
 def distance_inverse_cdf(dist_mat: Array, measure: Distribution):
     """
-    Compute the cumulative distribution function for the difference \
-    between two inverse distance functions.
+    Compute the cumulative inverse distance function between two cells.
 
     :param dX: Vectorform (one-dimensional) distance matrix for a space, of
     length N * (N-1)/2, where N is the number of points in dX.
@@ -72,20 +71,28 @@ def slb_distribution(
 
 
 # SLB
-def _init_slb_pool(sorted_cells):
-    """Initialize the parallel SLB. Declare a global variable accessible to all processes."""
+def _init_slb_pool(sorted_cells, distributions):
+    """
+    Initialize the parallel SLB computation.
+
+    Declares a global variable accessible from all processes.
+    """
     global _SORTED_CELLS
-    _SORTED_CELLS = sorted_cells
+    _SORTED_CELLS = list(zip(sorted_cells, distributions))
 
 
 def _global_slb_pool(p: tuple[int, int]):
-    """Compute the SLB distance between cells (i, j)=p in the global list of cells."""
+    """Compute the SLB distance between cells p[0] and p[1] in the global cell list."""
     i, j = p
-    return (i, j, slb_cython(_SORTED_CELLS[i], _SORTED_CELLS[j]))
+    dX, mX = _SORTED_CELLS[i]
+    dY, mY = _SORTED_CELLS[j]
+    return (i, j, slb_distribution(dX, mX, dY, mY))
+    # return (i, j, slb_cython(_SORTED_CELLS[i], _SORTED_CELLS[j]))
 
 
 def slb_parallel_memory(
-    cell_dms: Iterable[DistanceMatrix],
+    cell_dms: list[DistanceMatrix],
+    cell_distributions : Optional[Iterable[Distribution]],
     num_processes: int,
     chunksize: int = 20,
 ) -> DistanceMatrix:
@@ -99,11 +106,14 @@ def slb_parallel_memory(
 
     :return: a square matrix giving pairwise SLB distances between points.
     """
+    if cell_distributions is None:
+        cell_distributions = [uniform(cell_dm.shape[0]) for cell_dm in cell_dms]
     cell_dms_sorted = [np.sort(squareform(cell, force="tovector")) for cell in cell_dms]
     N = len(cell_dms_sorted)
+
     with Pool(
         initializer=_init_slb_pool,
-        initargs=(cell_dms_sorted,),
+        initargs=(cell_dms_sorted, cell_distributions),
         processes=num_processes,
     ) as pool:
         slb_dists = pool.imap_unordered(
@@ -127,14 +137,15 @@ def slb_parallel(
     Compute the SLB distance in parallel between all cells in the csv file `intracell_csv_loc`.
 
     The files are expected to be formatted according to the format in
-    :func:`cajal.run_gw.icdm_csv_validate`.
+    :func:`cajal.run_gw.icdm_csv_validate`. Probability distributions
+    other than uniform are currently unsupported,
 
     :param cell_dms: A collection of distance matrices
     :param num_processes: How many Python processes to run in parallel
     :param chunksize: How many SLB distances each Python process computes at a time
     """
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
-    slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
+    slb_dmat = slb_parallel_memory(cell_dms, None, num_processes, chunksize)
     NN = len(names)
     total_num_pairs = int((NN * (NN - 1)) / 2)
     ij = tqdm(it.combinations(range(NN), 2), total=total_num_pairs)
@@ -191,11 +202,13 @@ def quantize_icdm_reduced(
 
 class quantized_icdm:
     """
-    A quantized intracell distance matrix, a metric measure space equipped w a clustering.
+    A "quantized" intracell distance matrix.
 
-    Contains additional data which allows for the rapid computation of pairwise
+    A metric measure space which has been equipped with a given clustering; it
+    contains additional data which allows for the rapid computation of pairwise
     GW distances across many cells. Users should only need to understand how to
-    use the constructor.
+    use the constructor. Usage of this class will result in high memory usage if
+    the number of cells to be constructed is large.
 
     :param cell_dm: An intracell distance matrix in squareform.
     :param p: A probability distribution on the points of the metric space
