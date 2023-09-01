@@ -3,12 +3,16 @@ Functions for computing the quantized Gromov-Wasserstein distance and the SLB be
 metric measure spaces, and related utilities for file IO and parallel computation.
 """
 # std lib dependencies
+import sys
 import itertools as it
-import time
 import csv
 from typing import Iterable, Iterator, Collection, Optional, Literal
 from math import sqrt
-from tqdm.notebook import tqdm
+
+if "ipykernel" in sys.modules:
+    from tqdm.notebook import tqdm
+else:
+    from tqdm import tqdm
 
 # external dependencies
 import numpy as np
@@ -19,16 +23,22 @@ from scipy import cluster
 
 from multiprocessing import Pool
 
-from .slb import slb as slb_cython, l2
+from .slb import l2
 from .gw_cython import quantized_gw_cython, qgw_init_cost
 
-from .run_gw import _batched, cell_iterator_csv, Distribution, DistanceMatrix, Matrix, uniform
+from .run_gw import (_batched, cell_iterator_csv,
+                     Distribution, DistanceMatrix,
+                     Matrix, uniform, Array,
+                     MetricMeasureSpace
+                     )
 
 
 def distance_inverse_cdf(
     dist_mat: npt.NDArray[np.float_], measure: npt.NDArray[np.float_]
 ):
     """
+    Compute the cumulative inverse distance function between two cells.
+
     :param dX: Vectorform (one-dimensional) distance matrix for a space, of
     length N * (N-1)/2, where N is the number of points in dX.
     :param measure: Probability distribution on points of X, array of length N,
@@ -51,10 +61,10 @@ def distance_inverse_cdf(
 
 
 def slb_distribution(
-    dX: npt.NDArray[np.float_],
-    mX: npt.NDArray[np.float_],
-    dY: npt.NDArray[np.float_],
-    mY: npt.NDArray[np.float_],
+    dX: Array,
+    mX: Distribution,
+    dY: Array,
+    mY: Distribution,
 ):
     """
     Compute the SLB distance between two cells equipped with a choice of distribution.
@@ -66,7 +76,6 @@ def slb_distribution(
         (where M is the number of points in X)
     :param mY: Probability distribution vector on X.
     """
-
     f, u = distance_inverse_cdf(dX, mX)
     g, v = distance_inverse_cdf(dY, mY)
     cum_u = np.cumsum(u)
@@ -75,33 +84,34 @@ def slb_distribution(
 
 
 # SLB
-def _init_slb_pool(sorted_cells):
+def _init_slb_pool(sorted_cells, distributions):
     """
-    Initialize the parallel SLB computation by declaring a global variable
-    accessible from all processes.
-    """
+    Initialize the parallel SLB computation.
 
+    Declares a global variable accessible from all processes.
+    """
     global _SORTED_CELLS
-    _SORTED_CELLS = sorted_cells
+    _SORTED_CELLS = list(zip(sorted_cells, distributions))
 
 
 def _global_slb_pool(p: tuple[int, int]):
-    """
-    Given input p= (i,j), compute the SLB distance between cells i
-    and j in the global list of cells.
-    """
-
+    """Compute the SLB distance between cells p[0] and p[1] in the global cell list."""
     i, j = p
-    return (i, j, slb_cython(_SORTED_CELLS[i], _SORTED_CELLS[j]))
+    dX, mX = _SORTED_CELLS[i]
+    dY, mY = _SORTED_CELLS[j]
+    return (i, j, slb_distribution(dX, mX, dY, mY))
+    # return (i, j, slb_cython(_SORTED_CELLS[i], _SORTED_CELLS[j]))
 
 
 def slb_parallel_memory(
-    cell_dms: Iterable[DistanceMatrix],
+    cell_dms: list[DistanceMatrix],
+    cell_distributions : Optional[Iterable[Distribution]],
     num_processes: int,
     chunksize: int = 20,
 ) -> DistanceMatrix:
     """
     Compute the SLB distance in parallel between all cells in `cell_dms`.
+
     :param cell_dms: A collection of distance matrices. Probability distributions
     other than uniform are currently unsupported.
     :param num_processes: How many Python processes to run in parallel
@@ -109,11 +119,14 @@ def slb_parallel_memory(
 
     :return: a square matrix giving pairwise SLB distances between points.
     """
+    if cell_distributions is None:
+        cell_distributions = [uniform(cell_dm.shape[0]) for cell_dm in cell_dms]
     cell_dms_sorted = [np.sort(squareform(cell, force="tovector")) for cell in cell_dms]
     N = len(cell_dms_sorted)
+
     with Pool(
         initializer=_init_slb_pool,
-        initargs=(cell_dms_sorted,),
+        initargs=(cell_dms_sorted, cell_distributions),
         processes=num_processes,
     ) as pool:
         slb_dists = pool.imap_unordered(
@@ -135,15 +148,17 @@ def slb_parallel(
 ) -> None:
     """
     Compute the SLB distance in parallel between all cells in the csv file `intracell_csv_loc`.
+
     The files are expected to be formatted according to the format in
-    :func:`cajal.run_gw.icdm_csv_validate`.
+    :func:`cajal.run_gw.icdm_csv_validate`. Probability distributions
+    other than uniform are currently unsupported,
 
     :param cell_dms: A collection of distance matrices
     :param num_processes: How many Python processes to run in parallel
     :param chunksize: How many SLB distances each Python process computes at a time
     """
     names, cell_dms = zip(*cell_iterator_csv(intracell_csv_loc))
-    slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
+    slb_dmat = slb_parallel_memory(cell_dms, None, num_processes, chunksize)
     NN = len(names)
     total_num_pairs = int((NN * (NN - 1)) / 2)
     ij = tqdm(it.combinations(range(NN), 2), total=total_num_pairs)
@@ -159,11 +174,13 @@ def slb_parallel(
 
 class quantized_icdm:
     """
-    This class represents a "quantized" intracell distance matrix, i.e., a
-    metric measure space which has been equipped with a given clustering; it
+    A "quantized" intracell distance matrix.
+
+    A metric measure space which has been equipped with a given clustering; it
     contains additional data which allows for the rapid computation of pairwise
     GW distances across many cells. Users should only need to understand how to
-    use the constructor.
+    use the constructor. Usage of this class will result in high memory usage if
+    the number of cells to be constructed is large.
 
     :param cell_dm: An intracell distance matrix in squareform.
     :param p: A probability distribution on the points of the metric space
@@ -587,7 +604,7 @@ def _update_dist_mat(
 
 
 def combined_slb_quantized_gw_memory(
-    cell_dms: Collection[npt.NDArray[np.float_]],  # Squareform
+    cell_dms: Collection[MetricMeasureSpace],  # Squareform
     num_processes: int,
     num_clusters: int,
     accuracy: float,
@@ -596,10 +613,13 @@ def combined_slb_quantized_gw_memory(
     chunksize: int = 20,
 ):
     """
-    Compute the pairwise SLB distances between each pair of cells in `cell_dms`.
-    Based on this initial estimate of the distances, compute the quantized GW distance between
-    the nearest with `num_clusters` many clusters until the correct nearest-neighbors list is
-    obtained for each cell with a high degree of confidence.
+    Estimate the qGW distance matrix for cells.
+
+    Compute the pairwise SLB distances between each pair of cells in
+    `cell_dms`.  Based on this initial estimate of the distances,
+    compute the quantized GW distance between the nearest with
+    `num_clusters` many clusters until the correct nearest-neighbors
+    list is obtained for each cell with a high degree of confidence.
 
     The idea is that for the sake of clustering we can avoid
     computing the precise pairwise distances between cells which are far apart,
@@ -623,8 +643,9 @@ def combined_slb_quantized_gw_memory(
     """
 
     N = len(cell_dms)
+    cells, cell_distributions = zip(*cell_dms)
     np_arange_N = np.arange(N)
-    slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
+    slb_dmat = slb_parallel_memory(cells, cell_distributions, num_processes, chunksize)
 
     # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
     qgw_dmat = np.zeros((N, N), dtype=float)
@@ -633,9 +654,9 @@ def combined_slb_quantized_gw_memory(
 
     quantized_cells = [
         quantized_icdm(
-            cell_dm, uniform(cell_dm.shape[0]), num_clusters
+            cell_dm, cell_distribution, num_clusters
         )
-        for cell_dm in cell_dms
+        for cell_dm, cell_distribution in cell_dms
     ]
     # Debug
     total_cells_computed = 0
@@ -647,9 +668,10 @@ def combined_slb_quantized_gw_memory(
         )
         while len(indices) > 0:
             if verbose:
-                print("Cell pairs computed so far: " + str( (np.count_nonzero(qgw_known)-N)/2 ))
+                print("Cell pairs computed so far: "
+                      + str((np.count_nonzero(qgw_known) - N) / 2))
                 print("Cell pairs to be computed this iteration: " + str(len(indices)))
-                
+
             total_cells_computed += len(indices)
             qgw_dists = pool.imap_unordered(
                 _quantized_gw_index, indices, chunksize=chunksize
@@ -673,6 +695,8 @@ def combined_slb_quantized_gw(
     chunksize: int = 20,
 ) -> None:
     """
+    Estimate the qGW distance matrix for cells.
+
     This is a wrapper around :func:`cajal.qgw.combined_slb_quantized_gw_memory` with
     some associated file/IO. For all parameters not listed here see the docstring for
     :func:`cajal.qgw.combined_slb_quantized_gw_memory`.
@@ -682,14 +706,14 @@ def combined_slb_quantized_gw(
     :param gw_out_csv_location: Where to write the output GW distances.
     :return: None.
     """
-
     if verbose:
         print("Reading files...")
         names, cell_dms = zip(*tqdm(cell_iterator_csv(input_icdm_csv_location)))
     else:
         names, cell_dms = zip(*cell_iterator_csv(input_icdm_csv_location))
+    mms = [(cell_dm, uniform(cell_dm.shape[0])) for cell_dm in cell_dms]
     slb_dmat, qgw_dmat, qgw_known = combined_slb_quantized_gw_memory(
-        cell_dms,
+        mms,
         num_processes,
         num_clusters,
         accuracy,

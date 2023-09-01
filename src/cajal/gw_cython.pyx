@@ -79,11 +79,11 @@ class GW_cell:
                                        # matrix with the probability
                                        # distribution
     cell_constant : float # ((A * A) @ a) @ a
-    def __init__(self,dmat,distribution,dmat_dot_dist,cell_constant):
+    def __init__(self,dmat,distribution):
         self.dmat = dmat
         self.distribution = distribution
-        self.dmat_dot_dist = dmat_dot_dist
-        self.cell_constant = cell_constant
+        self.dmat_dot_dist = dmat @ distribution
+        self.cell_constant = ((dmat * dmat) @ distribution) @ distribution
 
 cpdef gw_cython_init_cost(
     np.ndarray[DTYPE_t,ndim=2,mode='c'] A,
