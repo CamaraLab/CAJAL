@@ -1,4 +1,4 @@
- """Functionality to compute Gromov-Wasserstein distances \
+"""Functionality to compute Gromov-Wasserstein distances \
 using algorithms in Peyre et al. ICML 2016."""
 from __future__ import annotations
 
@@ -6,12 +6,12 @@ import csv
 # std lib dependencies
 import itertools as it
 import sys
-from typing import Iterator, List, Optional, TypeVar
+from typing import Iterator, List, Optional, TypeVar, NewType
 
 if "ipykernel" in sys.modules:
     from tqdm.notebook import tqdm
 else:
-    from tqdm import tqdm
+    from tqdm import tqdm  # type: ignore[assignment]
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -235,7 +235,7 @@ def cell_pair_iterator_csv(
 
 def _init_gw_pool(GW_cells: list[GW_cell]):
     global _GW_CELLS
-    _GW_CELLS = GW_cells
+    _GW_CELLS = GW_cells  # type: ignore[name-defined]
 
 
 controller = ThreadpoolController()
@@ -247,8 +247,8 @@ def _gw_index(p: tuple[int, int]
     i, j = p
     A: GW_cell
     B: GW_cell
-    A = _GW_CELLS[i]
-    B = _GW_CELLS[j]
+    A = _GW_CELLS[i]  # type: ignore[name-defined]
+    B = _GW_CELLS[j]  # type: ignore[name-defined]
     coupling_mat, gw_dist = gw_cython_core(
         A.dmat,
         A.distribution,
@@ -289,12 +289,12 @@ def csv_output_writer(
     """
     write_gw_distances = gw_dist_csv is not None
     if write_gw_distances:
-        gw_dist_file = open(gw_dist_csv, "w", newline="")
+        gw_dist_file = open(gw_dist_csv, "w", newline="")  # type: ignore[arg-type]
         gw_dist_writer = csv.writer(gw_dist_file)
         gw_dist_writer.writerow(["first_object", "second_object", "gw_distance"])
     write_gw_coupling_mats = gw_coupling_mat_csv is not None
     if write_gw_coupling_mats:
-        gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")
+        gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")  # type: ignore[arg-type]
         gw_coupling_mat_writer = csv.writer(gw_coupling_mat_file)
         gw_coupling_mat_writer.writerow(
             [
