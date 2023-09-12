@@ -1,11 +1,12 @@
 """Functions for computing the quantized Gromov-Wasserstein distance and the SLB between \
 metric measure spaces, and related utilities for file IO and parallel computation."""
 # std lib dependencies
-import sys
-import itertools as it
 import csv
-from typing import Literal, Iterable, Iterator, Collection, Optional, NewType, Set
+import itertools as it
+import sys
 from math import sqrt
+from typing import (Collection, Iterable, Iterator, Literal, NewType, Optional,
+                    Set)
 
 if "ipykernel" in sys.modules:
     from tqdm.notebook import tqdm
@@ -13,26 +14,21 @@ else:
     from tqdm import tqdm  # type: ignore[assignment]
 
 # external dependencies
-import numpy as np
-import numpy.typing as npt
-from scipy.spatial.distance import squareform, pdist
-from scipy import sparse, cluster
-
 from multiprocessing import Pool
 
-from .slb import l2
-from .gw_cython import quantized_gw_cython, qgw_init_cost
+import numpy as np
+import numpy.typing as npt
+from scipy import cluster, sparse
+from scipy.spatial.distance import pdist, squareform
 
-from .run_gw import (_batched, cell_iterator_csv,
-                     Distribution, DistanceMatrix,
-                     Matrix,
-                     uniform, Array,
-                     # MetricMeasureSpace
-                     )
+from .gw_cython import qgw_init_cost, quantized_gw_cython
+from .run_gw import (Array, DistanceMatrix, Distribution,  # MetricMeasureSpace
+                     Matrix, _batched, cell_iterator_csv, uniform)
+from .slb import l2
 
 
 def distance_inverse_cdf(
-    dist_mat: npt.NDArray[np.float_], measure: npt.NDArray[np.float_]
+    dist_mat: Array, measure: Array
 ):
     """
     Compute the cumulative inverse distance function for a metric measure space.
@@ -47,6 +43,11 @@ def distance_inverse_cdf(
     interval such that f_X^{-1}(u) is the distance `d` in X such that u is the
     proportion of pairs points in X that are at least as close together as `d`.
     """
+    if len(dist_mat.shape) > 2:
+        raise Exception("Array shape is " + str(dist_mat.shape) + ", should be 1D")
+    elif len(dist_mat.shape) == 2 and dist_mat.shape[0] == dist_mat.shape[1]:
+        dist_mat = squareform(dist_mat, force='tovector')
+
     index_X = np.argsort(dist_mat)
     dX = np.sort(dist_mat)
     mX_otimes_mX_sq = np.matmul(measure[:, np.newaxis], measure[np.newaxis, :])
@@ -302,6 +303,7 @@ class quantized_icdm:
         num_clusters: Optional[int],
         clusters: Optional[npt.NDArray[np.int_]] = None,
     ):
+        """Class constructor."""
         # Validate the data.
         assert len(cell_dm.shape) == 2
 
@@ -345,8 +347,9 @@ class quantized_icdm:
 
     @staticmethod
     def of_tuple(p):
-        cell_dm, p, num_clusters, clusters=p
-        return quantized_icdm(cell_dm,p, num_clusters,clusters)
+        """Unpack the tuple p and apply the class constructor."""
+        cell_dm, p, num_clusters, clusters = p
+        return quantized_icdm(cell_dm, p, num_clusters, clusters)
 
     @staticmethod
     def of_ptcloud(
@@ -355,6 +358,7 @@ class quantized_icdm:
         num_clusters: int,
         method: Literal["kmeans"] | Literal["hierarchical"] = "kmeans",
     ):
+        """Construct a quantized icdm from a point cloud."""
         dmat = squareform(pdist(X), force="tomatrix")
         if method == "hierarchical":
             return quantized_icdm(dmat, distribution, num_clusters)
