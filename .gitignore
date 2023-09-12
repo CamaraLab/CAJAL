@@ -159,3 +159,6 @@ src/cajal/*.html
 # Test scripts
 
 tests/debug*
+
+# Magit
+*rej
