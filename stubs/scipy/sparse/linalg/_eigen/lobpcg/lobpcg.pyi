@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def lobpcg(A, X, B: Incomplete | None = ..., M: Incomplete | None = ..., Y: Incomplete | None = ..., tol: Incomplete | None = ..., maxiter: Incomplete | None = ..., largest: bool = ..., verbosityLevel: int = ..., retLambdaHistory: bool = ..., retResidualNormsHistory: bool = ..., restartControl: int = ...): ...

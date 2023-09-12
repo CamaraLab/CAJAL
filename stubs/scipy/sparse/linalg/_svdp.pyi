@@ -1,0 +1,13 @@
+from _typeshed import Incomplete
+
+class _AProd:
+    A: Incomplete
+    def __init__(self, A) -> None: ...
+    def __call__(self, transa, m, n, x, y, sparm, iparm) -> None: ...
+    @property
+    def shape(self): ...
+    @property
+    def dtype(self): ...
+
+# Names in __all__ with no definition:
+#   _svdp

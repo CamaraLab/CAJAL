@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def lsmr(A, b, damp: float = ..., atol: float = ..., btol: float = ..., conlim: float = ..., maxiter: Incomplete | None = ..., show: bool = ..., x0: Incomplete | None = ...): ...

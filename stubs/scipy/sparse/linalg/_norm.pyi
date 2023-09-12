@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def norm(x, ord: Incomplete | None = ..., axis: Incomplete | None = ...): ...
