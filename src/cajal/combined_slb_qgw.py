@@ -7,7 +7,7 @@ until an acceptable threshold of accuracy is met."""
 import csv
 import itertools as it
 from multiprocessing import Pool
-from typing import Collection, Iterable, NewType
+from typing import Collection, Iterable, NewType, Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -16,7 +16,7 @@ from tqdm.notebook import tqdm
 
 from .qgw import (Array, _init_qgw_pool, _quantized_gw_index, _tuple_set_of,
                   quantized_icdm, slb_parallel_memory)
-from .run_gw import (DistanceMatrix, Matrix, _batched, cell_iterator_csv,
+from .run_gw import (DistanceMatrix, Distribution, Matrix, _batched, cell_iterator_csv,
                      uniform)
 
 # A BooleanSquareMatrix is a square matrix of booleans.
@@ -401,6 +401,7 @@ def _update_dist_mat(
 
 def combined_slb_quantized_gw_memory(
     cell_dms: Collection[DistanceMatrix],  # Squareform
+    cell_distributions: Optional[Iterable[Distribution]],
     num_processes: int,
     num_clusters: int,
     accuracy: float,
@@ -469,9 +470,14 @@ def combined_slb_quantized_gw_memory(
     """
     N = len(cell_dms)
     np_arange_N = np.arange(N)
-    slb_dmat = slb_parallel_memory(cell_dms, num_processes, chunksize)
+    if cell_distributions is None:
+        cell_distributions = [uniform(cell.shape[0]) for cell in cell_dms]
+    slb_dmat = slb_parallel_memory(
+        cell_dms, cell_distributions, num_processes, chunksize
+    )
+
     slb_bins = 5
-    sn = max(sn, 1)
+    sn = SamplingNumber(max(sn, 1))
     ed = _Error_Distribution(slb_dmat, slb_bins, sn)
 
     # Partial quantized Gromov-Wasserstein table, will be filled in gradually.
@@ -511,7 +517,7 @@ def combined_slb_quantized_gw_memory(
             _update_dist_mat(qgw_dists, qgw_dmat, qgw_known)
             assert np.count_nonzero(qgw_known) == 2 * total_cells_computed + N
             # This function does not have side effects.
-            ed.update_distribution(qgw_dmat - slb_dmat, qgw_known)
+            ed.update_distribution(Matrix(qgw_dmat - slb_dmat), qgw_known)
             indices = _get_indices(
                 ed,
                 slb_dmat,
@@ -556,6 +562,7 @@ def combined_slb_quantized_gw(
         names, cell_dms = zip(*cell_iterator_csv(input_icdm_csv_location))
     slb_dmat, qgw_dmat, qgw_known = combined_slb_quantized_gw_memory(
         cell_dms,
+        None,
         num_processes,
         num_clusters,
         accuracy,

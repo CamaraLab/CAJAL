@@ -466,7 +466,7 @@ def quantized_gw_parallel_memory(
         gw_dists = tqdm(
             pool.imap_unordered(_quantized_gw_index, index_pairs, chunksize=chunksize),
             total=total_num_pairs,
-        )
+        )  # type: ignore[assignment]
         gw_dists_list = list(gw_dists)
     gw_dists_list.sort(key=lambda p : p[0] * N + p[1])
     return gw_dists_list
