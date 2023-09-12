@@ -5,6 +5,7 @@ SLB2
 
 import numpy as np
 cimport numpy as np
+from .gw_cython import intersection
 np.import_array()
 from math import ceil,sqrt
 
@@ -12,7 +13,7 @@ DTYPE=np.float64
 ctypedef np.float_t DTYPE_t
 
 
-def slb2(np.ndarray[DTYPE_t,ndim=1] f, np.ndarray[DTYPE_t,ndim=1] g):
+def slb(np.ndarray[DTYPE_t,ndim=1] f, np.ndarray[DTYPE_t,ndim=1] g):
     # Assume f, g are of shape (flen,) and (glen,), and are sorted.
     cdef int flen = f.shape[0]
     cdef int glen = g.shape[0]
@@ -66,7 +67,7 @@ def slb2(np.ndarray[DTYPE_t,ndim=1] f, np.ndarray[DTYPE_t,ndim=1] g):
                 if i == 0:
                     intval=(g[j])**2
                 else:
-                    intval=(g[j]-f([i-1]))**2
+                    intval=(g[j]-f[i-1])**2
                 acc+=intval*(2.0)/(m**2)
                 j+=1
             # Postcondition:  1/n + 2(i+1)/n^2 >= 1/m + 2(j+1)/m^2,
@@ -125,3 +126,64 @@ def slb2_block(np.ndarray[DTYPE_t,ndim=1] f, np.ndarray[DTYPE_t,ndim=1] g):
                 acc +=((f[flen-1]-g[glen-1])**2) * ((<float>(glen-1)/<float>glen)-progress)
             return acc
     return acc
+
+def l2(np.ndarray[DTYPE_t,ndim=1,mode='c'] f,
+       np.ndarray[DTYPE_t,ndim=1,mode='c'] u,
+       np.ndarray[DTYPE_t,ndim=1,mode='c'] cum_u,
+       np.ndarray[DTYPE_t,ndim=1,mode='c'] g,
+       np.ndarray[DTYPE_t,ndim=1,mode='c'] v,
+       np.ndarray[DTYPE_t,ndim=1,mode='c'] cum_v,
+       ):
+    """
+    Compute the (squared) L^2 distance between two functions, f and g, on the unit interval. The interpretation is that
+    f[i] is the value of the function f on the interval [ sum(u[:i]), sum(u[:i+1])], and g[j] is the value of the function
+    g on the interval [sum(v[:j]),sum(v[:j+1])].
+
+    :param f: a piecewise constant function on the unit interval (the list of values of the function)
+    :param u: a probability distribution on [0,1] (a vector of probabilities summing to one). Same length as f
+    :param cum_u: cumulative distribution of u
+    :param g: a piecewise constant function on the unit interval (the list of values of the function)
+    :param u: a probability distribution on [0,1]. Same length as g.
+    :param cum_v: cumulative distribution of v
+    """
+
+    cdef int flen = f.shape[0]
+    cdef int glen = g.shape[0]
+    cdef float acc, progress, fnext, gnext, f_begin, g_begin, region
+    cdef int i, j
+
+    i = 0
+    j = 0
+    f_begin = 0.0
+    g_begin = 0.0
+    acc=0
+    progress=0
+
+    while i < flen and j < glen:
+        f_begin = cum_u[i-1] if i>0 else 0.0
+        g_begin = cum_v[j-1] if j>0 else 0.0
+            
+        region = intersection(f_begin,cum_u[i],
+                              g_begin,cum_v[j])
+        acc+=((f[i]-g[j])**2) * region
+        if cum_u[i] < cum_v[j] and i < flen - 1:
+            i+=1
+        elif cum_u[i] >= cum_v[j] and j < glen - 1:
+            j+=1
+        # Either i == flen - 1 or j == glen - 1.
+        elif i == flen - 1:
+            j+=1
+        else:
+            assert j == glen -1
+            i+=1
+        
+    assert (i == flen and j == glen -1) or (i == flen - 1) and (j == glen)
+    return acc
+
+
+
+    
+        
+        
+
+

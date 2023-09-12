@@ -11,12 +11,11 @@ Running Gromov-Wasserstein
 	   
 	   :value: numpy.typing.NDArray[numpy.float\_]
 
-.. class:: cajal.run_gw.SquareMatrix
+.. class:: cajal.run_gw.DistanceMatrix
 
-	   A SquareMatrix is a numpy array of shape (n, n) where n is the
-	   number of points in the space; in our applications a SquareMatrix is
-	   usually a distance matrix, a symmetric matrix with zeros along the
-	   diagonal.
+	   A DistanceMatrix is a numpy array of shape (n, n) where n is the
+	   number of points in the space; it should be a symmetric nonnegative matrix
+	   with zeros along the diagonal.
 
 	  :value: numpy.typing.NDArray[numpy.float\_]
 

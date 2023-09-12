@@ -4,41 +4,49 @@ using algorithms in Peyre et al. ICML 2016
 """
 from __future__ import annotations
 
+import csv
 # std lib dependencies
 import itertools as it
-import csv
 import sys
-from typing import List, Iterator, TypeVar, Optional
-from tqdm import tqdm
+from typing import Iterator, List, Optional, TypeVar
+
+if "ipykernel" in sys.modules:
+    from tqdm.notebook import tqdm
+else:
+    from tqdm import tqdm
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 
-from math import sqrt, ceil
-
-# external dependencies
-from threadpoolctl import ThreadpoolController
-import numpy as np
-import numpy.typing as npt
-from scipy.spatial.distance import squareform
-from scipy.sparse import coo_matrix
+from math import ceil, sqrt
 from multiprocessing import Pool
 
-from .gw_cython import (
-    GW_cell,
-    gw_cython_core,
-)
+import numpy as np
+import numpy.typing as npt
+from scipy.sparse import coo_matrix
+from scipy.spatial.distance import squareform
+# external dependencies
+from threadpoolctl import ThreadpoolController
+
+from .gw_cython import GW_cell, gw_cython_core
 
 T = TypeVar("T")
 
 Distribution: TypeAlias = npt.NDArray[np.float_]
-SquareMatrix: TypeAlias = npt.NDArray[np.float_]
-RectangularMatrix: TypeAlias = npt.NDArray[np.float_]
+# A DistanceMatrix is a square symmetric matrix with zeros along the diagonal
+# and nonnegative entries.
+DistanceMatrix: TypeAlias = npt.NDArray[np.float_]
+Matrix: TypeAlias = npt.NDArray[np.float_]
+# An Array is a one-dimensional matrix.
+Array: TypeAlias = npt.NDArray[np.float_]
+# A MetricMeasureSpace is a pair consisting of a DistanceMatrix `A` and a Distribution `a`
+# such that `A.shape[0]==`a.shape[0]`.
+MetricMeasureSpace: TypeAlias = tuple[DistanceMatrix, Distribution]
 controller = ThreadpoolController()
 
 
 def _batched(itera: Iterator[T], n: int) -> Iterator[List[T]]:
-    "Batch data into tuples of length n. The last batch may be shorter."
+    """Batch data into tuples of length n. The last batch may be shorter."""
     # batched('ABCDEFG', 3) --> ABC DEF G
     if n < 1:
         raise ValueError("n must be at least one")
@@ -53,14 +61,15 @@ def _is_sorted(int_list: List[int]) -> bool:
 
 
 def n_c_2(n: int):
+    """Compute the number of ordered pairs of distinct elements in the set {1,...,n}."""
     return (n * (n - 1)) // 2
 
 
 def icdm_csv_validate(intracell_csv_loc: str) -> None:
     """
-    Raise an exception if the file in intracell_csv_loc fails to pass formatting tests;
-    else return None.
+    Raise an exception if the file in intracell_csv_loc fails to pass formatting tests.
 
+    If formatting tests are passed, the function returns none.
     :param intracell_csv_loc: The (full) file path for the CSV file containing the intracell
         distance matrix.
 
@@ -116,11 +125,13 @@ def _batched_cell_list_iterator_csv(
     intracell_csv_loc: str, chunk_size: int
 ) -> Iterator[
     tuple[
-        list[tuple[int, str, SquareMatrix]],
-        list[tuple[int, str, SquareMatrix]],
+        list[tuple[int, str, DistanceMatrix]],
+        list[tuple[int, str, DistanceMatrix]],
     ]
 ]:
     """
+    Iterate over pairs of cells in a CSV.
+
     :param intracell_csv_loc: A full file path to a csv file.
     :param chunk_size: A size parameter.
 
@@ -136,7 +147,6 @@ def _batched_cell_list_iterator_csv(
     to a child process at one time. However, numpy is already parallelizing the GW computations \
     under the hood so this is probably an irrelevant concern.
     """
-
     # Validate input
     icdm_csv_validate(intracell_csv_loc)
 
@@ -180,7 +190,7 @@ def _batched_cell_list_iterator_csv(
 
 def cell_iterator_csv(
     intracell_csv_loc: str,
-) -> Iterator[tuple[str, SquareMatrix]]:
+) -> Iterator[tuple[str, DistanceMatrix]]:
     """
     :param intracell_csv_loc: A full file path to a csv file.
 
@@ -203,18 +213,19 @@ def cell_iterator_csv(
 
 def cell_pair_iterator_csv(
     intracell_csv_loc: str, chunk_size: int
-) -> Iterator[tuple[tuple[int, str, SquareMatrix], tuple[int, str, SquareMatrix]]]:
+) -> Iterator[tuple[tuple[int, str, DistanceMatrix], tuple[int, str, DistanceMatrix]]]:
     """
-    :param intracell_csv_loc: A full file path to a csv file.
-    :param chunk_size: How many lines to read from the file at a time. Does not affect output.
-
-    :return: an iterator over pairs of cells, each entry is of the form
-        ((indexA, nameA, distance_matrixA),(indexB, nameB, distance_matrixB)),
-        where `indexA` is the line number in the file, and `indexA < indexB`.
+    Iterate over pairs of cells in a CSV in a memory efficient way.
 
     This is almost equivalent to
     itertools.combinations(cell_iterator_csv(intracell_csv_loc),2) but
     with more efficient file IO.
+
+    :param intracell_csv_loc: A full file path to a csv file.
+    :param chunk_size: How many lines to read from the file at a time. Does not affect output.
+    :return: an iterator over pairs of cells, each entry is of the form
+        ((indexA, nameA, distance_matrixA),(indexB, nameB, distance_matrixB)),
+        where `indexA` is the line number in the file, and `indexA < indexB`.
     """
     batched_it = _batched_cell_list_iterator_csv(intracell_csv_loc, chunk_size)
     return it.chain.from_iterable(
@@ -234,7 +245,8 @@ controller = ThreadpoolController()
 
 
 @controller.wrap(limits=1, user_api="blas")
-def _gw_index(p: tuple[int, int]):
+def _gw_index(p: tuple[int, int]
+              ) -> tuple[int, int, Matrix, float]:
     i, j = p
     A: GW_cell
     B: GW_cell
@@ -254,6 +266,7 @@ def _gw_index(p: tuple[int, int]):
 
 
 def stringify_coupling_mat(A: npt.NDArray[np.float_]) -> list[str]:
+    """Convert a coupling matrix into a string."""
     a = coo_matrix(A)
     return (
         [str(a.nnz)]
@@ -263,10 +276,60 @@ def stringify_coupling_mat(A: npt.NDArray[np.float_]) -> list[str]:
     )
 
 
+def csv_output_writer(
+        names : list[str],
+        gw_dist_csv: Optional[str],
+        gw_coupling_mat_csv: Optional[str],
+        results_iterator: Iterator[tuple[int, int, Matrix, float]],
+) -> Iterator[tuple[int, int, Matrix, float]]:
+    """Write the input to file, and return the output unchanged.
+
+    If gw_distance_file is not None, then it will be created,
+    and the given GW distances will be written to that file.
+
+    If gw_coupling_mat_file is not None, then it will be created,
+    and the given GW coupling matrices will be written to that file.
+    """
+    write_gw_distances = gw_dist_csv is not None
+    if write_gw_distances:
+        gw_dist_file = open(gw_dist_csv, "w", newline="")
+        gw_dist_writer = csv.writer(gw_dist_file)
+        gw_dist_writer.writerow(["first_object", "second_object", "gw_distance"])
+    write_gw_coupling_mats = gw_coupling_mat_csv is not None
+    if write_gw_coupling_mats:
+        gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")
+        gw_coupling_mat_writer = csv.writer(gw_coupling_mat_file)
+        gw_coupling_mat_writer.writerow(
+            [
+                "first_object",
+                "first_object_sidelength",
+                "second_object",
+                "second_object_sidelength",
+                "num_nonzero",
+                "data",
+                "row_indices",
+                "col_indices",
+            ]
+        )
+    for i, j, coupling_mat, gw_dist in results_iterator:
+        if write_gw_distances:
+            gw_dist_writer.writerow([names[i], names[j], str(gw_dist)])
+        if write_gw_coupling_mats:
+            gw_coupling_mat_writer.writerow(
+                [names[i], str(coupling_mat.shape[0]), names[j], str(coupling_mat.shape[1])]
+                + stringify_coupling_mat(coupling_mat)
+            )
+        yield (i, j, coupling_mat, gw_dist)
+    if write_gw_distances:
+        gw_dist_file.close()
+    if write_gw_coupling_mats:
+        gw_coupling_mat_file.close()
+
+
 def gw_pairwise_parallel(
     cells: list[
         tuple[
-            SquareMatrix,  # Squareform distance matrix
+            DistanceMatrix,  # Squareform distance matrix
             Distribution,  # Probability distribution on cells
         ]
     ],
@@ -276,12 +339,12 @@ def gw_pairwise_parallel(
     gw_coupling_mat_csv: Optional[str] = None,
     return_coupling_mats: bool = False,
 ) -> tuple[
-    SquareMatrix,  # Pairwise GW distance matrix (Squareform)
-    Optional[list[tuple[int, int, RectangularMatrix]]],
+    DistanceMatrix,  # Pairwise GW distance matrix (Squareform)
+    Optional[list[tuple[int, int, Matrix]]],
 ]:
-    """Compute the pairwise Gromov-Wasserstein distances between cells,
-    possibly along with their coupling matrices.
+    """Compute the pairwise Gromov-Wasserstein distances between cells.
 
+    Optionally one can also compute their coupling matrices.
     If appropriate file names are supplied, the output is also written to file.
     If computing a large number of coupling matrices, for reduced memory consumption it
     is suggested not to return the coupling matrices, and instead write them to file.
@@ -295,7 +358,8 @@ def gw_pairwise_parallel(
         gw_coupling_mat_csv is not None, and is ignored otherwise.
     :param gw_dist_csv: If this field is a string giving a file path, the GW distances
         will be written to this file. A list of cell names must be supplied.
-    :param gw_coupling_mat_csv: If this field is a string giving a file path, the GW coupling
+    :param gw_coupling_mat_csv: If this field is a string giving a file path,
+        the GW coupling
         matrices will be written to this file. A list of cell names must be supplied.
     :param return_coupling_mats: Whether the function should return the coupling matrices.
         Please be warned that for a large
@@ -312,79 +376,62 @@ def gw_pairwise_parallel(
         and `coupling_mat` is a coupling matrix between the two cells.
         If `return_coupling_mats` is False, returns `(gw_dmat, None)`.
     """
-
     GW_cells = []
     for A, a in cells:
-        GW_cells.append(GW_cell(A, a, A @ a, ((A * A) @ a) @ a))
+        GW_cells.append(GW_cell(A, a))
     num_cells = len(cells)
     gw_dmat = np.zeros((num_cells, num_cells))
     if return_coupling_mats is not None:
         gw_coupling_mats = []
-    if gw_dist_csv is not None:
-        gw_dist_file = open(gw_dist_csv, "w", newline="")
-        gw_dist_writer = csv.writer(gw_dist_file)
-        gw_dist_writer.writerow(["first_object", "second_object", "gw_distance"])
-    if gw_coupling_mat_csv is not None:
-        gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")
-        gw_coupling_mat_writer = csv.writer(gw_coupling_mat_file)
-        gw_coupling_mat_writer.writerow(
-            [
-                "first_object",
-                "first_object_sidelength",
-                "second_object",
-                "second_object_sidelength",
-                "num_nonzero",
-                "data",
-                "row_indices",
-                "col_indices",
-            ]
-        )
     NN = len(GW_cells)
     total_num_pairs = int((NN * (NN - 1)) / 2)
     ij = tqdm(it.combinations(range(num_cells), 2), total=total_num_pairs)
     with Pool(
         initializer=_init_gw_pool, initargs=(GW_cells,), processes=num_processes
     ) as pool:
+        gw_data : Iterator[tuple[int, int, Matrix, float]]
         gw_data = pool.imap_unordered(_gw_index, ij, chunksize=20)
-        gw_data_batched = _batched(gw_data, 2000)
-        for batch in gw_data_batched:
-            for i, j, coupling_mat, gw_dist in batch:
-                gw_dmat[i, j] = gw_dist
-                gw_dmat[j, i] = gw_dist
-                if return_coupling_mats:
-                    gw_coupling_mats.append((i, j, coupling_mat))
-            if gw_dist_csv is not None:
-                if names is None:
-                    raise Exception(
-                        "Must supply list of cell identifiers for writing to file."
-                    )
-                writelist = [
-                    (names[i], names[j], str(gw_dist)) for (i, j, _, gw_dist) in batch
-                ]
-                gw_dist_writer.writerows(writelist)
-            if gw_coupling_mat_csv is not None:
-                if names is None:
-                    raise Exception(
-                        "Must supply list of cell identifiers for writing to file."
-                    )
-                writelist = [
-                    [
-                        names[i],
-                        str(coupling_mat.shape[0]),
-                        names[j],
-                        str(coupling_mat.shape[1]),
-                    ]
-                    + stringify_coupling_mat(coupling_mat)
-                    for (i, j, coupling_mat, _) in batch
-                ]
-                gw_coupling_mat_writer.writerows(writelist)
-    if gw_dist_csv is not None:
-        gw_dist_file.close()
-    if gw_coupling_mat_csv is not None:
-        gw_coupling_mat_file.close()
+        if (gw_dist_csv is not None) or (gw_coupling_mat_csv is not None):
+            if names is None:
+                raise Exception(
+                    "Must supply list of cell identifiers for writing to file."
+                )
+            gw_data = csv_output_writer(
+                names,
+                gw_dist_csv,
+                gw_coupling_mat_csv,
+                gw_data,
+            )
+        for i, j, coupling_mat, gw_dist in gw_data:
+            gw_dmat[i, j] = gw_dist
+            gw_dmat[j, i] = gw_dist
+            if return_coupling_mats:
+                gw_coupling_mats.append((i, j, coupling_mat))
     if return_coupling_mats:
         return (gw_dmat, gw_coupling_mats)
     return (gw_dmat, None)
+
+
+@controller.wrap(limits=1, user_api="blas")
+def gw(
+    A: DistanceMatrix,
+    a: Distribution,
+    B: DistanceMatrix,
+    b: Distribution,
+    max_iters_descent: int = 1000,
+    max_iters_ot: int = 200000,
+) -> tuple[Matrix, float]:
+    """Compute the Gromov-Wasserstein distance between two metric measure spaces."""
+    Aa = A @ a
+    c_A = ((A * A) @ a) @ a
+    Bb = B @ b
+    c_B = ((B * B) @ b) @ b
+    return gw_cython_core(A, a, Aa, c_A, B, b, Bb, c_B, max_iters_descent, max_iters_ot)
+
+
+def uniform(n : int) -> npt.NDArray[np.float_]:
+    """Compute the uniform distribution on n points, as a vector of floats."""
+    return np.ones((n,), dtype=float) / n
 
 
 def compute_gw_distance_matrix(
@@ -395,10 +442,11 @@ def compute_gw_distance_matrix(
     return_coupling_mats: bool = False,
     verbose: Optional[bool] = False,
 ) -> tuple[
-    SquareMatrix,  # Pairwise GW distance matrix (Squareform)
-    Optional[list[tuple[int, int, RectangularMatrix]]],
+    DistanceMatrix,  # Pairwise GW distance matrix (Squareform)
+    Optional[list[tuple[int, int, Matrix]]],
 ]:
     """Compute the matrix of pairwise Gromov-Wasserstein distances between cells.
+
     This function is a wrapper for :func:`cajal.run_gw.gw_pairwise_parallel` except
     that it reads icdm's from a file rather than from a list.
     For the file format of icdm's see :func:`cajal.run_gw.icdm_csv_validate`.
@@ -408,15 +456,14 @@ def compute_gw_distance_matrix(
 
     For other parameters see :func:`cajal.run_gw.gw_pairwise_parallel`.
     """
-
     cell_names_dmats = list(cell_iterator_csv(intracell_csv_loc))
     names: list[str]
 
     names = [name for name, _ in cell_names_dmats]
     # List of pairs (A, a) where A is a square matrix and `a` a probability distribution
-    cell_dms: list[tuple[SquareMatrix, Distribution]]
+    cell_dms: list[tuple[DistanceMatrix, Distribution]]
     cell_dms = [
-        (c := cell, np.ones((n := c.shape[0],)) / n) for _, cell in cell_names_dmats
+        (c := cell, uniform(c.shape[0])) for _, cell in cell_names_dmats
     ]
 
     return gw_pairwise_parallel(

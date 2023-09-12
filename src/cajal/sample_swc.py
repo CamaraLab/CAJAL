@@ -3,31 +3,19 @@ Functions for sampling points from an SWC reconstruction of a neuron.
 """
 
 import math
-from typing import Iterator, Callable, Union
+from typing import Callable, Iterator, Union
 
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean, pdist
 from tqdm import tqdm
 
-from .swc import (
-    NeuronNode,
-    NeuronTree,
-    SWCForest,
-    read_swc,
-    weighted_depth,
-    default_name_validate,
-    get_filenames,
-)
-from .weighted_tree import (
-    WeightedTree,
-    WeightedTreeChild,
-    WeightedTreeRoot,
-    WeightedTree_of,
-    weighted_dist_from_root,
-    weighted_depth_wt,
-)
-from .utilities import write_csv_block, Err, T
+from .swc import (NeuronNode, NeuronTree, SWCForest, default_name_validate,
+                  get_filenames, read_swc, weighted_depth)
+from .utilities import Err, T, write_csv_block
+from .weighted_tree import (WeightedTree, WeightedTree_of, WeightedTreeChild,
+                            WeightedTreeRoot, weighted_depth_wt,
+                            weighted_dist_from_root)
 
 # Warning: Of 509 neurons downloaded from the Allen Brain Initiative
 # database, about 5 had a height of at least 1000 nodes. Therefore on
@@ -40,6 +28,8 @@ def _count_nodes_helper(
     node_a: NeuronNode, node_b: NeuronNode, stepsize: float, offset: float
 ) -> tuple[int, float]:
     """
+    Count nodes in the tree between `node_a` and `node_b` at the given stepsize/offset.
+
     :param node_a: A node in the graph being sampled; the parent of node_b.
     :param node_b: A node in the graph being sampled; the child of node_a.
     :param stepsize: The sampling parameter controlling the distance between points \
@@ -63,13 +53,14 @@ def _count_nodes_helper(
 
 
 def _count_nodes_at_given_stepsize(tree: NeuronTree, stepsize: float) -> int:
-    r"""
-    Count how many nodes will be returned if the user samples points uniformly
-    from `tree`, \ starting at the root and adding all points at (geodesic)
-    depth stepsize, 2 \* stepsize, 3 \* stepsize, and so on until we reach the
-    end of the graph.
+    r"""Count how many nodes will be returned if the user samples points at `stepsize`.
+
+    We sample uniformly from `tree`, starting at the root and adding
+    all points at (geodesic) depth `stepsize`, 2 \* stepsize, 3 \*
+    stepsize, and so on until we reach the end of the graph.
 
     :return: the number of points which would be sampled at this stepsize.
+
     """
     treelist = [(tree, 0.0)]
     acc: int = 1
@@ -88,10 +79,10 @@ def _count_nodes_at_given_stepsize(tree: NeuronTree, stepsize: float) -> int:
 
 def _binary_stepwise_search(forest: SWCForest, num_samples: int) -> float:
     """
-    Returns the epsilon which will cause exactly `num_samples` points to be sampled, if
-    the forest is sampled at `stepsize` epsilon.
+    Return the epsilon which will cause exactly `num_samples` points to be sampled.
 
-    The user should ensure that len(forest) <= num_samples.
+    We assume the the forest is sampled at `stepsize` epsilon. The
+    user should ensure that len(forest) <= num_samples.
     """
     if len(forest) > num_samples:
         raise Exception(
@@ -165,13 +156,13 @@ def get_sample_pts_euclidean(
     return sample_pts_list
 
 
-def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_]:
+def euclidean_point_cloud(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_]:
     r"""
-    Compute the (Euclidean) intracell distance matrix for the forest, \
-    with n sample points.
+    Compute the (Euclidean) point cloud matrix for the forest with n sample points.
+
     :param forest: The cell to be sampled.
     :param num_samples: How many points to be sampled.
-    :return: A condensed (vectorform) matrix of length n\* (n-1)/2.
+    :return: A rectangular matrix of shape (n,3).
     """
     if len(forest) >= num_samples:
         pts: list[npt.NDArray[np.float_]] = []
@@ -180,26 +171,39 @@ def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_
     else:
         step_size = _binary_stepwise_search(forest, num_samples)
         pts = get_sample_pts_euclidean(forest, step_size)
-    pts_matrix = np.stack(pts)
-    return pdist(pts_matrix)
+    return np.stack(pts)
+
+
+def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_]:
+    r"""
+    Compute the (Euclidean) intracell distance matrix for the forest with n sample points.
+
+    :param forest: The cell to be sampled.
+    :param num_samples: How many points to be sampled.
+    :return: A condensed (vectorform) matrix of length n\* (n-1)/2.
+    """
+    return pdist(euclidean_point_cloud(forest, num_samples))
 
 
 def _sample_at_given_stepsize_wt(
     tree: WeightedTreeRoot, stepsize: float
 ) -> list[tuple[WeightedTree, float]]:
-    r"""
-    Starting from the root of `tree`, sample points along `tree` at a geodesic distance \
-    of `stepsize` \
-    from the root, 2 \* `stepsize` from the root, and so on until the end of the graph. \
+    r"""Sample points from the tree at the given step size.
 
-    In our formulation, a point `p` lying on a line segment from `a` to `b` \
-    (where `a` is the parent node and `b` is the child node) is represented by a pair \
-    `(p_dist, b)`, where `p_dist` is the distance from `p` to `b`, or the height of `p` above `b` \
-    in the graph.
+    Starting from the root of `tree`, sample points along `tree` at a
+    geodesic distance of `stepsize` from the root, 2 \* `stepsize`
+    from the root, and so on until the end of the graph.
 
-    :return: A list of sample points `(h, b)`, where `b` is a node in `tree` and `h` is the \
-    distance of the sample point above `b`. `h` is guaranteed to be less than the distance between \
-    `a` and `b`. If `b` is the root node of its tree, `h` is guaranteed to be 0.
+    In our formulation, a point `p` lying on a line segment from `a`
+    to `b` (where `a` is the parent node and `b` is the child node)
+    is represented by a pair `(p_dist, b)`, where `p_dist` is the
+    distance from `p` to `b`, or the height of `p` above `b` in the
+    graph.
+
+    :return: A list of sample points `(h, b)`, where `b` is a node in
+    `tree` and `h` is the distance of the sample point above `b`. `h`
+    is guaranteed to be less than the distance between `a` and `b`. If
+    `b` is the root node of its tree, `h` is guaranteed to be 0.
     """
     treelist: list[tuple[WeightedTree, float]] = [(tree, 0.0)]
     master_list: list[tuple[WeightedTree, float]] = [(tree, 0.0)]
@@ -218,13 +222,85 @@ def _sample_at_given_stepsize_wt(
     return master_list
 
 
+def _geodesic_distance_children(
+    wt1: WeightedTreeChild, h1: float, wt2: WeightedTreeChild, h2: float
+):
+    """
+    Compute the geodesic distance between p1 = (wt1,h1) and p2 = (wt2, h2).
+    """
+    depth1 = wt1.depth
+    unique_id1 = wt1.unique_id
+    wt_parent1 = wt1.parent
+    d1 = wt1.dist
+    depth2 = wt2.depth
+    unique_id2 = wt2.unique_id
+    wt_parent2 = wt2.parent
+    d2 = wt2.dist
+    if unique_id1 == unique_id2:
+        return abs(h2 - h1)
+    # p1, p2 don't lie over the same child node.
+    # Thus, either one is an ancestor of the other
+    # (with one of wt1, wt2 strictly in between)
+    # or they have a common ancestor, and dist(p1, p2)
+    # is the sum of distances from p1, p2 to the common ancestor respectively.
+    # These three can be combined into the following problem:
+    # there is a minimal node in the weighted tree
+    # which lies above both wt1 and wt2, and dist(p1, p2) is the sum
+    # of the distances from p1, p2 respectively to that common minimal node.
+    # This includes the case where the minimal node is wt1 or wt2.
+    # To address these cases in a uniform way we use some cleverness with abs().
+    dist1 = -h1
+    dist2 = -h2
+    while depth1 > depth2:
+        dist1 += d1
+        if isinstance(wt_parent1, WeightedTreeRoot):
+            raise Exception("Nodes constructed have wrong depth.")
+        elif isinstance(wt_parent1, WeightedTreeChild):
+            depth1 = wt_parent1.depth
+            unique_id1 = wt_parent1.unique_id
+            d1 = wt_parent1.dist
+            wt_parent1 = wt_parent1.parent
+        else:
+            raise Exception("Case missed.")
+    while depth2 > depth1:
+        dist2 += d2
+        if isinstance(wt_parent2, WeightedTreeRoot):
+            raise Exception("Nodes constructed have wrong depth.")
+        elif isinstance(wt_parent2, WeightedTreeChild):
+            depth2 = wt_parent2.depth
+            unique_id2 = wt_parent2.unique_id
+            d2 = wt_parent2.dist
+            wt_parent2 = wt_parent2.parent
+    # Now we know that both nodes have the same height.
+    while unique_id1 != unique_id2:
+        dist1 += d1
+        dist2 += d2
+        if isinstance(wt_parent1, WeightedTreeRoot):
+            assert dist1 >= 0
+            assert dist2 >= 0
+            assert isinstance(wt_parent2, WeightedTreeRoot)
+            return dist1 + dist2
+        elif isinstance(wt_parent1, WeightedTreeChild):
+            unique_id1 = wt_parent1.unique_id
+            d1 = wt_parent1.dist
+            wt_parent1 = wt_parent1.parent
+        if isinstance(wt_parent2, WeightedTreeRoot):
+            raise Exception("Nodes constructed have wrong depth.")
+        elif isinstance(wt_parent2, WeightedTreeChild):
+            unique_id2 = wt_parent2.unique_id
+            d2 = wt_parent2.dist
+            wt_parent2 = wt_parent2.parent
+    return abs(dist1) + abs(dist2)
+
+
 def geodesic_distance(
     wt1: WeightedTree, h1: float, wt2: WeightedTree, h2: float
 ) -> float:
     """
-    Let p1 be a point in a weighted tree which lies at height h1 above wt1.
-    Let p2 be a point in a weighted tree which lies at height h2 above wt2.
-    Return the geodesic distance between p1 and p2.
+    Return the geodesic distance between p1=(wt1,h1) and p2=(wt2,h2).
+
+    Here, p1 is a point in a weighted tree which lies at height h1 above wt1.
+    Similarly, p2 is a point in a weighted tree which lies at height h2 above wt2.
 
     :param wt1: A node in a weighted tree.
     :param h1: Represents a point `p1` which lies `h1` above `wt1` in the tree, along \
@@ -243,75 +319,13 @@ def geodesic_distance(
     elif isinstance(wt1, WeightedTreeChild):
         # Otherwise, suppose that wt1 is at an unweighted depth of depth1,
         # and that the distance between wt1 and its parent is d1.
-        depth1 = wt1.depth
-        unique_id1 = wt1.unique_id
-        wt_parent1 = wt1.parent
-        d1 = wt1.dist
         if isinstance(wt2, WeightedTreeRoot):
             # If wt2 is a root, then the approach is dual to what we have just done.
             assert h2 == 0.0
-            return weighted_dist_from_root(wt_parent1) + d1 - h1
+            return weighted_dist_from_root(wt1.parent) + wt1.dist - h1
         elif isinstance(wt2, WeightedTreeChild):
             # So let us consider the case where both wt1, wt2 are child nodes.
-            depth2 = wt2.depth
-            unique_id2 = wt2.unique_id
-            wt_parent2 = wt2.parent
-            d2 = wt2.dist
-            if unique_id1 == unique_id2:
-                return abs(h2 - h1)
-            # p1, p2 don't lie over the same child node.
-            # Thus, either one is an ancestor of the other
-            # (with one of wt1, wt2 strictly in between)
-            # or they have a common ancestor, and dist(p1, p2)
-            # is the sum of distances from p1, p2 to the common ancestor respectively.
-            # These three can be combined into the following problem:
-            # there is a minimal node in the weighted tree
-            # which lies above both wt1 and wt2, and dist(p1, p2) is the sum
-            # of the distances from p1, p2 respectively to that common minimal node.
-            # This includes the case where the minimal node is wt1 or wt2.
-            # To address these cases in a uniform way we use some cleverness with abs().
-            dist1 = -h1
-            dist2 = -h2
-            while depth1 > depth2:
-                dist1 += d1
-                if isinstance(wt_parent1, WeightedTreeRoot):
-                    raise Exception("Nodes constructed have wrong depth.")
-                elif isinstance(wt_parent1, WeightedTreeChild):
-                    depth1 = wt_parent1.depth
-                    unique_id1 = wt_parent1.unique_id
-                    d1 = wt_parent1.dist
-                    wt_parent1 = wt_parent1.parent
-                else:
-                    raise Exception("Case missed.")
-            while depth2 > depth1:
-                dist2 += d2
-                if isinstance(wt_parent2, WeightedTreeRoot):
-                    raise Exception("Nodes constructed have wrong depth.")
-                elif isinstance(wt_parent2, WeightedTreeChild):
-                    depth2 = wt_parent2.depth
-                    unique_id2 = wt_parent2.unique_id
-                    d2 = wt_parent2.dist
-                    wt_parent2 = wt_parent2.parent
-            # Now we know that both nodes have the same height.
-            while unique_id1 != unique_id2:
-                dist1 += d1
-                dist2 += d2
-                if isinstance(wt_parent1, WeightedTreeRoot):
-                    assert dist1 >= 0
-                    assert dist2 >= 0
-                    assert isinstance(wt_parent2, WeightedTreeRoot)
-                    return dist1 + dist2
-                elif isinstance(wt_parent1, WeightedTreeChild):
-                    unique_id1 = wt_parent1.unique_id
-                    d1 = wt_parent1.dist
-                    wt_parent1 = wt_parent1.parent
-                if isinstance(wt_parent2, WeightedTreeRoot):
-                    raise Exception("Nodes constructed have wrong depth.")
-                elif isinstance(wt_parent2, WeightedTreeChild):
-                    unique_id2 = wt_parent2.unique_id
-                    d2 = wt_parent2.dist
-                    wt_parent2 = wt_parent2.parent
-            return abs(dist1) + abs(dist2)
+            return _geodesic_distance_children(wt1, h1, wt2, h2)
 
 
 def get_sample_pts_geodesic(
@@ -363,6 +377,7 @@ def get_sample_pts_geodesic(
 def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
     r"""
     Compute the intracell distance matrix for `tree` using the geodesic metric.
+
     Sample `num_samples` many points uniformly throughout the body of `tree`, compute the
     pairwise geodesic distance between all sampled points, and return the matrix of distances.
 
@@ -371,7 +386,6 @@ def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
         (`num_samples` \* `num_samples` - 1/2, ). Contains the entries in the intracell geodesic
         distance matrix for `tree` lying strictly above the diagonal.
     """
-
     pts_list = get_sample_pts_geodesic(tree, num_samples)
     dist_list = []
     for i in range(len(pts_list)):
@@ -392,8 +406,10 @@ def read_preprocess_compute_euclidean(
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]],
 ) -> Union[Err[T], npt.NDArray[np.float_]]:
     r"""
-    Read the \*.swc file `file_name` from disk as an `SWCForest`. \
-    Apply the function `preprocess` to the forest. If it returns an error, return that error. \
+    Read the swc file, apply a preprocessor, and compute the Euclidean distance matrix.
+
+    Read the \*.swc file `file_name` from disk as an `SWCForest`.
+    Apply the function `preprocess` to the forest. If it returns an error, return that error.
     Otherwise, return the intracell distance matrix in vector form.
     """
     loaded_forest, _ = read_swc(file_name)
@@ -421,6 +437,8 @@ def read_preprocess_compute_geodesic(
     preprocess: Callable[[SWCForest], Union[Err[T], NeuronTree]],
 ) -> Union[Err[T], npt.NDArray[np.float_]]:
     r"""
+    Read the swc file, apply a preprocessor, and compute the geodesic distance matrix.
+
     Read the \*.swc file `file_name` from disk as an `SWCForest`. \
     Apply the function `preprocess` to the forest. If preprocessing returns an error,\
     return that error. \
@@ -448,8 +466,11 @@ def compute_icdm_all_euclidean(
     n_sample: int,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
     num_processes: int = 8,
+    name_validate : Callable[str, bool] = default_name_validate
 ) -> list[tuple[str, Err[T]]]:
     r"""
+    Compute the intracell Euclidean distance matrices for all swc cells in `infolder`.
+
     For each \*.swc file in infolder, read the \*.swc file into memory as an
     SWCForest, `forest`.  Apply a preprocessing function `preprocess` to
     `forest`, which can return either an error message (because the file is for
@@ -489,12 +510,13 @@ def compute_icdm_all_euclidean(
         parallel processes, num_processes is the number of processes to run
         simultaneously. Recommended to set equal to the number of cores on your
         machine.
+    :param name_validate: A boolean test on strings. Files will be read from the directory
+        if name_validate is True (truthy).
     :return: List of pairs (cell_name, error), where cell_name is the cell for
         which sampling failed, and `error` is a wrapper around a message indicating
         why the neuron was not sampled from.
     """
-
-    cell_names, file_paths = get_filenames(infolder, default_name_validate)
+    cell_names, file_paths = get_filenames(infolder, name_validate)
     assert len(cell_names) == len(file_paths)
 
     def rpce(file_path: str) -> Union[Err[T], npt.NDArray[np.float_]]:
@@ -525,6 +547,8 @@ def compute_icdm_all_geodesic(
     ] = lambda forest: forest[0],
 ) -> list[tuple[str, Err[T]]]:
     """
+    Compute the intracell geodesic distance matrices for all swc cells in `infolder`.
+
     This function is substantially the same as \
     :func:`cajal.sample_swc.compute_icdm_all_euclidean` and the user should \
     consult the documentation for that function. However, note that \
@@ -534,7 +558,6 @@ def compute_icdm_all_geodesic(
 
     The default preprocessing is to take the largest component.
     """
-
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
 
     def rpcg(file_path) -> Union[Err[T], npt.NDArray[np.float_]]:

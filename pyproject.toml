@@ -36,7 +36,7 @@ dependencies = [
 	"tqdm>=4.64.1",	
         "potpourri3d",
         "python-louvain",
-        "scipy",
+        "scipy>=1.10",
         "scikit-image",
         "tifffile",
         "trimesh",
@@ -52,7 +52,9 @@ dev = [
 
 vis = [
     "matplotlib >= 3.7.0",
-    "networkx"
+    "networkx",
+    "navis",
+    "mpltern"
 ]
 
 [project.license]
