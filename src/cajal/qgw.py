@@ -287,11 +287,66 @@ class quantized_icdm:
             cell_dm[:, permutation] = cell_dm[:, permutation[new_local_indices]]
             indices[permutation] = indices[permutation[new_local_indices]]
             p[permutation] = p[permutation[new_local_indices]]
+            # q.append(np.sum(p[permutation]))
+
+        q_indices = np.asarray(
+            np.nonzero(np.r_[1, np.diff(np.sort(clusters)), 1])[0], order="C"
+        )
+
+        return (np.asarray(cell_dm, order="C"), p, q_indices)
+
+    def __init__(
+        self,
+        cell_dm: DistanceMatrix,
+        p: Distribution,
+        num_clusters: Optional[int],
+        clusters: Optional[npt.NDArray[np.int_]] = None,
+    ):
+        # Validate the data.
+        assert len(cell_dm.shape) == 2
+
+        self.n = cell_dm.shape[0]
+
+        if clusters is None:
+            # Cluster the data and set icdm, distribution, and ns.
+            Z = cluster.hierarchy.linkage(squareform(cell_dm), method="centroid")
+            clusters = cluster.hierarchy.fcluster(
+                Z, num_clusters, criterion="maxclust", depth=0
+            )
+
+        icdm, distribution, q_indices = quantized_icdm._sort_icdm_and_distribution(
+            cell_dm, p, clusters
+        )
+
+        self.icdm = icdm
+        self.distribution = distribution
+        self.ns = len(set(clusters))
+        self.q_indices = q_indices
+
+        clusters_sort = np.sort(clusters)
+        self.icdm = np.asarray(cell_dm, order="C")
+        self.distribution = p
+
+        # Compute the quantized distribution.
+        q = []
+        for i in range(self.ns):
+            q.append(np.sum(distribution[q_indices[i] : q_indices[i + 1]]))
+        q_arr = np.array(q, dtype=np.float64, order="C")
+        self.q_distribution = q_arr
+        assert abs(np.sum(q_arr) - 1.0) < 1e-7
+        medoids = np.nonzero(np.r_[1, np.diff(clusters_sort)])[0]
+
+        A_s = cell_dm[medoids, :][:, medoids]
+        # assert np.all(np.equal(original_cell_dm[:, indices][indices, :], cell_dm))
+        self.sub_icdm = np.asarray(A_s, order="C")
+        self.c_A = np.dot(np.dot(np.multiply(cell_dm, cell_dm), p), p)
+        self.c_As = np.dot(np.multiply(A_s, A_s), q_arr) @ q_arr
+        self.A_s_a_s = np.dot(A_s, q_arr)
 
     @staticmethod
     def of_tuple(p):
-        """Construct a quantized icdm from a tuple of arguments."""
-        return quantized_icdm(*p)
+        cell_dm, p, num_clusters, clusters=p
+        return quantized_icdm(cell_dm,p, num_clusters,clusters)
 
     @staticmethod
     def of_ptcloud(
@@ -300,7 +355,6 @@ class quantized_icdm:
         num_clusters: int,
         method: Literal["kmeans"] | Literal["hierarchical"] = "kmeans",
     ):
-        """Construct a quantized icdm from a point cloud."""
         dmat = squareform(pdist(X), force="tomatrix")
         if method == "hierarchical":
             return quantized_icdm(dmat, distribution, num_clusters)
@@ -382,7 +436,7 @@ def _init_qgw_pool(quantized_cells: list[quantized_icdm]):
     _QUANTIZED_CELLS = quantized_cells  # type: ignore[name-defined]
 
 
-def _quantized_gw_index(p: tuple[int, int]) -> tuple[int, int, tuple[sparse.csr_matrix, float]]:
+def _quantized_gw_index(p: tuple[int, int]) -> tuple[int, int, float]:
     """Given input p= (i,j), compute the quantized GW distance between cells i \
     and j in the global list of quantized cells."""
     i, j = p
@@ -405,7 +459,7 @@ def quantized_gw_parallel_memory(
     total_num_pairs = int((N * (N - 1)) / 2)
     # index_pairs = tqdm(it.combinations(iter(range(N)), 2), total=total_num_pairs)
     index_pairs = it.combinations(iter(range(N)), 2)
-    gw_dists : Iterator[tuple[int, int, tuple[sparse.csr_matrix, float]]] = []
+    gw_dists : Iterator[tuple[int, int, float]]
     with Pool(
         initializer=_init_qgw_pool, initargs=(quantized_cells,), processes=num_processes
     ) as pool:
