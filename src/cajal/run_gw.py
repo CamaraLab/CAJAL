@@ -70,6 +70,7 @@ def icdm_csv_validate(intracell_csv_loc: str) -> None:
     Raise an exception if the file in intracell_csv_loc fails to pass formatting tests.
 
     If formatting tests are passed, the function returns none.
+
     :param intracell_csv_loc: The (full) file path for the CSV file containing the intracell
         distance matrix.
 
@@ -77,16 +78,16 @@ def icdm_csv_validate(intracell_csv_loc: str) -> None:
 
     * A line whose first character is '#' is discarded as a comment.
     * The first line which is not a comment is discarded as a "header" - this line may
-      contain the column titles for each of the columns.
+          contain the column titles for each of the columns.
     * Values separated by commas. Whitespace is not a separator.
     * The first value in the first non-comment line should be the string 'cell_id', and
-      all values in the first column after that should be a unique identifier for that cell.
+          all values in the first column after that should be a unique identifier for that cell.
     * All values after the first column should be floats.
     * Not including the cell id in the first column, each row except the header should contain
-      the entries of an intracell distance matrix lying strictly above the diagonal,
-      as in the footnotes of
-      https://docs.scipy.org/doc/scipy/reference/\
-      generated/scipy.spatial.distance.squareform.html
+          the entries of an intracell distance matrix lying strictly above the diagonal,
+          as in the footnotes of
+          https://docs.scipy.org/doc/scipy/reference/\
+          generated/scipy.spatial.distance.squareform.html
     """
     with open(intracell_csv_loc, "r", newline="") as icdm_infile:
         csv_reader = csv.reader(icdm_infile, delimiter=",")
