@@ -111,8 +111,9 @@ def slb_parallel_memory(
     """
     Compute the SLB distance in parallel between all cells in `cell_dms`.
 
-    :param cell_dms: A collection of distance matrices. Probability distributions
-        other than uniform are currently unsupported.
+    :param cell_dms: A collection of distance matrices.
+    :param cell_distributions: A collection of distributions on the cells, should
+        be the same length as the collection of cell dms.
     :param num_processes: How many Python processes to run in parallel
     :param chunksize: How many SLB distances each Python process computes at a time
 
