@@ -268,7 +268,7 @@ def identify_medoid(
     Identify the medoid cell in cell_names.
     """
     return cell_names[
-        np.argmin(squareform(dist_mat_of_dict(gw_dist_dict, cell_names)).sum(axis=0))
+        np.argmin(dist_mat_of_dict(gw_dist_dict, cell_names, as_squareform=True).sum(axis=0))
     ]
 
 
