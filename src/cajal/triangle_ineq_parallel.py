@@ -300,8 +300,9 @@ def _get_distance(i,j,dist_func):
     #only updates the computed_array
 
     start_time = time.time()
-    d = dist_func(i,j) #THIS WILL BE THE REAL ONE, OTHERS ARE FOR TESTING
-
+    #d = dist_func(i,j) 
+    d = min(dist_func(i,j), max_array[i,j])
+    
     dist_time.value += time.time() - start_time
 
     wait_time_start = time.time()
