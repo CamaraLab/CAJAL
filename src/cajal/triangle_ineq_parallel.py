@@ -16,14 +16,13 @@ import csv
 """
 TO DO
 
-
--test more and make more effiecient
 -test non-exact_distances version  
     - kNN is not guaranteed to agree with the base_dist_func kNN
     - no way to guarantee we find the "true" values
 -formalize mathematical assumptions
 
 DONE
+- make the anchor computations runs in parallel
 
 
 - mathematical assumption 
@@ -192,6 +191,11 @@ def _full_update_arrays(i,j,d):
             min_array[:k, k] = y.T
             min_array[k,k] = 0
     #print('_full_update_arrays done', i,j )
+
+
+        # for testing, to avoid min > max errors
+        min_array[:,:] = np.minimum(min_array[:,:], max_array[:,:])
+
         update_time.value += time.time() - start_time
 
         # #debugging:
@@ -302,8 +306,9 @@ def _get_distance(i,j,dist_func):
     start_time = time.time()
     #d = dist_func(i,j) 
     d = min(dist_func(i,j), max_array[i,j])
-    
-    dist_time.value += time.time() - start_time
+
+    with my_lock:
+        dist_time.value += time.time() - start_time
 
     wait_time_start = time.time()
     with my_lock:
@@ -328,7 +333,10 @@ def _get_distance(i,j,dist_func):
 
     return d
 
-def _compute_anchor(i, N,k, dist_func):
+
+
+
+def _compute_anchor(i, N,k, dist_func, num_processes):
     global min_array 
     global max_array 
     global uncomputed_array 
@@ -339,37 +347,30 @@ def _compute_anchor(i, N,k, dist_func):
 
     #print('_compute_anchor called', i)
 
-    for j in range(N):
-        d = _get_distance(i,j,dist_func)
-        #d = min(_get_distance(i,j,dist_func), max_array[i,j])
-        wait_time_start = time.time()
-        with my_lock:
-            wait_time.value += time.time() - wait_time_start
-            min_array[i,j] = d
-            min_array[j,i] = d
-            max_array[i,j] = d
-            max_array[j,i] = d
-     
-    ones = np.ones((N))
+
+
+    # Not yet tested
+    with multiprocess.Pool(processes=num_processes) as pool:
+        anchor_results = list(pool.imap( lambda t : _get_distance(*t), [ (j,i, dist_func) for j in range(N)] , chunksize = 5) )
+        pool.close()
+        pool.join() 
 
     wait_time_start = time.time()
-
-    #for debugging:
-    # print('start', min_array[30,71] - max_array[71,10]  , min_array[10,30], dist_func(10,30))
-    # print(min_array[30,71] == dist_func(30,71)) #false
-    # print(min_array[30,71] == _get_distance(30,71,dist_func)) #true
-    # print(max_array[10,71] == dist_func(10,71)) #true
-
-    # print(dist_func(10,71), _get_distance(10,71,dist_func))
-    # print(dist_func(30,71), _get_distance(30,71,dist_func))
-    # print(dist_func(10,30), _get_distance(10,30,dist_func))
-
-
     with my_lock:
         wait_time.value += time.time() - wait_time_start
+        for j in range(N):
 
-        # if (min_array > max_array).any():
-        #     print('_compute_anchor  start of updates error min > max', i)
+            min_array[i,j] = anchor_results[j]
+            min_array[j,i] = anchor_results[j]
+            max_array[i,j] = anchor_results[j]
+            max_array[j,i] = anchor_results[j]
+
+
+
+    ones = np.ones((N))
+    wait_time_start = time.time()
+    with my_lock:
+        wait_time.value += time.time() - wait_time_start
 
 
         start_time = time.time()
@@ -389,44 +390,10 @@ def _compute_anchor(i, N,k, dist_func):
             min_array[:j, j] = y.T
             min_array[j,j] = 0
 
-            #debugging:
-            # if min_array[10,30] > 1.28620611045:
-            #     print('ALERT, min_array[10,30] too big!',i,j) # at 71, 30
-            #     print(min_array[j,i]- max_array[i,10]) 
-            #     print(min_array[30,71] - max_array[71,10]  , min_array[10,30])
-            #     # min[30,71] - max[71,10]   ~?~ min[10,30] #Something is going wrong here !!!!!!
-            # print(i,j)
-            # if (y > max_array[j, :j]).any():               
-            #     print('anchor min update error, computed ', i,j)  #THIS IS IT - the first place the error appears
-            #     break
-                
-
-            # if ((y > max_array[j, :j]) * uncomputed_array[j,:j]).any():               
-            #     print('anchor min update error, uncomputed ', i,j)  #THIS IS IT - the first place the error appears
-            #     assert False
+        #added to reduce min > max errors, commented out for debugging
+        min_array[:,:] = np.minimum(min_array[:,:], max_array[:,:])
 
         update_time.value += time.time() - start_time
-
-        #for debugging:
-    #     if (min_array > max_array).any():
-    #         print('_compute_anchor  end error min > max', i)
-
-    #     #for debugging:
-
-    # print('end', min_array[30,71] - max_array[71,10]  , min_array[10,30])    
-    # for a in range(N):
-    #     for b in range(N):
-    #         if min_array[a,b] > max_array[a,b]:
-    #             print(i,j)
-    #             print(a,b)
-    #             print(uncomputed_array[a,b])
-
-    #             print(min_array[a,b] , max_array[a,b])
-    #             print( _get_distance(a,b, dist_func), dist_func(a,b))
-
-
-    #             assert False
-    #end debugging block
 
 
     kNN_array[i][:] = np.copy(_find_nearest(i,N,k))
@@ -482,13 +449,19 @@ def _compute_nearest(p):
         #print('test',i)
 
         #print('_compute_nearest cycling done', i)  
+
+        # to avoid min > max errors, commented out for testing
+        # wait_time_start = time.time()
+        # with my_lock:
+        #     wait_time.value += time.time() - wait_time_start
+        #     min_array[:,:] = np.minimum(min_array[:,:], max_array[:,:])
+
+
+
+
+        
         a = np.copy(_find_nearest(i,N,k))
 
-        # with my_lock:
-        #     if np.array([max_array[i,int(a[-1])] > min_array[i, l] for l in set(range(k)).difference(set(a))      ]).any():
-        #         print('ERROR: _compute_nearest ',i, ' failed') #This is failing
-        #         print(j) # even though j = -1
-        #         print(len(a),k)
 
 
         if exact_distances:
@@ -509,34 +482,9 @@ def _compute_nearest(p):
                         if min_array[i,j] > max_array[i,j]:
                             print('_compute_nearest error,  min > max ', i,j)
 
-                        #debugging
-                        #assert not uncomputed_array[i,j] # - passes
-
-
-        #print('test',i)
-
-        #for debugging:
-        # if _test_nearest(i) != -1:
-        #     print('_compute_nearest error ', i)
 
 
 
-
-
-        #debugging:             ---- Always passes now
-        # with my_lock:
-        #     if ([uncomputed_array[i,j] for j in a]).any():
-        #         print('********XXXXXXXXXXXXXX')
-        #         print(i)
-        #         for j in  a:
-        #             print(uncomputed_array[i,j])
-        #         #print(uncomputed_array[i,9]) 
-        #         print('*******XXXXXXXXXXXXXX')
-
-        #         assert False
-        #debugging block end
-
-        #print("_compute_nearest kNN_array",i,a) #debugging
 
         try:
             wait_time_start = time.time()
@@ -546,16 +494,6 @@ def _compute_nearest(p):
         except Exception as error:
             print('ALERT 1 -  ', error)
 
-        #debugging:
-        # if i == 52 or i == 147 or i == 163:
-        #     with my_lock:
-        #         print('**********',i)
-        #         print(a)
-        #         # print([min_array[i,j] for j in a ])
-        #         # print([max_array[i,j] for j in a ])
-        #         if ([min_array[i,j] for j in a ] != [max_array[i,j] for j in a ]).any():
-        #             print('_compute_nearest ERROR', i)
-        # #debugging block end
 
     except Exception as error:
         print('ALERT - ', error,i)
@@ -653,7 +591,7 @@ def run_triangle_ineq(
 
     #	compute anchors
 
-    def _next_anchor(): #not yet tested
+    def _next_anchor(): 
         #print(computed_anchors) #debugging
 
         if len(computed_anchors) == 0:
@@ -674,7 +612,7 @@ def run_triangle_ineq(
 
     for j in range(anchor_num ):
         i = _next_anchor()
-        _compute_anchor(i,N,k,dist_func)
+        _compute_anchor(i,N,k,dist_func, num_processes)
         computed_anchors.append(i)
 
         #debugging:
@@ -718,37 +656,12 @@ def run_triangle_ineq(
             for i in range(N):
                 for j in range(k): 
                     a = int(output_kNN_array[i,j])
-
-                    #debugging:
-                    # if i == 52 or i == 147 or i == 163:
-                    #     print('**********',i)
-                    #     print(a)
-                    #debugging block end
-
-
-
-                    #commented out for debugging:
-
-                    #assert not uncomputed_array[i,a] #failing
-                    # if uncomputed_array[i,a]:
-                    #     print('uncomputed',i,a)
-
-                    # if verbose and min_array[i,a] != max_array[i,a]:
-                    #     print('exact_distances error',i,j,a)
-                    #     print('min i a', min_array[i,a] )
-                    #     print('max i a', max_array[i,a] )
-
-
-
-                        #assert False
-                    #output_dist_array[i,j] = max_array[i,a]  #should be max if they're a disagreement - why??
+                   #output_dist_array[i,j] = max_array[i,a]  #should be max if they're a disagreement - why??
                     output_dist_array[i,j] = min_array[i,a]
 
                     # BUG ALERT - the output here is not matching the computed distance
                     # should be fixed now, but not yet tested
 
-    #for debuggin:
-    #print(0.5*(N**2 - np.count_nonzero(uncomputed_array) - N ))
 
     min_shm.close()
     min_shm.unlink()
@@ -853,6 +766,21 @@ def triangle_ineq_npy(
     with open('output_kNN_npy', 'wb') as f:
         np.save(f, input_kNN_array)
     return 0
+
+def _test_dist2(i,j):
+    #print('test_dist2 applied')
+    np.random.seed(3)
+    A = np.random.rand(20,3)
+    
+    return np.linalg.norm(A[i]-A[j])
+
+def _test_dist3(i,j):
+
+    np.random.seed(3)
+    A = np.random.rand(20,3)
+    
+    return np.linalg.norm(A[i]-A[j]) + random.uniform(0,0.01)
+
 
 
 
