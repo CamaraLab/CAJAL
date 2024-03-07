@@ -142,8 +142,8 @@ def slb_parallel_memory(
 
 def slb_parallel(
     intracell_csv_loc: str,
-    num_processes: int,
     out_csv: str,
+    num_processes: int,
     chunksize: int = 20,
 ) -> None:
     """
