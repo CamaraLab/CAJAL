@@ -59,18 +59,15 @@ def read_gw_dists(
     all_cells = sorted(list(all_cells_set))
     return all_cells, gw_dist_dict
 
-
 def dist_mat_of_dict(
     gw_dist_dictionary: dict[tuple[str, str], float],
-    cell_names: Optional[Iterable[str]] = None,
+    cell_names: Iterable[str],
     as_squareform: bool = True,
 ) -> npt.NDArray[np.float_]:
     """
     Given a distance dictionary and a list of cell names, return a square distance \
     matrix containing the pairwise GW distances between all cells in `cell_names`, and \
-    in the same order. \
-    If no list is given, then the distance matrix will represent all GW distances between
-    all cells, indexed in alphabetical order.
+    in the same order.\
 
     It is assumed that the keys in `gw_dist_dictionary` are in alphabetical order.
     """
@@ -89,6 +86,16 @@ def dist_mat_of_dict(
         return squareform(arr, force="tomatrix")
     return arr
 
+def read_gw_dists_pd(
+        gw_dist_file_loc: str, header: bool
+):
+    import pandas as pd
+    cell_names, cell_dict = read_gw_dists(gw_dist_file_loc, header)
+    gw_dmat = dist_mat_of_dict(cell_dict, cell_names, as_squareform=True)
+    return pd.Series(
+        np.ndarray.flatten(gw_dmat),
+        index=pd.MultiIndex.from_product((cell_names, cell_names), names=['first','second']),
+    )
 
 def read_gw_couplings(
     gw_couplings_file_loc: str, header: bool
