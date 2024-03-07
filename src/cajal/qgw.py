@@ -51,7 +51,7 @@ def distance_inverse_cdf(
     index_X = np.argsort(dist_mat)
     dX = np.sort(dist_mat)
     mX_otimes_mX_sq = np.matmul(measure[:, np.newaxis], measure[np.newaxis, :])
-    mX_otimes_mX = squareform(mX_otimes_mX_sq, force="tovector", checks=False)[index_X]
+    mX_otimes_mX = 2*squareform(mX_otimes_mX_sq, force="tovector", checks=False)[index_X]
 
     f = np.insert(dX, 0, 0.0)
     u = np.insert(mX_otimes_mX, 0, measure @ measure)
