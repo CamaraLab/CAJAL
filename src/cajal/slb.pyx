@@ -26,7 +26,7 @@ def slb(np.ndarray[DTYPE_t,ndim=1] f, np.ndarray[DTYPE_t,ndim=1] g):
     j = 0
     cdef int m = ceil(sqrt(2.0*glen))
     assert (m * (m-1))==glen*2
-    
+
     acc=0
     progress=0
 

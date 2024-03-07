@@ -278,6 +278,7 @@ class quantized_icdm:
         """
         indices: npt.NDArray[np.int_] = np.argsort(clusters)
         cell_dm = cell_dm[indices, :][:, indices]
+        clusters = clusters[indices]
         p = p[indices]
 
         for i in set(clusters):
@@ -301,7 +302,7 @@ class quantized_icdm:
         self,
         cell_dm: DistanceMatrix,
         p: Distribution,
-        num_clusters: Optional[int],
+        num_clusters: int,
         clusters: Optional[npt.NDArray[np.int_]] = None,
     ):
         """Class constructor."""
@@ -327,8 +328,6 @@ class quantized_icdm:
         self.q_indices = q_indices
 
         clusters_sort = np.sort(clusters)
-        self.icdm = np.asarray(cell_dm, order="C")
-        self.distribution = p
 
         # Compute the quantized distribution.
         q = []
@@ -339,10 +338,10 @@ class quantized_icdm:
         assert abs(np.sum(q_arr) - 1.0) < 1e-7
         medoids = np.nonzero(np.r_[1, np.diff(clusters_sort)])[0]
 
-        A_s = cell_dm[medoids, :][:, medoids]
+        A_s = icdm[medoids, :][:, medoids]
         # assert np.all(np.equal(original_cell_dm[:, indices][indices, :], cell_dm))
         self.sub_icdm = np.asarray(A_s, order="C")
-        self.c_A = np.dot(np.dot(np.multiply(cell_dm, cell_dm), p), p)
+        self.c_A = np.dot(np.dot(np.multiply(icdm, icdm), distribution), distribution)
         self.c_As = np.dot(np.multiply(A_s, A_s), q_arr) @ q_arr
         self.A_s_a_s = np.dot(A_s, q_arr)
 
