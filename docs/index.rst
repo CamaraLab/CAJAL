@@ -52,6 +52,7 @@ and with other single-cell data modalities, among other analyses.
    sample_seg
    run_gw
    qgw
+   combined_slb_qgw
    laplacian_score
    average_cell_shapes
    utilities
