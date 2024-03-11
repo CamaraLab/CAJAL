@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def tfqmr(A, b, x0: Incomplete | None = ..., tol: float = ..., maxiter: Incomplete | None = ..., M: Incomplete | None = ..., callback: Incomplete | None = ..., atol: Incomplete | None = ..., show: bool = ...): ...

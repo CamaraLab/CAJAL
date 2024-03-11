@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def minres(A, b, x0: Incomplete | None = ..., shift: float = ..., tol: float = ..., maxiter: Incomplete | None = ..., M: Incomplete | None = ..., callback: Incomplete | None = ..., show: bool = ..., check: bool = ...): ...

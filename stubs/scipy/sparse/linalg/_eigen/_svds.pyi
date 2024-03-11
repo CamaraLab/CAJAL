@@ -1,0 +1,3 @@
+from _typeshed import Incomplete
+
+def svds(A, k: int = ..., ncv: Incomplete | None = ..., tol: int = ..., which: str = ..., v0: Incomplete | None = ..., maxiter: Incomplete | None = ..., return_singular_vectors: bool = ..., solver: str = ..., random_state: Incomplete | None = ..., options: Incomplete | None = ...): ...
