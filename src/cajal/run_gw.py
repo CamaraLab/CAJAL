@@ -1,19 +1,17 @@
-"""
-Functionality to compute Gromov-Wasserstein distances\
-using algorithms in Peyre et al. ICML 2016
-"""
+"""Functionality to compute Gromov-Wasserstein distances \
+using algorithms in Peyre et al. ICML 2016."""
 from __future__ import annotations
 
 import csv
 # std lib dependencies
 import itertools as it
 import sys
-from typing import Iterator, List, Optional, TypeVar
+from typing import Iterator, List, Optional, TypeVar, NewType
 
 if "ipykernel" in sys.modules:
     from tqdm.notebook import tqdm
 else:
-    from tqdm import tqdm
+    from tqdm import tqdm  # type: ignore[assignment]
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
@@ -36,9 +34,9 @@ Distribution: TypeAlias = npt.NDArray[np.float_]
 # A DistanceMatrix is a square symmetric matrix with zeros along the diagonal
 # and nonnegative entries.
 DistanceMatrix: TypeAlias = npt.NDArray[np.float_]
-Matrix: TypeAlias = npt.NDArray[np.float_]
+Matrix = NewType("Matrix", npt.NDArray[np.float_])
 # An Array is a one-dimensional matrix.
-Array: TypeAlias = npt.NDArray[np.float_]
+Array = NewType("Array", npt.NDArray[np.float_])
 # A MetricMeasureSpace is a pair consisting of a DistanceMatrix `A` and a Distribution `a`
 # such that `A.shape[0]==`a.shape[0]`.
 MetricMeasureSpace: TypeAlias = tuple[DistanceMatrix, Distribution]
@@ -131,7 +129,12 @@ def _batched_cell_list_iterator_csv(
     ]
 ]:
     """
-    Iterate over pairs of cells in a CSV.
+    Return an iterator over pairs of distinct cells from a file.
+
+    Increasing chunk_size increases memory usage but reduces the frequency of file reads.
+    Note that for parallelization concerns it is best to communicate large batches of work \
+    to a child process at one time. However, numpy is already parallelizing the GW computations \
+    under the hood so this is probably an irrelevant concern.
 
     :param intracell_csv_loc: A full file path to a csv file.
     :param chunk_size: A size parameter.
@@ -141,12 +144,6 @@ def _batched_cell_list_iterator_csv(
     (cell_id, cell_name, icdm), where cell_id is a natural number,
     cell_name is a string, and icdm is a square n x n distance matrix.
     cell_id is guaranteed to be unique.
-
-    Increasing chunk_size increases memory usage but reduces the frequency of file reads.
-
-    Note that for parallelization concerns it is best to communicate large batches of work \
-    to a child process at one time. However, numpy is already parallelizing the GW computations \
-    under the hood so this is probably an irrelevant concern.
     """
     # Validate input
     icdm_csv_validate(intracell_csv_loc)
@@ -239,7 +236,7 @@ def cell_pair_iterator_csv(
 
 def _init_gw_pool(GW_cells: list[GW_cell]):
     global _GW_CELLS
-    _GW_CELLS = GW_cells
+    _GW_CELLS = GW_cells  # type: ignore[name-defined]
 
 
 controller = ThreadpoolController()
@@ -251,8 +248,8 @@ def _gw_index(p: tuple[int, int]
     i, j = p
     A: GW_cell
     B: GW_cell
-    A = _GW_CELLS[i]
-    B = _GW_CELLS[j]
+    A = _GW_CELLS[i]  # type: ignore[name-defined]
+    B = _GW_CELLS[j]  # type: ignore[name-defined]
     coupling_mat, gw_dist = gw_cython_core(
         A.dmat,
         A.distribution,
@@ -293,12 +290,12 @@ def csv_output_writer(
     """
     write_gw_distances = gw_dist_csv is not None
     if write_gw_distances:
-        gw_dist_file = open(gw_dist_csv, "w", newline="")
+        gw_dist_file = open(gw_dist_csv, "w", newline="")  # type: ignore[arg-type]
         gw_dist_writer = csv.writer(gw_dist_file)
         gw_dist_writer.writerow(["first_object", "second_object", "gw_distance"])
     write_gw_coupling_mats = gw_coupling_mat_csv is not None
     if write_gw_coupling_mats:
-        gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")
+        gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")  # type: ignore[arg-type]
         gw_coupling_mat_writer = csv.writer(gw_coupling_mat_file)
         gw_coupling_mat_writer.writerow(
             [
