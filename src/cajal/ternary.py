@@ -140,7 +140,7 @@ def ternary_distance(
     ax = plt.subplot(projection="ternary", ternary_sum=1.0)
     ax.set_tlabel(feature1_name + " - " + feature2_name)
     ax.set_llabel(feature2_name + " - " + feature3_name)
-    ax.set_llabel(feature3_name + " - " + feature1_name)
+    ax.set_rlabel(feature3_name + " - " + feature1_name)
 
     ax.grid()
     ax.scatter(d12, d23, d31, **kwargs)
