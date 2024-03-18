@@ -4,7 +4,7 @@ from math import sqrt
 import numpy as np
 import numpy.typing as npt
 from numpy.linalg import norm
-from typing import Literal
+from typing import Literal, Optional
 
 from scipy.spatial.distance import squareform
 from scipy.stats import gaussian_kde
@@ -40,14 +40,14 @@ def two_d_projection(xyz: Matrix) -> Matrix:
 def histogram_density(xyz: Matrix, bins: int) -> npt.NDArray[np.float_]:
     """
     Compute density estimates for the point cloud `xyz`. Assigns each point a
-    nonnegative floating point number estimating the local density of the point cloud in that region
-    using a simple two-dimensional histogram.
+    nonnegative floating point number estimating the local density of the point
+    cloud in that region using a simple two-dimensional histogram.
 
     :param xyz: A matrix of shape (n,3), where each row represents one point;
         points are assumed to lie in the plane x+y+z=1.
-    :param bins: How many bins to use for the histogram in each dimension. If fewer bins
-        are chosen, the coloring will be more homogeneous and change gradually. If more bins
-        are chosen, the coloring will vary more.
+    :param bins: How many bins to use for the histogram in each dimension.
+        If fewer bins are chosen, the coloring will be more homogeneous and
+        change gradually. If more bins are chosen, the coloring will vary more.
     """
     xy = two_d_projection(xyz)
     density, xbins, ybins = np.histogram2d(
@@ -61,8 +61,8 @@ def histogram_density(xyz: Matrix, bins: int) -> npt.NDArray[np.float_]:
 def gaussian_density(xyz: Matrix) -> npt.NDArray[np.float_]:
     """
     Compute density estimates for the point cloud `xyz`. Assigns each point a
-    nonnegative floating point number estimating the local density of the point cloud in that region
-    using the scipy.stats.gaussian_kde function.
+    nonnegative floating point number estimating the local density of the
+    point cloud in that region using the scipy.stats.gaussian_kde function.
 
     :param xyz: A matrix of shape (n,3), where each row represents one point;
         points are assumed to lie in the plane x+y+z=1.
@@ -71,11 +71,28 @@ def gaussian_density(xyz: Matrix) -> npt.NDArray[np.float_]:
     return gaussian_kde(xy.T)(xy.T)
 
 
+def normalize(feature_dispersion: DistanceMatrix, add_one: bool = False,
+              center_at_zero: bool = True):
+    """
+    The assumptions
+    """
+    fd = squareform(feature_dispersion, force="tovector")
+    if add_one:
+        fd += 1
+    fd = np.log(fd)
+    if center_at_zero:
+        fd -= np.mean(fd)
+    fd /= np.std(fd)
+    return fd
+
+
 def normalized_relative_dispersion(
     feature1_dispersion: DistanceMatrix,
     feature2_dispersion: DistanceMatrix,
     feature3_dispersion: DistanceMatrix,
-) -> tuple[npt.NDArray[np.float_], npt.NDArray[np.float_], npt.NDArray[np.float_]]:
+) -> tuple[npt.NDArray[np.float_],
+           npt.NDArray[np.float_],
+           npt.NDArray[np.float_]]:
     """
     Given three morphology spaces, normalize each one by scaling it to its
     average, compute the three pairwise distributions of relative differences,
@@ -83,45 +100,44 @@ def normalized_relative_dispersion(
     """
     assert feature1_dispersion.shape == feature2_dispersion.shape
     assert feature2_dispersion.shape == feature3_dispersion.shape
-    feature1_dispersion = squareform(feature1_dispersion, force="tovector")
-    f1d_normal = feature1_dispersion / np.average(feature1_dispersion)
 
-    feature2_dispersion = squareform(feature2_dispersion, force="tovector")
-    f2d_normal = feature2_dispersion / np.average(feature2_dispersion)
+    f1d = normalize(feature1_dispersion)
+    f2d = normalize(feature2_dispersion)
+    f3d = normalize(feature3_dispersion)
 
-    feature3_dispersion = squareform(feature3_dispersion, force="tovector")
-    f3d_normal = feature3_dispersion / np.average(feature3_dispersion)
-
-    d12 = f1d_normal - f2d_normal
-    d23 = f2d_normal - f3d_normal
-    d31 = f3d_normal - f1d_normal
+    d12 = f1d - f2d
+    d23 = f2d - f3d
+    d31 = f3d - f1d
 
     percent = 90
-    percentile = np.percentile(norm(np.stack((d12, d23, d31), axis=1), axis=1), percent)
+    percentile = np.percentile(norm(np.stack((d12, d23, d31), axis=1), axis=1),
+                               percent)
     normalizing_constant = MAGIC_NUMBER_1 / percentile
     d12 = d12 * normalizing_constant + 1 / 3
     d23 = d23 * normalizing_constant + 1 / 3
     d31 = d31 * normalizing_constant + 1 / 3
 
-    assert np.allclose(d12 + d23 + d31, np.ones((f1d_normal.shape[0],), dtype=float))
+    assert np.allclose(d12 + d23 + d31, np.ones((f1d.shape[0],), dtype=float))
     return d12, d23, d31
 
 
 def ternary_distance(
-    feature1_dispersion: DistanceMatrix,
-    feature1_name: str,
-    feature2_dispersion: DistanceMatrix,
-    feature2_name: str,
-    feature3_dispersion: DistanceMatrix,
-    feature3_name: str,
-    density_estimation: Literal["histogram"] | Literal["gaussian_kde"],
-    bins: int,
-    contour_lines: int = 4,
-    **kwargs
+        axis,                   # Matplotlib Axes object
+        d12,
+        feature1_name: str,
+        d23,
+        feature2_name: str,
+        d31,
+        feature3_name: str,
+        density_estimation: Literal["histogram"] | Literal["gaussian_kde"],
+        title,
+        bins: int,
+        contour_lines: int = 4,
+        mpl_params: dict = {}
 ):
     """
-    Construct a ternary distance plot illustrating the relative variation in any one
-    feature with respect to the others.
+    Construct a ternary distance plot illustrating the relative variation in
+    any one feature with respect to the others.
 
     :param bins: How many bins to use for the histogram in each dimension when
         estimating the gradient. If fewer bins are chosen, the coloring will be
@@ -129,22 +145,99 @@ def ternary_distance(
         coloring will vary more.
     :param levels: How many contour lines to draw.
     """
-    d12, d23, d31 = normalized_relative_dispersion(
-        feature1_dispersion, feature2_dispersion, feature3_dispersion
-    )
+
+    # (d12, d23, d31) = normalized_relative_dispersion(
+    #     feature1_dispersion, feature2_dispersion, feature3_dispersion)
     xyz = np.stack((d12, d23, d31), axis=1)
     if density_estimation == "histogram":
         coloring = histogram_density(xyz, bins)
     else:
         coloring = gaussian_density(xyz)
-    ax = plt.subplot(projection="ternary", ternary_sum=1.0)
-    ax.set_tlabel(feature1_name + " - " + feature2_name)
-    ax.set_llabel(feature2_name + " - " + feature3_name)
-    ax.set_rlabel(feature3_name + " - " + feature1_name)
 
-    ax.grid()
-    ax.scatter(d12, d23, d31, **kwargs)
+        ticks = [.33333]
+        labels = ["0"]
+        axis.taxis.set_ticks(ticks, labels)
+        axis.laxis.set_ticks(ticks, labels)
+        axis.raxis.set_ticks(ticks, labels)
 
-    level_marks = np.linspace(np.min(coloring), np.max(coloring), contour_lines + 2)
-    ax.tricontour(d12, d23, d31, coloring, level_marks)
-    plt.show()
+    axis.set_tlabel(feature1_name + " - " + feature2_name)
+    axis.set_llabel(feature3_name + " - " + feature1_name)
+    axis.set_rlabel(feature2_name + " - " + feature3_name)
+    axis.set_title(title)
+    axis.grid()
+    axis.scatter(d12, d31, d23, **mpl_params)
+    level_marks = np.linspace(np.min(coloring), np.max(coloring),
+                              contour_lines + 2)
+    plot = axis.tricontour(d12, d31, d23, coloring, level_marks)
+    return plot
+
+
+def ternary_distance_clusters(
+        feature1_dispersion: DistanceMatrix,
+        feature1_name: str,
+        feature2_dispersion: DistanceMatrix,
+        feature2_name: str,
+        feature3_dispersion: DistanceMatrix,
+        feature3_name: str,
+        density_estimation: Literal["histogram"] | Literal["gaussian_kde"],
+        bins: Optional[int],
+        contour_lines: int = 4,
+        figsize: int = 10,
+        clusters: Optional[npt.NDArray[np.float_]] = None,
+        mpl_params: dict = {}
+):
+
+    d12, d23, d31 = normalized_relative_dispersion(
+        feature1_dispersion, feature2_dispersion, feature3_dispersion
+    )
+
+    if clusters is not None:
+        unique_clusters = np.unique(clusters)
+        nfig = unique_clusters.shape[0]
+    else:
+        nfig = 1
+
+    if clusters is not None:
+        fig = plt.figure(figsize=(figsize, figsize*nfig))
+        new_axes = []
+        for i in range(0, nfig):
+            cluster = unique_clusters[i]
+            axis = plt.subplot(nfig, 1, i + 1, projection="ternary",
+                               ternary_sum=1.0)
+            indices = clusters == cluster
+            indices = np.logical_and(indices[:, np.newaxis],
+                                     indices[np.newaxis, :])
+            indices = squareform(indices, force='tovector', checks=False)
+            # indices = np.nonzero(clusters == cluster)[0]
+
+            f1 = d12[indices]
+            f2 = d23[indices]
+            f3 = d31[indices]
+            new_axes.append(
+                ternary_distance(axis,
+                                 f1,
+                                 feature1_name,
+                                 f2,
+                                 feature2_name,
+                                 f3,
+                                 feature3_name,
+                                 density_estimation,
+                                 cluster,
+                                 bins,
+                                 contour_lines,
+                                 mpl_params
+                                 ))
+        return fig, new_axes
+    else:
+        axis = ternary_distance(axis,
+                                feature1_dispersion,
+                                feature1_name,
+                                feature2_dispersion,
+                                feature2_name,
+                                feature3_dispersion,
+                                feature3_name,
+                                density_estimation,
+                                bins,
+                                contour_lines,
+                                mpl_params)
+        return fig, axis
