@@ -145,7 +145,7 @@ def get_sample_pts_euclidean(
                     stop=dist - leftover,
                     num=num_nodes,
                     endpoint=True,
-                )
+                ) / dist
                 assert spacing.shape[0] == num_nodes
                 for x in spacing:
                     sample_pts_list.append((root_triple * x) + (child_triple * (1 - x)))
