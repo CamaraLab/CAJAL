@@ -109,16 +109,32 @@ def normalized_relative_dispersion(
     d23 = f2d - f3d
     d31 = f3d - f1d
 
-    percent = 90
-    percentile = np.percentile(norm(np.stack((d12, d23, d31), axis=1), axis=1),
-                               percent)
-    normalizing_constant = MAGIC_NUMBER_1 / percentile
-    d12 = d12 * normalizing_constant + 1 / 3
-    d23 = d23 * normalizing_constant + 1 / 3
-    d31 = d31 * normalizing_constant + 1 / 3
+    d = np.stack((d12, d23, d31), axis=1)
+    p01 = np.percentile(np.ndarray.flatten(d), 1)
+    print(p01)
+    d -= p01
+    p99 = np.percentile(np.ndarray.flatten(d), 99)
+    print(p99)
+    d /= p99
 
-    assert np.allclose(d12 + d23 + d31, np.ones((f1d.shape[0],), dtype=float))
-    return d12, d23, d31
+    # After this transformation, 98% of values lie within the unit cube.
+    # This puts points onto the unit plane.
+    d /= np.sum(d[0,:])
+    assert np.allclose(np.sum(d,axis=1), np.ones((f1d.shape[0],), dtype=float))
+    return (d[:,0],d[:,1],d[:,2])
+
+
+    
+    # percent = 90
+    # percentile = np.percentile(norm(np.stack((d12, d23, d31), axis=1), axis=1),
+    #                            percent)
+    # normalizing_constant = MAGIC_NUMBER_1 / percentile
+    # d12 = d12 * normalizing_constant + 1 / 3
+    # d23 = d23 * normalizing_constant + 1 / 3
+    # d31 = d31 * normalizing_constant + 1 / 3
+
+    # assert np.allclose(d12 + d23 + d31, np.ones((f1d.shape[0],), dtype=float))
+    # return d12, d23, d31
 
 
 def ternary_distance(
@@ -149,6 +165,7 @@ def ternary_distance(
     # (d12, d23, d31) = normalized_relative_dispersion(
     #     feature1_dispersion, feature2_dispersion, feature3_dispersion)
     xyz = np.stack((d12, d23, d31), axis=1)
+    
     if density_estimation == "histogram":
         coloring = histogram_density(xyz, bins)
     else:
@@ -184,15 +201,18 @@ def ternary_distance_clusters(
         contour_lines: int = 4,
         figsize: int = 10,
         clusters: Optional[npt.NDArray[np.float_]] = None,
+        min_cluster_size = 30,
         mpl_params: dict = {}
 ):
+    print("!")
 
     d12, d23, d31 = normalized_relative_dispersion(
         feature1_dispersion, feature2_dispersion, feature3_dispersion
     )
 
     if clusters is not None:
-        unique_clusters = np.unique(clusters)
+        unique_clusters = list(np.unique(clusters))
+        unique_clusters = np.array([c for c in unique_clusters if np.count_nonzero(clusters == c) >= min_cluster_size])
         nfig = unique_clusters.shape[0]
     else:
         nfig = 1
