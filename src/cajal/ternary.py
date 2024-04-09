@@ -228,7 +228,6 @@ def ternary_distance_clusters(
             indices = np.logical_and(indices[:, np.newaxis],
                                      indices[np.newaxis, :])
             indices = squareform(indices, force='tovector', checks=False)
-            # indices = np.nonzero(clusters == cluster)[0]
 
             f1 = d12[indices]
             f2 = d23[indices]
