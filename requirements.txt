@@ -21,7 +21,7 @@ numba==0.56.4
 numpy==1.23.4
 pathos
 pandas==1.5.1
-pillow==10.3.0
+pillow==10.2.0
 potpourri3d==0.0.8
 pynndescent==0.5.8
 python-louvain==0.16
