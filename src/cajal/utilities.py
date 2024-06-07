@@ -6,7 +6,7 @@ import csv
 from scipy.spatial.distance import squareform
 from scipy.sparse import coo_array
 import itertools as it
-from typing import Iterator, Iterable, Optional, TypeVar, Generic, Union
+from typing import Iterator, Iterable, Optional, TypeVar, Generic, Union, Callable
 from sklearn.neighbors import NearestNeighbors
 import leidenalg
 import community as community_louvain
@@ -85,6 +85,31 @@ def dist_mat_of_dict(
     if as_squareform:
         return squareform(arr, force="tomatrix")
     return arr
+
+def update_names(f: Callable, gw_dist_dict: dict):
+    """
+    Given f a function and gw_dists a dictionary of pairwise GW distances,
+    return a new gw distance dictionary with entry (a,b) replaced with (f(a),f(b)) if f(a)<f(b)
+    or (f(b),f(a)) if f(b)<f(a).
+    
+    If f is not injective then the resulting distance dictionary may be unusable.
+    The function raises an exception on collisions.
+
+    Codomain of f is assumed to work with `<`.
+    """
+    gw_dist_dict1 = dict()
+    for i, j in gw_dist_dict:
+        i1 = f(i)
+        j1 = f(j)
+        if i1 == j1:
+            raise Exception("f is not injective.")
+        elif j1 < i1:
+            tmp = j1
+            j1 = i1
+            i1 = tmp
+        assert i1 < j1
+        gw_dist_dict1[(i1,j1)]=gw_dist_dict[(i,j)]
+    return gw_dist_dict1
 
 def read_gw_dists_pd(
         gw_dist_file_loc: str, header: bool
