@@ -39,3 +39,10 @@ The ```-p``` flag controls the port number on local host. For example, writing `
 
 ## Documentation
 Extensive documentation, including several tutorials, can be found in [CAJAL's readthedocs.io website](https://cajal.readthedocs.io/en/latest/index.html). This website is under development and will continue to be substantially updated during the coming months.
+
+## New in this release (v1.0.0, 6/18/2024)
+- Improved performance
+- New functionality for intgerating multi-modal spaces using the WNN algorithm
+- New functionality for visualizing consistency between morphological, electrophysiological, and transcriptomic cellular variation using ternary plots
+- New functionality for visualizing local discrepancies between the morphologies of neurons
+- Fixed several small bugs
