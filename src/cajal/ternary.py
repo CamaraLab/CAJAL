@@ -202,7 +202,7 @@ def ternary_distance_clusters(
         figsize: int = 4,
         clusters: Optional[npt.NDArray[np.float_]] = None,
         min_cluster_size = 30,
-        mpl_params: dict = {}
+        mpl_params: dict = {'s':1, 'alpha':.3}
 ):
     #print("!")
 
