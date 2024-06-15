@@ -197,9 +197,9 @@ def ternary_distance_clusters(
         feature3_dispersion: DistanceMatrix,
         feature3_name: str,
         density_estimation: Literal["histogram"] | Literal["gaussian_kde"],
-        bins: Optional[int],
+        bins: Optional[int] = None,
         contour_lines: int = 4,
-        figsize: int = 10,
+        figsize: int = 4,
         clusters: Optional[npt.NDArray[np.float_]] = None,
         min_cluster_size = 30,
         mpl_params: dict = {}
