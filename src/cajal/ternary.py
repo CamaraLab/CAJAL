@@ -111,10 +111,10 @@ def normalized_relative_dispersion(
 
     d = np.stack((d12, d23, d31), axis=1)
     p01 = np.percentile(np.ndarray.flatten(d), 1)
-    print(p01)
+    #print(p01)
     d -= p01
     p99 = np.percentile(np.ndarray.flatten(d), 99)
-    print(p99)
+    #print(p99)
     d /= p99
 
     # After this transformation, 98% of values lie within the unit cube.
@@ -204,7 +204,7 @@ def ternary_distance_clusters(
         min_cluster_size = 30,
         mpl_params: dict = {}
 ):
-    print("!")
+    #print("!")
 
     d12, d23, d31 = normalized_relative_dispersion(
         feature1_dispersion, feature2_dispersion, feature3_dispersion
