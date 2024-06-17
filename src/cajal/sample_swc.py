@@ -10,12 +10,24 @@ import numpy.typing as npt
 from scipy.spatial.distance import euclidean, pdist
 from tqdm import tqdm
 
-from .swc import (NeuronNode, NeuronTree, SWCForest, default_name_validate,
-                  get_filenames, read_swc, weighted_depth)
+from .swc import (
+    NeuronNode,
+    NeuronTree,
+    SWCForest,
+    default_name_validate,
+    get_filenames,
+    read_swc,
+    weighted_depth,
+)
 from .utilities import Err, T, write_csv_block
-from .weighted_tree import (WeightedTree, WeightedTree_of, WeightedTreeChild,
-                            WeightedTreeRoot, weighted_depth_wt,
-                            weighted_dist_from_root)
+from .weighted_tree import (
+    WeightedTree,
+    WeightedTree_of,
+    WeightedTreeChild,
+    WeightedTreeRoot,
+    weighted_depth_wt,
+    weighted_dist_from_root,
+)
 
 # Warning: Of 509 neurons downloaded from the Allen Brain Initiative
 # database, about 5 had a height of at least 1000 nodes. Therefore on
@@ -140,12 +152,15 @@ def get_sample_pts_euclidean(
                 num_nodes, leftover = _count_nodes_helper(
                     tree.root, child_tree.root, step_size, offset
                 )
-                spacing = np.linspace(
-                    start=step_size - offset,
-                    stop=dist - leftover,
-                    num=num_nodes,
-                    endpoint=True,
-                ) / dist
+                spacing = (
+                    np.linspace(
+                        start=step_size - offset,
+                        stop=dist - leftover,
+                        num=num_nodes,
+                        endpoint=True,
+                    )
+                    / dist
+                )
                 assert spacing.shape[0] == num_nodes
                 for x in spacing:
                     sample_pts_list.append((root_triple * x) + (child_triple * (1 - x)))
@@ -156,7 +171,9 @@ def get_sample_pts_euclidean(
     return sample_pts_list
 
 
-def euclidean_point_cloud(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float64]:
+def euclidean_point_cloud(
+    forest: SWCForest, num_samples: int
+) -> npt.NDArray[np.float64]:
     r"""
     Compute the (Euclidean) point cloud matrix for the forest with n sample points.
 
@@ -465,7 +482,7 @@ def compute_icdm_all_euclidean(
     out_csv: str,
     n_sample: int,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
-    name_validate : Callable[str, bool] = default_name_validate
+    name_validate: Callable[str, bool] = default_name_validate,
 ) -> list[tuple[str, Err[T]]]:
     r"""
     Compute the intracell Euclidean distance matrices for all swc cells in `infolder`.
@@ -526,9 +543,7 @@ def compute_icdm_all_euclidean(
     # icdms = pool.starmap(read_preprocess_compute_euclidean,args)
     tq_icdms = tqdm(icdms, total=len(cell_names))
 
-    failed_cells = write_csv_block(
-        out_csv, n_sample, zip(cell_names, tq_icdms), 3
-    )
+    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, tq_icdms), 3)
     return failed_cells
 
 

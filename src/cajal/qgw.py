@@ -5,8 +5,7 @@ import csv
 import itertools as it
 import sys
 from math import sqrt
-from typing import (Collection, Iterable, Iterator, Literal, NewType, Optional,
-                    Set)
+from typing import Collection, Iterable, Iterator, Literal, NewType, Optional, Set
 
 if "ipykernel" in sys.modules:
     from tqdm.notebook import tqdm
@@ -22,14 +21,19 @@ from scipy import cluster, sparse
 from scipy.spatial.distance import pdist, squareform
 
 from .gw_cython import qgw_init_cost, quantized_gw_cython
-from .run_gw import (Array, DistanceMatrix, Distribution,  # MetricMeasureSpace
-                     Matrix, _batched, cell_iterator_csv, uniform)
+from .run_gw import (
+    Array,
+    DistanceMatrix,
+    Distribution,  # MetricMeasureSpace
+    Matrix,
+    _batched,
+    cell_iterator_csv,
+    uniform,
+)
 from .slb import l2
 
 
-def distance_inverse_cdf(
-    dist_mat: Array, measure: Array
-):
+def distance_inverse_cdf(dist_mat: Array, measure: Array):
     """
     Compute the cumulative inverse distance function for a metric measure space.
 
@@ -46,12 +50,14 @@ def distance_inverse_cdf(
     if len(dist_mat.shape) > 2:
         raise Exception("Array shape is " + str(dist_mat.shape) + ", should be 1D")
     elif len(dist_mat.shape) == 2 and dist_mat.shape[0] == dist_mat.shape[1]:
-        dist_mat = squareform(dist_mat, force='tovector')
+        dist_mat = squareform(dist_mat, force="tovector")
 
     index_X = np.argsort(dist_mat)
     dX = np.sort(dist_mat)
     mX_otimes_mX_sq = np.matmul(measure[:, np.newaxis], measure[np.newaxis, :])
-    mX_otimes_mX = 2*squareform(mX_otimes_mX_sq, force="tovector", checks=False)[index_X]
+    mX_otimes_mX = (
+        2 * squareform(mX_otimes_mX_sq, force="tovector", checks=False)[index_X]
+    )
 
     f = np.insert(dX, 0, 0.0)
     u = np.insert(mX_otimes_mX, 0, measure @ measure)
@@ -104,7 +110,7 @@ def _global_slb_pool(p: tuple[int, int]):
 
 def slb_parallel_memory(
     cell_dms: Collection[DistanceMatrix],
-    cell_distributions : Optional[Iterable[Distribution]],
+    cell_distributions: Optional[Iterable[Distribution]],
     num_processes: int,
     chunksize: int = 20,
 ) -> DistanceMatrix:
@@ -173,10 +179,10 @@ def slb_parallel(
 
 
 def quantize_icdm_reduced(
-        A: DistanceMatrix,
-        p: Distribution,
-        clustering : npt.NDArray[np.int_],
-        compute_gw_loss : bool
+    A: DistanceMatrix,
+    p: Distribution,
+    clustering: npt.NDArray[np.int_],
+    compute_gw_loss: bool,
 ) -> tuple[DistanceMatrix, Distribution]:
     """Cluster the cells of A based on the given clustering and return a \
     new matrix / distribution pair (metric measure space) based on the clustering.
@@ -364,11 +370,7 @@ class quantized_icdm:
             return quantized_icdm(dmat, distribution, num_clusters)
         # Otherwise use kmeans.
         # TODO: This will probably give way shorter than the amount of cells.
-        _, clusters = cluster.vq.kmeans2(
-            X,
-            num_clusters,
-            minit='++'
-        )
+        _, clusters = cluster.vq.kmeans2(X, num_clusters, minit="++")
         return quantized_icdm(dmat, distribution, None, clusters)
 
 
@@ -445,14 +447,17 @@ def _quantized_gw_index(p: tuple[int, int]) -> tuple[int, int, float]:
     and j in the global list of quantized cells."""
     i, j = p
     retval: tuple[int, int, float]
-    return (i, j,
-            quantized_gw(_QUANTIZED_CELLS[i], _QUANTIZED_CELLS[j])[1])  # type: ignore[name-defined]
+    return (
+        i,
+        j,
+        quantized_gw(_QUANTIZED_CELLS[i], _QUANTIZED_CELLS[j])[1],
+    )  # type: ignore[name-defined]
 
 
 def quantized_gw_parallel_memory(
-        quantized_cells : Collection[quantized_icdm],
-        num_processes: int,
-        chunksize: int = 20,
+    quantized_cells: Collection[quantized_icdm],
+    num_processes: int,
+    chunksize: int = 20,
 ):
     """
     Compute the quantized Gromov-Wasserstein distances between all pairs of cells in the list.
@@ -463,7 +468,7 @@ def quantized_gw_parallel_memory(
     total_num_pairs = int((N * (N - 1)) / 2)
     # index_pairs = tqdm(it.combinations(iter(range(N)), 2), total=total_num_pairs)
     index_pairs = it.combinations(iter(range(N)), 2)
-    gw_dists : Iterator[tuple[int, int, float]]
+    gw_dists: Iterator[tuple[int, int, float]]
     with Pool(
         initializer=_init_qgw_pool, initargs=(quantized_cells,), processes=num_processes
     ) as pool:
@@ -472,7 +477,7 @@ def quantized_gw_parallel_memory(
             total=total_num_pairs,
         )  # type: ignore[assignment]
         gw_dists_list = list(gw_dists)
-    gw_dists_list.sort(key=lambda p : p[0] * N + p[1])
+    gw_dists_list.sort(key=lambda p: p[0] * N + p[1])
     return gw_dists_list
 
 
@@ -550,8 +555,9 @@ def _tuple_set_of(
     X: npt.NDArray[np.int_], Y: npt.NDArray[np.int_]
 ) -> Set[tuple[int, int]]:
     b = set()
-    tuple_iter : Iterator[tuple[int, int]] =\
-        map(tuple, np.stack((X, Y), axis=1).astype(int))  # type: ignore[arg-type]
+    tuple_iter: Iterator[tuple[int, int]] = map(
+        tuple, np.stack((X, Y), axis=1).astype(int)
+    )  # type: ignore[arg-type]
     for i, j in tuple_iter:
         if i < j:
             b.add((i, j))

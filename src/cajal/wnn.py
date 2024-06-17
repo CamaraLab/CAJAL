@@ -28,6 +28,7 @@ class Modality:
     constructing the nearest neighbors graphs for the Isomap embedding.
     This number should be as least as high as the number of neighbors you care about when analyzing the output of the WNN embedding.
     """
+
     def local_bandwidth(self, margin_count: int = 20):
         n_obsv = self.nn_index_arr.shape[0]
         jaccard_counts = np.zeros(shape=self.nn_index_arr.shape, dtype=int)
@@ -153,9 +154,9 @@ def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
 
     def theta_m_i_j(m: Modality):
         return np.exp(
-            -np.maximum(m.dmat - m.nn_distance[:,np.newaxis],0)
-            /(m.bandwidth[:,np.newaxis] - m.nn_distance[:,np.newaxis])
-            )
+            -np.maximum(m.dmat - m.nn_distance[:, np.newaxis], 0)
+            / (m.bandwidth[:, np.newaxis] - m.nn_distance[:, np.newaxis])
+        )
 
     def all_pairwise_affinities(modalities: list[Modality]):
         pairwise_affinities = np.zeros(shape=(M, M, n_obsvs), dtype=float)
@@ -165,13 +166,13 @@ def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
                 n = modalities[j]
                 # theta_m,n = pairwise_affinities[i,j]
                 # ability of j to predict i, ability of n to predict m
-                pairwise_affinities[i, j,:] = cross_modality_affinities(
+                pairwise_affinities[i, j, :] = cross_modality_affinities(
                     m, pairwise_predictions(n, m)
                 )
         return pairwise_affinities
 
     pairwise_affinities = all_pairwise_affinities(modalities)
-    theta = np.stack([theta_m_i_j(m) for m in modalities],axis=0)
+    theta = np.stack([theta_m_i_j(m) for m in modalities], axis=0)
     pairwise_affinity_ratios = np.zeros(shape=(M, M - 1, n_obsvs), dtype=float)
     for i in range(M):
         for j in range(M):
@@ -183,10 +184,13 @@ def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
                 pairwise_affinities[i, j, :] + epsilon
             )
 
-    similarity_matrix = (softmax(pairwise_affinity_ratios, axis=(0,1)).sum(axis=1)[:,:,np.newaxis] * theta).sum(axis=0)
-    similarity_matrix[np.arange(n_obsvs),np.arange(n_obsvs)]=0
-    assert np.all(similarity_matrix[similarity_matrix<0] > -1e-10)
-    assert np.all((similarity_matrix[similarity_matrix>1]-1) < 1e-10)
-    similarity_matrix[similarity_matrix<0]=0
-    similarity_matrix[similarity_matrix>1]=1
+    similarity_matrix = (
+        softmax(pairwise_affinity_ratios, axis=(0, 1)).sum(axis=1)[:, :, np.newaxis]
+        * theta
+    ).sum(axis=0)
+    similarity_matrix[np.arange(n_obsvs), np.arange(n_obsvs)] = 0
+    assert np.all(similarity_matrix[similarity_matrix < 0] > -1e-10)
+    assert np.all((similarity_matrix[similarity_matrix > 1] - 1) < 1e-10)
+    similarity_matrix[similarity_matrix < 0] = 0
+    similarity_matrix[similarity_matrix > 1] = 1
     return similarity_matrix

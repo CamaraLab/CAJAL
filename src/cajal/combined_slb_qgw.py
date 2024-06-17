@@ -14,10 +14,22 @@ import numpy.typing as npt
 from scipy.spatial.distance import squareform
 from tqdm.notebook import tqdm
 
-from .qgw import (Array, _init_qgw_pool, _quantized_gw_index, _tuple_set_of,
-                  quantized_icdm, slb_parallel_memory)
-from .run_gw import (DistanceMatrix, Distribution, Matrix, _batched, cell_iterator_csv,
-                     uniform)
+from .qgw import (
+    Array,
+    _init_qgw_pool,
+    _quantized_gw_index,
+    _tuple_set_of,
+    quantized_icdm,
+    slb_parallel_memory,
+)
+from .run_gw import (
+    DistanceMatrix,
+    Distribution,
+    Matrix,
+    _batched,
+    cell_iterator_csv,
+    uniform,
+)
 
 # A BooleanSquareMatrix is a square matrix of booleans.
 BooleanSquareMatrix = NewType("BooleanSquareMatrix", npt.NDArray[np.bool_])
@@ -165,9 +177,7 @@ class _Error_Distribution:
         return probabilities
 
 
-def _nn_indices_from_slb(
-        slb_dmat: DistanceMatrix,
-        nearest_neighbors: int):
+def _nn_indices_from_slb(slb_dmat: DistanceMatrix, nearest_neighbors: int):
     N = slb_dmat.shape[0]
     # The following line of code was changed from:
     # ind_y = np.argsort(slb_dmat, axis=1)[:, 1 : nearest_neighbors + 1]
@@ -182,11 +192,7 @@ def _nn_indices_from_slb(
     return b
 
 
-def _sample_indices_by_bin(
-        slb_dmat: DistanceMatrix,
-        slb_bins: int,
-        sn: SamplingNumber
-):
+def _sample_indices_by_bin(slb_dmat: DistanceMatrix, slb_bins: int, sn: SamplingNumber):
     slb_quantile_bins = np.quantile(
         squareform(slb_dmat, force="tovector"),
         np.arange(slb_bins + 1).astype(float) / float(slb_bins),
@@ -217,13 +223,13 @@ def _get_initial_indices(
 
 
 def _indices_from_cdf_prob(
-        N : int,
-        X : npt.NDArray[np.int_],
-        Y : npt.NDArray[np.int_],
-        cdf_prob : Array,
-        nearest_neighbors : int,
-        accuracy : float,
-        exp_decay : float,
+    N: int,
+    X: npt.NDArray[np.int_],
+    Y: npt.NDArray[np.int_],
+    cdf_prob: Array,
+    nearest_neighbors: int,
+    accuracy: float,
+    exp_decay: float,
 ) -> list[tuple[int, int]]:
     # This array is crucial. It contains the list of cell pair indices
     # to be computed in order of priority - in *descending* order of
@@ -243,9 +249,7 @@ def _indices_from_cdf_prob(
         np.searchsorted(-cdf_prob[undershooting_prob_indices], -0.5)
     )
     total_expected_injuries = np.sum(cdf_prob)
-    incremental_expected_injuries = np.cumsum(
-        cdf_prob[undershooting_prob_indices]
-    )
+    incremental_expected_injuries = np.cumsum(cdf_prob[undershooting_prob_indices])
     acceptable_injuries = (nearest_neighbors * N) * (1 - accuracy)
     acceptable_injury_index = int(
         np.searchsorted(
@@ -263,15 +267,12 @@ def _indices_from_cdf_prob(
     return list(_tuple_set_of(X[indices], Y[indices]))
 
 
-def cutoff_of(
-        estimator_matrix : DistanceMatrix,
-        nn : int
-):
+def cutoff_of(estimator_matrix: DistanceMatrix, nn: int):
     """Return the vector of current cutoffs for the nn-th nearest neighbor."""
     return np.sort(estimator_matrix, axis=1)[:, nn + 1]
 
 
-def unknown_indices_of(gw_known : BooleanSquareMatrix):
+def unknown_indices_of(gw_known: BooleanSquareMatrix):
     """Return upper-triangular indices (i,j) where gw is unknown."""
     Xuk_ts, Yuk_ts = np.nonzero(np.logical_not(gw_known))
     upper_triangular = Xuk_ts <= Yuk_ts
@@ -281,12 +282,12 @@ def unknown_indices_of(gw_known : BooleanSquareMatrix):
 
 
 def estimator_matrix_of(
-        slb_dmat : DistanceMatrix,
-        gw_dmat : DistanceMatrix,
-        gw_known : BooleanSquareMatrix,
-        ed : _Error_Distribution,
-        Xuk : npt.NDArray[np.int_],
-        Yuk : npt.NDArray[np.int_],
+    slb_dmat: DistanceMatrix,
+    gw_dmat: DistanceMatrix,
+    gw_known: BooleanSquareMatrix,
+    ed: _Error_Distribution,
+    Xuk: npt.NDArray[np.int_],
+    Yuk: npt.NDArray[np.int_],
 ):
     """
     Compute a best-estimate gw matrix.

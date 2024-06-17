@@ -59,6 +59,7 @@ def read_gw_dists(
     all_cells = sorted(list(all_cells_set))
     return all_cells, gw_dist_dict
 
+
 def dist_mat_of_dict(
     gw_dist_dictionary: dict[tuple[str, str], float],
     cell_names: Iterable[str],
@@ -86,12 +87,13 @@ def dist_mat_of_dict(
         return squareform(arr, force="tomatrix")
     return arr
 
+
 def update_names(f: Callable, gw_dist_dict: dict):
     """
     Given f a function and gw_dists a dictionary of pairwise GW distances,
     return a new gw distance dictionary with entry (a,b) replaced with (f(a),f(b)) if f(a)<f(b)
     or (f(b),f(a)) if f(b)<f(a).
-    
+
     If f is not injective then the resulting distance dictionary may be unusable.
     The function raises an exception on collisions.
 
@@ -108,19 +110,22 @@ def update_names(f: Callable, gw_dist_dict: dict):
             j1 = i1
             i1 = tmp
         assert i1 < j1
-        gw_dist_dict1[(i1,j1)]=gw_dist_dict[(i,j)]
+        gw_dist_dict1[(i1, j1)] = gw_dist_dict[(i, j)]
     return gw_dist_dict1
 
-def read_gw_dists_pd(
-        gw_dist_file_loc: str, header: bool
-):
+
+def read_gw_dists_pd(gw_dist_file_loc: str, header: bool):
     import pandas as pd
+
     cell_names, cell_dict = read_gw_dists(gw_dist_file_loc, header)
     gw_dmat = dist_mat_of_dict(cell_dict, cell_names, as_squareform=True)
     return pd.Series(
         np.ndarray.flatten(gw_dmat),
-        index=pd.MultiIndex.from_product((cell_names, cell_names), names=['first','second']),
+        index=pd.MultiIndex.from_product(
+            (cell_names, cell_names), names=["first", "second"]
+        ),
     )
+
 
 def read_gw_couplings(
     gw_couplings_file_loc: str, header: bool
@@ -226,7 +231,9 @@ def knn_graph(dmat: npt.NDArray[np.float64], nn: int) -> npt.NDArray[np.int_]:
     return graph
 
 
-def louvain_clustering(gw_mat: npt.NDArray[np.float64], nn: int) -> npt.NDArray[np.int_]:
+def louvain_clustering(
+    gw_mat: npt.NDArray[np.float64], nn: int
+) -> npt.NDArray[np.int_]:
     """
     Compute clustering of cells based on GW distance, using Louvain clustering on a
     nearest-neighbors graph
@@ -300,7 +307,9 @@ def identify_medoid(
     Identify the medoid cell in cell_names.
     """
     return cell_names[
-        np.argmin(dist_mat_of_dict(gw_dist_dict, cell_names, as_squareform=True).sum(axis=0))
+        np.argmin(
+            dist_mat_of_dict(gw_dist_dict, cell_names, as_squareform=True).sum(axis=0)
+        )
     ]
 
 

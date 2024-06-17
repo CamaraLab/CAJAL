@@ -3,6 +3,7 @@ using algorithms in Peyre et al. ICML 2016."""
 from __future__ import annotations
 
 import csv
+
 # std lib dependencies
 import itertools as it
 import sys
@@ -23,6 +24,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.sparse import coo_matrix
 from scipy.spatial.distance import squareform
+
 # external dependencies
 from threadpoolctl import ThreadpoolController
 
@@ -243,8 +245,7 @@ controller = ThreadpoolController()
 
 
 @controller.wrap(limits=1, user_api="blas")
-def _gw_index(p: tuple[int, int]
-              ) -> tuple[int, int, Matrix, float]:
+def _gw_index(p: tuple[int, int]) -> tuple[int, int, Matrix, float]:
     i, j = p
     A: GW_cell
     B: GW_cell
@@ -275,10 +276,10 @@ def stringify_coupling_mat(A: npt.NDArray[np.float64]) -> list[str]:
 
 
 def csv_output_writer(
-        names : list[str],
-        gw_dist_csv: Optional[str],
-        gw_coupling_mat_csv: Optional[str],
-        results_iterator: Iterator[tuple[int, int, Matrix, float]],
+    names: list[str],
+    gw_dist_csv: Optional[str],
+    gw_coupling_mat_csv: Optional[str],
+    results_iterator: Iterator[tuple[int, int, Matrix, float]],
 ) -> Iterator[tuple[int, int, Matrix, float]]:
     """Write the input to file, and return the output unchanged.
 
@@ -314,7 +315,12 @@ def csv_output_writer(
             gw_dist_writer.writerow([names[i], names[j], str(gw_dist)])
         if write_gw_coupling_mats:
             gw_coupling_mat_writer.writerow(
-                [names[i], str(coupling_mat.shape[0]), names[j], str(coupling_mat.shape[1])]
+                [
+                    names[i],
+                    str(coupling_mat.shape[0]),
+                    names[j],
+                    str(coupling_mat.shape[1]),
+                ]
                 + stringify_coupling_mat(coupling_mat)
             )
         yield (i, j, coupling_mat, gw_dist)
@@ -387,7 +393,7 @@ def gw_pairwise_parallel(
     with Pool(
         initializer=_init_gw_pool, initargs=(GW_cells,), processes=num_processes
     ) as pool:
-        gw_data : Iterator[tuple[int, int, Matrix, float]]
+        gw_data: Iterator[tuple[int, int, Matrix, float]]
         gw_data = pool.imap_unordered(_gw_index, ij, chunksize=20)
         if (gw_dist_csv is not None) or (gw_coupling_mat_csv is not None):
             if names is None:
@@ -427,7 +433,7 @@ def gw(
     return gw_cython_core(A, a, Aa, c_A, B, b, Bb, c_B, max_iters_descent, max_iters_ot)
 
 
-def uniform(n : int) -> npt.NDArray[np.float64]:
+def uniform(n: int) -> npt.NDArray[np.float64]:
     """Compute the uniform distribution on n points, as a vector of floats."""
     return np.ones((n,), dtype=float) / n
 
@@ -460,9 +466,7 @@ def compute_gw_distance_matrix(
     names = [name for name, _ in cell_names_dmats]
     # List of pairs (A, a) where A is a square matrix and `a` a probability distribution
     cell_dms: list[tuple[DistanceMatrix, Distribution]]
-    cell_dms = [
-        (c := cell, uniform(c.shape[0])) for _, cell in cell_names_dmats
-    ]
+    cell_dms = [(c := cell, uniform(c.shape[0])) for _, cell in cell_names_dmats]
 
     return gw_pairwise_parallel(
         cell_dms,

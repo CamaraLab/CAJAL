@@ -76,8 +76,11 @@ def gaussian_density(xyz: Matrix) -> npt.NDArray[np.float64]:
     return gaussian_kde(xy.T)(xy.T)
 
 
-def normalize(feature_dispersion: DistanceMatrix, add_one: bool = False,
-              center_at_zero: bool = True):
+def normalize(
+    feature_dispersion: DistanceMatrix,
+    add_one: bool = False,
+    center_at_zero: bool = True,
+):
     """
     Standardize the data as controlled by the arguments.
     """
@@ -95,9 +98,7 @@ def normalized_relative_dispersion(
     feature1_dispersion: DistanceMatrix,
     feature2_dispersion: DistanceMatrix,
     feature3_dispersion: DistanceMatrix,
-) -> tuple[npt.NDArray[np.float64],
-           npt.NDArray[np.float64],
-           npt.NDArray[np.float64]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     Given three morphology spaces, normalize each one by scaling it to its
     average, compute the three pairwise distributions of relative differences,
@@ -116,20 +117,18 @@ def normalized_relative_dispersion(
 
     d = np.stack((d12, d23, d31), axis=1)
     p01 = np.percentile(np.ndarray.flatten(d), 1)
-    #print(p01)
+    # print(p01)
     d -= p01
     p99 = np.percentile(np.ndarray.flatten(d), 99)
-    #print(p99)
+    # print(p99)
     d /= p99
 
     # After this transformation, 98% of values lie within the unit cube.
     # This puts points onto the unit plane.
-    d /= np.sum(d[0,:])
-    assert np.allclose(np.sum(d,axis=1), np.ones((f1d.shape[0],), dtype=float))
-    return (d[:,0],d[:,1],d[:,2])
+    d /= np.sum(d[0, :])
+    assert np.allclose(np.sum(d, axis=1), np.ones((f1d.shape[0],), dtype=float))
+    return (d[:, 0], d[:, 1], d[:, 2])
 
-
-    
     # percent = 90
     # percentile = np.percentile(norm(np.stack((d12, d23, d31), axis=1), axis=1),
     #                            percent)
@@ -143,18 +142,18 @@ def normalized_relative_dispersion(
 
 
 def ternary_distance(
-        axis,                   # Matplotlib Axes object
-        d12,
-        feature1_name: str,
-        d23,
-        feature2_name: str,
-        d31,
-        feature3_name: str,
-        density_estimation: Literal["histogram"] | Literal["gaussian_kde"],
-        title,
-        bins: int,
-        contour_lines: int = 4,
-        mpl_params: dict = {}
+    axis,  # Matplotlib Axes object
+    d12,
+    feature1_name: str,
+    d23,
+    feature2_name: str,
+    d31,
+    feature3_name: str,
+    density_estimation: Literal["histogram"] | Literal["gaussian_kde"],
+    title,
+    bins: int,
+    contour_lines: int = 4,
+    mpl_params: dict = {},
 ):
     """
     Construct a ternary distance plot illustrating the relative variation in
@@ -170,13 +169,13 @@ def ternary_distance(
     # (d12, d23, d31) = normalized_relative_dispersion(
     #     feature1_dispersion, feature2_dispersion, feature3_dispersion)
     xyz = np.stack((d12, d23, d31), axis=1)
-    
+
     if density_estimation == "histogram":
         coloring = histogram_density(xyz, bins)
     else:
         coloring = gaussian_density(xyz)
 
-        ticks = [.33333]
+        ticks = [0.33333]
         labels = ["0"]
         axis.taxis.set_ticks(ticks, labels)
         axis.laxis.set_ticks(ticks, labels)
@@ -188,26 +187,25 @@ def ternary_distance(
     axis.set_title(title)
     axis.grid()
     axis.scatter(d12, d31, d23, **mpl_params)
-    level_marks = np.linspace(np.min(coloring), np.max(coloring),
-                              contour_lines + 2)
+    level_marks = np.linspace(np.min(coloring), np.max(coloring), contour_lines + 2)
     plot = axis.tricontour(d12, d31, d23, coloring, level_marks)
     return plot
 
 
 def ternary_distance_clusters(
-        feature1_dispersion: DistanceMatrix,
-        feature1_name: str,
-        feature2_dispersion: DistanceMatrix,
-        feature2_name: str,
-        feature3_dispersion: DistanceMatrix,
-        feature3_name: str,
-        density_estimation: Literal["histogram"] | Literal["gaussian_kde"],
-        bins: Optional[int] = None,
-        contour_lines: int = 4,
-        figsize: int = 4,
-        clusters: Optional[npt.NDArray] = None,
-        min_cluster_size = 30,
-        mpl_params: dict = {'s':1, 'alpha':.3}
+    feature1_dispersion: DistanceMatrix,
+    feature1_name: str,
+    feature2_dispersion: DistanceMatrix,
+    feature2_name: str,
+    feature3_dispersion: DistanceMatrix,
+    feature3_name: str,
+    density_estimation: Literal["histogram"] | Literal["gaussian_kde"],
+    bins: Optional[int] = None,
+    contour_lines: int = 4,
+    figsize: int = 4,
+    clusters: Optional[npt.NDArray] = None,
+    min_cluster_size=30,
+    mpl_params: dict = {"s": 1, "alpha": 0.3},
 ):
     """
     :param density_estimation: Controls the method by which density of the input space is estimated.
@@ -228,51 +226,59 @@ def ternary_distance_clusters(
 
     if clusters is not None:
         unique_clusters = list(np.unique(clusters))
-        unique_clusters = np.array([c for c in unique_clusters if np.count_nonzero(clusters == c) >= min_cluster_size])
+        unique_clusters = np.array(
+            [
+                c
+                for c in unique_clusters
+                if np.count_nonzero(clusters == c) >= min_cluster_size
+            ]
+        )
         nfig = unique_clusters.shape[0]
     else:
         nfig = 1
 
     if clusters is not None:
-        fig = plt.figure(figsize=(figsize, figsize*nfig))
+        fig = plt.figure(figsize=(figsize, figsize * nfig))
         new_axes = []
         for i in range(0, nfig):
             cluster = unique_clusters[i]
-            axis = plt.subplot(nfig, 1, i + 1, projection="ternary",
-                               ternary_sum=1.0)
+            axis = plt.subplot(nfig, 1, i + 1, projection="ternary", ternary_sum=1.0)
             indices = clusters == cluster
-            indices = np.logical_and(indices[:, np.newaxis],
-                                     indices[np.newaxis, :])
-            indices = squareform(indices, force='tovector', checks=False)
+            indices = np.logical_and(indices[:, np.newaxis], indices[np.newaxis, :])
+            indices = squareform(indices, force="tovector", checks=False)
 
             f1 = d12[indices]
             f2 = d23[indices]
             f3 = d31[indices]
             new_axes.append(
-                ternary_distance(axis,
-                                 f1,
-                                 feature1_name,
-                                 f2,
-                                 feature2_name,
-                                 f3,
-                                 feature3_name,
-                                 density_estimation,
-                                 cluster,
-                                 bins,
-                                 contour_lines,
-                                 mpl_params
-                                 ))
+                ternary_distance(
+                    axis,
+                    f1,
+                    feature1_name,
+                    f2,
+                    feature2_name,
+                    f3,
+                    feature3_name,
+                    density_estimation,
+                    cluster,
+                    bins,
+                    contour_lines,
+                    mpl_params,
+                )
+            )
         return fig, new_axes
     else:
-        axis = ternary_distance(axis,
-                                feature1_dispersion,
-                                feature1_name,
-                                feature2_dispersion,
-                                feature2_name,
-                                feature3_dispersion,
-                                feature3_name,
-                                density_estimation,
-                                bins,
-                                contour_lines,
-                                mpl_params)
+        axis = ternary_distance(
+            axis,
+            feature1_dispersion,
+            feature1_name,
+            feature2_dispersion,
+            feature2_name,
+            feature3_dispersion,
+            feature3_name,
+            density_estimation,
+            bins,
+            contour_lines,
+            mpl_params,
+        )
         return fig, axis
