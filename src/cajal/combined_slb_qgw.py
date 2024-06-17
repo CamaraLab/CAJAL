@@ -157,10 +157,10 @@ class _Error_Distribution:
         )
         probabilities = indices / self._error_bins
         probabilities = np.maximum(
-            probabilities, np.zeros(probabilities.shape), dtype=np.float_
+            probabilities, np.zeros(probabilities.shape), dtype=np.float64
         )
         probabilities = np.minimum(
-            probabilities, np.ones(probabilities.shape), dtype=np.float_
+            probabilities, np.ones(probabilities.shape), dtype=np.float64
         )
         return probabilities
 
@@ -361,7 +361,7 @@ def _get_indices(
 
 def _update_dist_mat(
     gw_dist_iter: Iterable[tuple[int, int, float]],
-    dist_mat: npt.NDArray[np.float_],
+    dist_mat: npt.NDArray[np.float64],
     dist_mat_known: npt.NDArray[np.bool_],
 ) -> None:
     """

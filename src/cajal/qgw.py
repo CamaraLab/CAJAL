@@ -375,7 +375,7 @@ class quantized_icdm:
 def quantized_gw(
     A: quantized_icdm,
     B: quantized_icdm,
-    initial_plan: Optional[npt.NDArray[np.float_]] = None,
+    initial_plan: Optional[npt.NDArray[np.float64]] = None,
 ) -> tuple[sparse.csr_matrix, float]:
     """
     Compute the quantized Gromov-Wasserstein distance between two quantized metric measure spaces.

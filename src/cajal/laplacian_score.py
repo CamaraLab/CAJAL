@@ -5,10 +5,10 @@ from typing import Optional
 
 
 def pearson_coefficient(
-    feature_arr: npt.NDArray[np.float_],
-    joint_dist: npt.NDArray[np.float_],
+    feature_arr: npt.NDArray[np.float64],
+    joint_dist: npt.NDArray[np.float64],
     permutations: int,
-) -> npt.NDArray[np.float_]:
+) -> npt.NDArray[np.float64]:
     r"""
     Let X, Y be two random variables on the finite set {0,...,N-1}, jointly distributed with \
     distribution described in the matrix joint_dist; joint_dist[i][j] = p(X=i,Y=j). \
@@ -44,12 +44,12 @@ def pearson_coefficient(
 
     # Allocate space for temporary storage matrices
     means = np.zeros((num_features,))
-    f_tildes = np.zeros((N, num_features), dtype=np.float_)
-    tempvar1 = np.zeros((num_features, N), dtype=np.float_)
-    tempvar2 = np.zeros((num_features, N), dtype=np.float_)
+    f_tildes = np.zeros((N, num_features), dtype=np.float64)
+    tempvar1 = np.zeros((num_features, N), dtype=np.float64)
+    tempvar2 = np.zeros((num_features, N), dtype=np.float64)
     rng = np.random.default_rng()
-    covariance = np.zeros((num_features,), dtype=np.float_)
-    variance = np.zeros((num_features,), dtype=np.float_)
+    covariance = np.zeros((num_features,), dtype=np.float64)
+    variance = np.zeros((num_features,), dtype=np.float64)
 
     for i in range(permutations + 1):
         if i > 0:
@@ -74,7 +74,7 @@ def pearson_coefficient(
     return np.stack(pearson_coefficient_list, axis=0)
 
 
-def _validate(feature_arr: npt.NDArray[np.float_]):
+def _validate(feature_arr: npt.NDArray[np.float64]):
     for i in range(feature_arr.shape[1]):
         v = feature_arr[:, i]
         if np.all(v == v[0]):
@@ -88,8 +88,8 @@ def _validate(feature_arr: npt.NDArray[np.float_]):
 
 
 def _to_distribution(
-    dist_mat: npt.NDArray[np.float_], epsilon: float
-) -> npt.NDArray[np.float_]:
+    dist_mat: npt.NDArray[np.float64], epsilon: float
+) -> npt.NDArray[np.float64]:
     """
     Convert a distance matrix on N elements to a probability distribution on
     N x N elements by a two step process:
@@ -109,13 +109,13 @@ def _to_distribution(
 
 
 def multilinear_regression(
-    X: npt.NDArray[np.float_], Y: npt.NDArray[np.float_]
+    X: npt.NDArray[np.float64], Y: npt.NDArray[np.float64]
 ) -> tuple[
-    npt.NDArray[np.float_],
-    npt.NDArray[np.float_],
-    npt.NDArray[np.float_],
-    npt.NDArray[np.float_],
-    npt.NDArray[np.float_],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
 ]:
     """
     Compute the least-squares solution b to Y = Xb
@@ -155,8 +155,8 @@ def benjamini_hochberg(p_values: npt.NDArray) -> npt.NDArray:
 
 
 def permutation_pvalue(
-    X: npt.NDArray[np.float_], A: npt.NDArray[np.float_]
-) -> npt.NDArray[np.float_]:
+    X: npt.NDArray[np.float64], A: npt.NDArray[np.float64]
+) -> npt.NDArray[np.float64]:
     """
     p-value is computed from Phipson and Smyth, "Permutation P-values should never be zero."
 
@@ -173,13 +173,13 @@ def permutation_pvalue(
 
 
 def laplacian_score_w_covariates(
-    feature_arr: npt.NDArray[np.float_],
-    distance_matrix: npt.NDArray[np.float_],
+    feature_arr: npt.NDArray[np.float64],
+    distance_matrix: npt.NDArray[np.float64],
     epsilon: float,
     permutations: int,
-    covariates: npt.NDArray[np.float_],
+    covariates: npt.NDArray[np.float64],
     return_random_laplacians: bool,
-) -> tuple[dict[str, npt.NDArray[np.float_]], dict[str, npt.NDArray[np.float_]]]:
+) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
     """
     :param feature_arr: An array of shape (N ,num_features), where N is the \
     number of nodes in the graph, and num_features is \
@@ -229,7 +229,7 @@ def laplacian_score_w_covariates(
     num_covariates = covariates.shape[1]
     A = np.concatenate((feature_arr, covariates), axis=1)
     assert A.shape == (N, num_features + num_covariates)
-    laplacians: npt.NDArray[np.float_] = (
+    laplacians: npt.NDArray[np.float64] = (
         np.negative(pearson_coefficient(A, distribution, permutations)) + 1.0
     )
 
@@ -246,7 +246,7 @@ def laplacian_score_w_covariates(
     # random covariate laplacians
     rcl = np.concatenate(
         (
-            np.full((permutations, 1), fill_value=1, dtype=np.float_),
+            np.full((permutations, 1), fill_value=1, dtype=np.float64),
             laplacians[1:, num_features:],
         ),
         axis=1,
@@ -293,12 +293,12 @@ def laplacian_score_w_covariates(
 
 
 def laplacian_score_no_covariates(
-    feature_arr: npt.NDArray[np.float_],
-    distance_matrix: npt.NDArray[np.float_],
+    feature_arr: npt.NDArray[np.float64],
+    distance_matrix: npt.NDArray[np.float64],
     epsilon: float,
     permutations: int,
     return_random_laplacians: bool,
-) -> tuple[dict[str, npt.NDArray[np.float_]], dict[str, npt.NDArray[np.float_]]]:
+) -> tuple[dict[str, npt.NDArray[np.float64]], dict[str, npt.NDArray[np.float64]]]:
     """
     :param feature_arr: An array of shape (N ,num_features), where N is the \
         number of nodes in the graph, and num_features is \
@@ -333,7 +333,7 @@ def laplacian_score_no_covariates(
     """
 
     distribution = _to_distribution(distance_matrix, epsilon)
-    laplacians: npt.NDArray[np.float_] = (
+    laplacians: npt.NDArray[np.float64] = (
         np.negative(pearson_coefficient(feature_arr, distribution, permutations)) + 1.0
     )
     true_laplacians = laplacians[0, :]
@@ -349,13 +349,13 @@ def laplacian_score_no_covariates(
 
 
 def laplacian_scores(
-    feature_arr: npt.NDArray[np.float_],
-    distance_matrix: npt.NDArray[np.float_],
+    feature_arr: npt.NDArray[np.float64],
+    distance_matrix: npt.NDArray[np.float64],
     epsilon: float,
     permutations: int,
-    covariates: Optional[npt.NDArray[np.float_]],
+    covariates: Optional[npt.NDArray[np.float64]],
     return_random_laplacians: bool,
-) -> dict[str, npt.NDArray[np.float_]]:
+) -> dict[str, npt.NDArray[np.float64]]:
     """
     :param feature_arr: An array of shape (N, num_features), where N is the
         number of nodes in the graph, and num_features is

@@ -115,7 +115,7 @@ def _binary_stepwise_search(forest: SWCForest, num_samples: int) -> float:
 
 def get_sample_pts_euclidean(
     forest: SWCForest, step_size: float
-) -> list[npt.NDArray[np.float_]]:
+) -> list[npt.NDArray[np.float64]]:
     """
     Sample points uniformly throughout the forest, starting at the roots, \
      at the given step size.
@@ -125,7 +125,7 @@ def get_sample_pts_euclidean(
     arrays of shape (3,). The list length depends (inversely) \
     on the value of `step_size`.
     """
-    sample_pts_list: list[npt.NDArray[np.float_]] = []
+    sample_pts_list: list[npt.NDArray[np.float64]] = []
     for tree in forest:
         sample_pts_list.append(np.array(tree.root.coord_triple))
     treelist = [(tree, 0.0) for tree in forest]
@@ -156,7 +156,7 @@ def get_sample_pts_euclidean(
     return sample_pts_list
 
 
-def euclidean_point_cloud(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_]:
+def euclidean_point_cloud(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float64]:
     r"""
     Compute the (Euclidean) point cloud matrix for the forest with n sample points.
 
@@ -165,7 +165,7 @@ def euclidean_point_cloud(forest: SWCForest, num_samples: int) -> npt.NDArray[np
     :return: A rectangular matrix of shape (n,3).
     """
     if len(forest) >= num_samples:
-        pts: list[npt.NDArray[np.float_]] = []
+        pts: list[npt.NDArray[np.float64]] = []
         for i in range(num_samples):
             pts.append(np.array(forest[i].root.coord_triple))
     else:
@@ -174,7 +174,7 @@ def euclidean_point_cloud(forest: SWCForest, num_samples: int) -> npt.NDArray[np
     return np.stack(pts)
 
 
-def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float_]:
+def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float64]:
     r"""
     Compute the (Euclidean) intracell distance matrix for the forest with n sample points.
 
@@ -374,7 +374,7 @@ def get_sample_pts_geodesic(
     raise Exception("Binary search timed out.")
 
 
-def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float_]:
+def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float64]:
     r"""
     Compute the intracell distance matrix for `tree` using the geodesic metric.
 
@@ -404,7 +404,7 @@ def read_preprocess_compute_euclidean(
     file_name: str,
     n_sample: int,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]],
-) -> Union[Err[T], npt.NDArray[np.float_]]:
+) -> Union[Err[T], npt.NDArray[np.float64]]:
     r"""
     Read the swc file, apply a preprocessor, and compute the Euclidean distance matrix.
 
@@ -435,7 +435,7 @@ def read_preprocess_compute_geodesic(
     file_name: str,
     n_sample: int,
     preprocess: Callable[[SWCForest], Union[Err[T], NeuronTree]],
-) -> Union[Err[T], npt.NDArray[np.float_]]:
+) -> Union[Err[T], npt.NDArray[np.float64]]:
     r"""
     Read the swc file, apply a preprocessor, and compute the geodesic distance matrix.
 
@@ -465,7 +465,6 @@ def compute_icdm_all_euclidean(
     out_csv: str,
     n_sample: int,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
-    num_processes: int = 8,
     name_validate : Callable[str, bool] = default_name_validate
 ) -> list[tuple[str, Err[T]]]:
     r"""
@@ -506,10 +505,6 @@ def compute_icdm_all_euclidean(
         will be sampled. By default, no preprocessing is performed, and the
         neuron is processed as-is.
 
-    :param num_processes: the intracell distance matrices will be computed in
-        parallel processes, num_processes is the number of processes to run
-        simultaneously. Recommended to set equal to the number of cores on your
-        machine.
     :param name_validate: A boolean test on strings. Files will be read from the directory
         if name_validate is True (truthy).
     :return: List of pairs (cell_name, error), where cell_name is the cell for
@@ -519,11 +514,11 @@ def compute_icdm_all_euclidean(
     cell_names, file_paths = get_filenames(infolder, name_validate)
     assert len(cell_names) == len(file_paths)
 
-    def rpce(file_path: str) -> Union[Err[T], npt.NDArray[np.float_]]:
+    def rpce(file_path: str) -> Union[Err[T], npt.NDArray[np.float64]]:
         return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
 
     # args = zip([file_paths,repeat(n_sample),repeat(preprocess)])
-    icdms: Iterator[Union[Err[T], npt.NDArray[np.float_]]]
+    icdms: Iterator[Union[Err[T], npt.NDArray[np.float64]]]
     failed_cells: list[tuple[str, Err[T]]]
     # with ProcessPool(nodes=num_processes) as pool:
     # icdms = pool.imap(rpce, file_paths)
@@ -560,10 +555,10 @@ def compute_icdm_all_geodesic(
     """
     cell_names, file_paths = get_filenames(infolder, default_name_validate)
 
-    def rpcg(file_path) -> Union[Err[T], npt.NDArray[np.float_]]:
+    def rpcg(file_path) -> Union[Err[T], npt.NDArray[np.float64]]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
 
-    icdms: Iterator[Err[T] | npt.NDArray[np.float_]]
+    icdms: Iterator[Err[T] | npt.NDArray[np.float64]]
     failed_cells: list[tuple[str, Err[T]]]
     # with ProcessPool(nodes=num_processes) as pool:
     # pool.restart(force=True)

@@ -37,7 +37,7 @@ def two_d_projection(xyz: Matrix) -> Matrix:
     return xyz[:, 0:2] + MAGIC_NUMBER_2 * xyz[:, 2][:, np.newaxis]
 
 
-def histogram_density(xyz: Matrix, bins: int) -> npt.NDArray[np.float_]:
+def histogram_density(xyz: Matrix, bins: int) -> npt.NDArray[np.float64]:
     """
     Compute density estimates for the point cloud `xyz`. Assigns each point a
     nonnegative floating point number estimating the local density of the point
@@ -58,7 +58,7 @@ def histogram_density(xyz: Matrix, bins: int) -> npt.NDArray[np.float_]:
     return density[xinds, yinds]
 
 
-def gaussian_density(xyz: Matrix) -> npt.NDArray[np.float_]:
+def gaussian_density(xyz: Matrix) -> npt.NDArray[np.float64]:
     """
     Compute density estimates for the point cloud `xyz`. Assigns each point a
     nonnegative floating point number estimating the local density of the
@@ -90,9 +90,9 @@ def normalized_relative_dispersion(
     feature1_dispersion: DistanceMatrix,
     feature2_dispersion: DistanceMatrix,
     feature3_dispersion: DistanceMatrix,
-) -> tuple[npt.NDArray[np.float_],
-           npt.NDArray[np.float_],
-           npt.NDArray[np.float_]]:
+) -> tuple[npt.NDArray[np.float64],
+           npt.NDArray[np.float64],
+           npt.NDArray[np.float64]]:
     """
     Given three morphology spaces, normalize each one by scaling it to its
     average, compute the three pairwise distributions of relative differences,
@@ -200,7 +200,7 @@ def ternary_distance_clusters(
         bins: Optional[int] = None,
         contour_lines: int = 4,
         figsize: int = 4,
-        clusters: Optional[npt.NDArray[np.float_]] = None,
+        clusters: Optional[npt.NDArray[np.float64]] = None,
         min_cluster_size = 30,
         mpl_params: dict = {'s':1, 'alpha':.3}
 ):

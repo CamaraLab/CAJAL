@@ -40,7 +40,7 @@ class Modality:
             local_bandwidths.append(avg_distance)
         return np.array(local_bandwidths)
 
-    def __init__(self, obsv: npt.NDArray[np.float_]):
+    def __init__(self, obsv: npt.NDArray[np.float64]):
         """
         The primary constructor for the Modality class is used when the user has direct access to
         a sequence of observations in n dimensional space.
@@ -110,7 +110,7 @@ def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
         return prediction_vectors
 
     def cross_modality_affinities(
-        m: Modality, prediction_vectors: npt.NDArray[np.float_]
+        m: Modality, prediction_vectors: npt.NDArray[np.float64]
     ):
         """
         :param m: "target" modality (to be predicted)

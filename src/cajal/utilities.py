@@ -63,7 +63,7 @@ def dist_mat_of_dict(
     gw_dist_dictionary: dict[tuple[str, str], float],
     cell_names: Iterable[str],
     as_squareform: bool = True,
-) -> npt.NDArray[np.float_]:
+) -> npt.NDArray[np.float64]:
     """
     Given a distance dictionary and a list of cell names, return a square distance \
     matrix containing the pairwise GW distances between all cells in `cell_names`, and \
@@ -81,7 +81,7 @@ def dist_mat_of_dict(
     for first_cell, second_cell in it.combinations(cell_names, 2):
         first_cell, second_cell = sorted([first_cell, second_cell])
         dist_list.append(gw_dist_dictionary[(first_cell, second_cell)])
-    arr = np.array(dist_list, dtype=np.float_)
+    arr = np.array(dist_list, dtype=np.float64)
     if as_squareform:
         return squareform(arr, force="tomatrix")
     return arr
@@ -124,7 +124,7 @@ def read_gw_dists_pd(
 
 def read_gw_couplings(
     gw_couplings_file_loc: str, header: bool
-) -> dict[tuple[str, str], npt.NDArray[np.float_]]:
+) -> dict[tuple[str, str], npt.NDArray[np.float64]]:
     """
     Read a list of Gromov-Wasserstein coupling matrices into memory.
     :param header: If True, the first line of the file will be ignored.
@@ -138,7 +138,7 @@ def read_gw_couplings(
     matrix of the coupling. `firstcell` and `secondcell` are in alphabetical order.
     """
 
-    gw_coupling_mat_dict: dict[tuple[str, str], npt.NDArray[np.float_]] = {}
+    gw_coupling_mat_dict: dict[tuple[str, str], npt.NDArray[np.float64]] = {}
     with open(gw_couplings_file_loc, "r", newline="") as gw_file:
         csvreader = csv.reader(gw_file, delimiter=",")
         linenum = 1
@@ -183,7 +183,7 @@ class Err(Generic[T]):
 def write_csv_block(
     out_csv: str,
     sidelength: int,
-    dist_mats: Iterator[tuple[str, Union[Err[T], npt.NDArray[np.float_]]]],
+    dist_mats: Iterator[tuple[str, Union[Err[T], npt.NDArray[np.float64]]]],
     batch_size: int,
 ) -> list[tuple[str, Err[T]]]:
     """
@@ -209,7 +209,7 @@ def write_csv_block(
     return failed_cells
 
 
-def knn_graph(dmat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
+def knn_graph(dmat: npt.NDArray[np.float64], nn: int) -> npt.NDArray[np.int_]:
     """
     :param dmat: squareform distance matrix
     :param nn: (nearest neighbors) - in the returned graph, nodes v and w will be \
@@ -226,7 +226,7 @@ def knn_graph(dmat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
     return graph
 
 
-def louvain_clustering(gw_mat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[np.int_]:
+def louvain_clustering(gw_mat: npt.NDArray[np.float64], nn: int) -> npt.NDArray[np.int_]:
     """
     Compute clustering of cells based on GW distance, using Louvain clustering on a
     nearest-neighbors graph
@@ -249,7 +249,7 @@ def louvain_clustering(gw_mat: npt.NDArray[np.float_], nn: int) -> npt.NDArray[n
 
 
 def leiden_clustering(
-    gw_mat: npt.NDArray[np.float_],
+    gw_mat: npt.NDArray[np.float64],
     nn: int = 5,
     resolution: Optional[float] = None,
     seed: Optional[int] = None,
@@ -304,7 +304,7 @@ def identify_medoid(
     ]
 
 
-def cap(a: npt.NDArray[np.float_], c: float) -> npt.NDArray[np.float_]:
+def cap(a: npt.NDArray[np.float64], c: float) -> npt.NDArray[np.float64]:
     """
     Return a copy of `a` where values above `c` in `a` are replaced with `c`.
     """
@@ -313,7 +313,7 @@ def cap(a: npt.NDArray[np.float_], c: float) -> npt.NDArray[np.float_]:
     return a1
 
 
-def step_size(icdm: npt.NDArray[np.float_]) -> float:
+def step_size(icdm: npt.NDArray[np.float64]) -> float:
     """
     Heuristic to estimate the step size a neuron was sampled at.
     :param icdm: Vectorform distance matrix.
@@ -324,9 +324,9 @@ def step_size(icdm: npt.NDArray[np.float_]) -> float:
 def orient(
     medoid: str,
     obj_name: str,
-    iodm: npt.NDArray[np.float_],
+    iodm: npt.NDArray[np.float64],
     gw_coupling_mat_dict: dict[tuple[str, str], coo_matrix],
-) -> npt.NDArray[np.float_]:
+) -> npt.NDArray[np.float64]:
     """
     :param medoid: String naming the medoid object, its key in iodm
     :param obj_name: String naming the object to be compared to
@@ -346,7 +346,7 @@ def orient(
 def avg_shape(
     obj_names: list[str],
     gw_dist_dict: dict[tuple[str, str], float],
-    iodms: dict[str, npt.NDArray[np.float_]],
+    iodms: dict[str, npt.NDArray[np.float64]],
     gw_coupling_mat_dict: dict[tuple[str, str], coo_matrix],
 ):
     """
@@ -403,7 +403,7 @@ def avg_shape(
 def avg_shape_spt(
     obj_names: list[str],
     gw_dist_dict: dict[tuple[str, str], float],
-    iodms: dict[str, npt.NDArray[np.float_]],
+    iodms: dict[str, npt.NDArray[np.float64]],
     gw_coupling_mat_dict: dict[tuple[str, str], coo_matrix],
     k: int,
 ):

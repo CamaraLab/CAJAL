@@ -30,13 +30,13 @@ from .gw_cython import GW_cell, gw_cython_core
 
 T = TypeVar("T")
 
-Distribution: TypeAlias = npt.NDArray[np.float_]
+Distribution: TypeAlias = npt.NDArray[np.float64]
 # A DistanceMatrix is a square symmetric matrix with zeros along the diagonal
 # and nonnegative entries.
-DistanceMatrix: TypeAlias = npt.NDArray[np.float_]
-Matrix = NewType("Matrix", npt.NDArray[np.float_])
+DistanceMatrix: TypeAlias = npt.NDArray[np.float64]
+Matrix = NewType("Matrix", npt.NDArray[np.float64])
 # An Array is a one-dimensional matrix.
-Array = NewType("Array", npt.NDArray[np.float_])
+Array = NewType("Array", npt.NDArray[np.float64])
 # A MetricMeasureSpace is a pair consisting of a DistanceMatrix `A` and a Distribution `a`
 # such that `A.shape[0]==`a.shape[0]`.
 MetricMeasureSpace: TypeAlias = tuple[DistanceMatrix, Distribution]
@@ -159,7 +159,7 @@ def _batched_cell_list_iterator_csv(
                 (
                     cell_id,
                     ell[0],
-                    squareform(np.array([float(x) for x in ell[1:]], dtype=np.float_)),
+                    squareform(np.array([float(x) for x in ell[1:]], dtype=np.float64)),
                 )
                 for (cell_id, ell) in outer_batch
             ]
@@ -263,7 +263,7 @@ def _gw_index(p: tuple[int, int]
     return (i, j, coupling_mat, gw_dist)
 
 
-def stringify_coupling_mat(A: npt.NDArray[np.float_]) -> list[str]:
+def stringify_coupling_mat(A: npt.NDArray[np.float64]) -> list[str]:
     """Convert a coupling matrix into a string."""
     a = coo_matrix(A)
     return (
@@ -427,7 +427,7 @@ def gw(
     return gw_cython_core(A, a, Aa, c_A, B, b, Bb, c_B, max_iters_descent, max_iters_ot)
 
 
-def uniform(n : int) -> npt.NDArray[np.float_]:
+def uniform(n : int) -> npt.NDArray[np.float64]:
     """Compute the uniform distribution on n points, as a vector of floats."""
     return np.ones((n,), dtype=float) / n
 

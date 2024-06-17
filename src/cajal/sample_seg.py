@@ -18,7 +18,7 @@ def cell_boundaries(
     background: int = 0,
     discard_cells_with_holes: bool = False,
     only_longest: bool = False,
-) -> List[Tuple[int, npt.NDArray[np.float_]]]:
+) -> List[Tuple[int, npt.NDArray[np.float64]]]:
     """
     Sample n coordinates from the boundary of each cell in a segmented image,
     skipping cells that touch the border of the image
@@ -48,7 +48,7 @@ def cell_boundaries(
     remove_cells.update(np.unique(imarray[:, -1]))
     cell_id_list = list(cell_ids.difference(remove_cells))
 
-    outlist: List[npt.NDArray[np.float_]] = []
+    outlist: List[npt.NDArray[np.float64]] = []
     for cell in cell_id_list:
         if cell == background:  # Don't draw a boundary around background
             continue
@@ -59,7 +59,7 @@ def cell_boundaries(
         if discard_cells_with_holes and len(boundary_pts_list) > 1:
             warnings.warn("More than one boundary for cell " + str(cell))
             continue
-        boundary_pts: npt.NDArray[np.float_]
+        boundary_pts: npt.NDArray[np.float64]
         if only_longest:
             boundary_pts_list.sort(key=lambda ell: ell.shape[0])
             boundary_pts = boundary_pts_list[0]
@@ -84,7 +84,7 @@ def _compute_intracell_all(
     background: int,
     discard_cells_with_holes: bool,
     only_longest: bool,
-) -> Iterator[Tuple[str, npt.NDArray[np.float_]]]:
+) -> Iterator[Tuple[str, npt.NDArray[np.float64]]]:
     file_names = [
         file_name
         for file_name in os.listdir(infolder)
@@ -92,7 +92,7 @@ def _compute_intracell_all(
     ]
     cell_names = [os.path.splitext(file_name)[0] for file_name in file_names]
 
-    # compute_cell_boundaries: Callable[[str], List[Tuple[int, npt.NDArray[np.float_]]]]
+    # compute_cell_boundaries: Callable[[str], List[Tuple[int, npt.NDArray[np.float64]]]]
     def compute_cell_boundaries(file_name: str):
         return cell_boundaries(
             tifffile.imread(os.path.join(infolder, file_name)),  # type: ignore
@@ -105,21 +105,21 @@ def _compute_intracell_all(
     cell_names_repeat: Iterator[Iterator[str]]
     cell_names_repeat = map(it.repeat, cell_names)
     cell_bdary_lists: Iterator[
-        Tuple[Iterator[str], Iterator[Tuple[int, npt.NDArray[np.float_]]]]
+        Tuple[Iterator[str], Iterator[Tuple[int, npt.NDArray[np.float64]]]]
     ]
     cell_bdary_lists = zip(
         cell_names_repeat, pool.imap(compute_cell_boundaries, file_names, chunksize=100)
     )
     cell_bdary_list_iters: Iterator[
-        Iterator[Tuple[str, Tuple[int, npt.NDArray[np.float_]]]]
+        Iterator[Tuple[str, Tuple[int, npt.NDArray[np.float64]]]]
     ]
     cell_bdary_list_iters = map(lambda tup: zip(tup[0], tup[1]), cell_bdary_lists)
-    cell_bdary_list_flattened: Iterator[Tuple[str, Tuple[int, npt.NDArray[np.float_]]]]
+    cell_bdary_list_flattened: Iterator[Tuple[str, Tuple[int, npt.NDArray[np.float64]]]]
     cell_bdary_list_flattened = it.chain.from_iterable(cell_bdary_list_iters)
 
     def restructure_and_get_pdist(
-        tup: tuple[str, tuple[int, npt.NDArray[np.float_]]]
-    ) -> tuple[str, npt.NDArray[np.float_]]:
+        tup: tuple[str, tuple[int, npt.NDArray[np.float64]]]
+    ) -> tuple[str, npt.NDArray[np.float64]]:
         name = tup[0] + "_" + str(tup[1][0])
         pd = pdist(tup[1][1])
         return name, pd

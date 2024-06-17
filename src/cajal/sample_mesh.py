@@ -28,7 +28,7 @@ from typing import (
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 
-    VertexArray: TypeAlias = npt.NDArray[np.float_]
+    VertexArray: TypeAlias = npt.NDArray[np.float64]
     FaceArray: TypeAlias = npt.NDArray[np.int_]
 
 from pathos.pools import ProcessPool
@@ -239,7 +239,7 @@ def sample_vertices(vertices: VertexArray, n_sample: int) -> Optional[VertexArra
 
 def get_geodesic_heat_one_mesh(
     vertices: VertexArray, faces: FaceArray, n_sample: int
-) -> Optional[npt.NDArray[np.float_]]:
+) -> Optional[npt.NDArray[np.float64]]:
     r"""
     Given a mesh, randomly sample n_sample points from the mesh, \
     compute the pairwise geodesic distances between the sampled points using the heat method, \
@@ -273,7 +273,7 @@ def get_geodesic_heat_one_mesh(
 
 def get_geodesic_networkx_one_mesh(
     vertices: VertexArray, faces: FaceArray, n_sample: int
-) -> Optional[npt.NDArray[np.float_]]:
+) -> Optional[npt.NDArray[np.float64]]:
     """
     Given a mesh, randomly sample n_sample points from the \
     mesh, computes the pairwise geodesic distances between the sampled points \
@@ -310,7 +310,7 @@ def get_geodesic_networkx_one_mesh(
 
 def get_geodesic(
     vertices: VertexArray, faces: FaceArray, n_sample: int, method: str
-) -> Optional[npt.NDArray[np.float_]]:
+) -> Optional[npt.NDArray[np.float64]]:
     """
     Sample `n_sample` many points and compute an intracell distance matrix of pairwise \
     geodesic distances between points.
@@ -338,7 +338,7 @@ def compute_intracell_all(
     pool: ProcessPool,
     segment: bool = True,
     method: Literal["networkx"] | Literal["heat"] = "networkx",
-) -> Iterator[Tuple[str, Optional[npt.NDArray[np.float_]]]]:
+) -> Iterator[Tuple[str, Optional[npt.NDArray[np.float64]]]]:
     if metric == "geodesic" and not segment:
         cell_gen = pool.imap(
             _connect_helper, cell_generator(infolder, segment), chunksize=1
@@ -350,12 +350,12 @@ def compute_intracell_all(
         chunksize = 1 if method == "networkx" else 20
         compute_geodesic: Callable[
             [Tuple[str, VertexArray, FaceArray]],
-            Tuple[str, Optional[npt.NDArray[np.float_]]],
+            Tuple[str, Optional[npt.NDArray[np.float64]]],
         ]
 
         def compute_geodesic(
             t: tuple[str, VertexArray, FaceArray]
-        ) -> tuple[str, Optional[npt.NDArray[np.float_]]]:
+        ) -> tuple[str, Optional[npt.NDArray[np.float64]]]:
             return t[0], get_geodesic(t[1], t[2], n_sample, method)
 
         # compute_geodesic = lambda t: (t[0], get_geodesic(t[1], t[2], n_sample, method))

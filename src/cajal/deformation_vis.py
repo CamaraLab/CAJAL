@@ -10,10 +10,10 @@ from scipy.spatial.distance import squareform, pdist
 
 @jit(nopython=True, parallel=True)
 def deformation(
-    A: npt.NDArray[np.float_],
-    B: npt.NDArray[np.float_],
-    coupling_mat: npt.NDArray[np.float_],
-) -> tuple[npt.NDArray[np.float_], npt.NDArray[np.float_]]:
+    A: npt.NDArray[np.float64],
+    B: npt.NDArray[np.float64],
+    coupling_mat: npt.NDArray[np.float64],
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """
     :param A: A two-dimensional intracell distance matrix, square of shape (N,N).
     :param B: A two-dimensional intracell distance matrix, square of size (M,M).
@@ -48,7 +48,7 @@ def deformation(
 
 
 def _remove_empty_clusters(
-    centroid_cloud: npt.NDArray[np.float_],
+    centroid_cloud: npt.NDArray[np.float64],
     labels: npt.NDArray[np.int_],
 ):
     """
@@ -76,7 +76,7 @@ def _remove_empty_clusters(
 
 def distribution_of_clustering(
     labels: npt.NDArray[np.int_],
-) -> npt.NDArray[np.float_]:
+) -> npt.NDArray[np.float64]:
     """
     :param labels: An array of integer labels for classes/clusters.
     :return: A probability distribution on the clusters which assigns to each cluster
@@ -86,7 +86,7 @@ def distribution_of_clustering(
     counts = []
     for i in range(max(labels) + 1):
         counts.append(np.count_nonzero(labels == i))
-    counts_arr = np.array(counts, dtype=np.float_)
+    counts_arr = np.array(counts, dtype=np.float64)
     return counts_arr / np.sum(counts_arr)
 
 
@@ -121,15 +121,15 @@ def quantized_icdm_lightweight(
 
 
 def heatmap_of_ptclouds(
-    ptcloudA: npt.NDArray[np.float_],
+    ptcloudA: npt.NDArray[np.float64],
     num_clusters_A: int,
-    ptcloudB: npt.NDArray[np.float_],
+    ptcloudB: npt.NDArray[np.float64],
     num_clusters_B: int,
 ) -> tuple[
     npt.NDArray[np.int_],
-    npt.NDArray[np.float_],
+    npt.NDArray[np.float64],
     npt.NDArray[np.int_],
-    npt.NDArray[np.float_],
+    npt.NDArray[np.float64],
 ]:
     """
     :param ptcloudA: A point cloud of shape `(n,k)`, where `n` is the number of points in the cloud
