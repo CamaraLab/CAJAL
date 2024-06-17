@@ -15,7 +15,7 @@ name = "cajal"
 version = "1.0.0"
 description="A library for multi-modal cell morphology analyses using Gromov-Wasserstein (GW) distance."
 readme="./README.md"
-requires-python=">=3.9"
+requires-python=">=3.9,<=3.11"
 
 
 authors= [ { name="Pablo Cámara", email='pcamara@pennmedicine.upenn.edu' } ]
