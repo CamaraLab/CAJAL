@@ -41,7 +41,9 @@ dependencies = [
         "scikit-image",
         "tifffile",
         "trimesh",
-        "umap-learn>=0.5.3"
+        "umap-learn>=0.5.3",
+	"mpltern>=1.0.0",
+	"scikit-dimension"
 	]
 
 [project.optional-dependencies]
