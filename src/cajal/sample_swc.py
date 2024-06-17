@@ -527,7 +527,7 @@ def compute_icdm_all_euclidean(
     tq_icdms = tqdm(icdms, total=len(cell_names))
 
     failed_cells = write_csv_block(
-        out_csv, n_sample, zip(cell_names, tq_icdms), 3 * num_processes
+        out_csv, n_sample, zip(cell_names, tq_icdms), 3
     )
     return failed_cells
 
