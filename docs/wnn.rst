@@ -5,12 +5,14 @@ This page documents an implementation of the weighted nearest neighbors algorith
 `Integrated analysis of multimodal single-cell data <https://www.sciencedirect.com/science/article/pii/S0092867421005833>`_.
 
 Given a set of cells :math:`c_1,c_2,\dots,c_k` we may measure or observe the cells with different technologies, collecting (for example)
+
 - electrophsyiological feature vectors :math:`e_1,\dots, e_k \in \mathbb{R}^n`
 - transcriptomic feature vectors from a reduced :math:`e_1,\dots, e_k \in \mathbb{R}^m`
 - pairwise Gromov-Wasserstein distances :math:`m_{ij}=d_GW(c_i,c_j)` for all :math:`i,j`
 - (...)
 
 Here we restrict ourselves to measurements which can be expressed as
+
 - a list of :math:`k` vectors in some finite-dimensional Euclidean space
 - a pairwise distance or dissimilarity matrix
 
