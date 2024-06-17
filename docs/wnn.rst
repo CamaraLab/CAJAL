@@ -8,7 +8,7 @@ Given a set of cells :math:`c_1,c_2,\dots,c_k` we may measure or observe the cel
 
 - electrophsyiological feature vectors :math:`e_1,\dots, e_k \in \mathbb{R}^n`
 - transcriptomic feature vectors from a reduced :math:`e_1,\dots, e_k \in \mathbb{R}^m`
-- pairwise Gromov-Wasserstein distances :math:`m_{ij}=d_GW(c_i,c_j)` for all :math:`i,j`
+- pairwise Gromov-Wasserstein distances :math:`m_{ij}=d_{GW}(c_i,c_j)` for all :math:`i,j`
 - (...)
 
 Here we restrict ourselves to measurements which can be expressed as
