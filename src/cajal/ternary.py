@@ -4,7 +4,7 @@ from math import sqrt
 import numpy as np
 import numpy.typing as npt
 from numpy.linalg import norm
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 
 from scipy.spatial.distance import squareform
 from scipy.stats import gaussian_kde
@@ -205,7 +205,7 @@ def ternary_distance_clusters(
         bins: Optional[int] = None,
         contour_lines: int = 4,
         figsize: int = 4,
-        clusters: Optional[npt.NDArray[Any]] = None,
+        clusters: Optional[npt.NDArray] = None,
         min_cluster_size = 30,
         mpl_params: dict = {'s':1, 'alpha':.3}
 ):
