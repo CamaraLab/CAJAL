@@ -1,3 +1,3 @@
 Ternary Plots
 =============
-..autofunction:: cajal.ternary_plot.ternary_plot_clusters
+.. autofunction:: cajal.ternary_plot.ternary_plot_clusters
