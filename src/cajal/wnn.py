@@ -98,7 +98,7 @@ class Modality:
 def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
     """
     Compute the weighted nearest neighbors pairing, following
-    `Integrated analysis of multimodal single-cell data <https://www.sciencedirect.com/science/article/pii/S0092867421005833>`
+    `Integrated analysis of multimodal single-cell data <https://www.sciencedirect.com/science/article/pii/S0092867421005833>`_
 
     This algorithm differs from the published algorithm in the paper in a few ways.
     In particular we do not take the L2 normalization of columns of the matrix before we begin.
