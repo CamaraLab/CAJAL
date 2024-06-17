@@ -12,6 +12,11 @@ from .run_gw import DistanceMatrix, Matrix
 
 
 def normalize_to_unit_mean(A: DistanceMatrix):
+    """
+    :param A: A distance matrix.
+    :returns: The distance matrix `A`, rescaled so that the
+        mean distance between distinct points is 1.
+    """
     v = squareform(A, force="tovector")
     mean = np.average(v)
     return A / mean
@@ -74,7 +79,7 @@ def gaussian_density(xyz: Matrix) -> npt.NDArray[np.float64]:
 def normalize(feature_dispersion: DistanceMatrix, add_one: bool = False,
               center_at_zero: bool = True):
     """
-    The assumptions
+    Standardize the data as controlled by the arguments.
     """
     fd = squareform(feature_dispersion, force="tovector")
     if add_one:
@@ -200,11 +205,22 @@ def ternary_distance_clusters(
         bins: Optional[int] = None,
         contour_lines: int = 4,
         figsize: int = 4,
-        clusters: Optional[npt.NDArray[np.float64]] = None,
+        clusters: Optional[npt.NDArray[Any]] = None,
         min_cluster_size = 30,
         mpl_params: dict = {'s':1, 'alpha':.3}
 ):
-    #print("!")
+    """
+    :param density_estimation: Controls the method by which density of the input space is estimated.
+    :param bins: How many bins to use for the histogram in each dimension when
+        estimating the gradient. If fewer bins are chosen, the coloring will be
+        more homogeneous and change gradually. If more bins are chosen, the
+        coloring will vary more.
+    :param contour_lines: How many contour lines to draw.
+    :param figsize: Passed to matplotlib.pyplot.subplots.
+    :param clusters: Labels for clusters, should be the same length as the distance matrices featurei_dispersion
+    :param min_cluster_size: Ignore clusters below the threshold size (density plots are somewhat useless when there are very few observations)
+    :param mpl_params: Passed to matplotlib.
+    """
 
     d12, d23, d31 = normalized_relative_dispersion(
         feature1_dispersion, feature2_dispersion, feature3_dispersion

@@ -57,6 +57,8 @@ and with other single-cell data modalities, among other analyses.
    laplacian_score
    average_cell_shapes
    utilities
+   ternary_plot
+   wnn
 
 .. This is a comment.
    \\:hidden:

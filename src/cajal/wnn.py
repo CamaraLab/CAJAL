@@ -15,6 +15,19 @@ from .run_gw import DistanceMatrix
 
 
 class Modality:
+    """
+    A Modality is a dataset profiling a collection of cells from one perspective or using one technology.
+    It can be constructed using either a set of observations in n-dimensional space (a `k` by `n`) matrix,
+    where `k` is the number of cells and `n` is the dimensionality of the ambient space;
+    or it can be constructed using a distance matrix (a `k` by `k`).
+    If only a distance matrix is supplied, then the constructor chooses an embedding of the points in the
+    distance matrix into n-dimensional space using Isomap,
+    so a set of observations in a vector space is preferable when it is available.
+
+    If using a distance matrix, a Modality object must be constructed together with a given number of neighbors to consider when
+    constructing the nearest neighbors graphs for the Isomap embedding.
+    This number should be as least as high as the number of neighbors you care about when analyzing the output of the WNN embedding.
+    """
     def local_bandwidth(self, margin_count: int = 20):
         n_obsv = self.nn_index_arr.shape[0]
         jaccard_counts = np.zeros(shape=self.nn_index_arr.shape, dtype=int)
@@ -59,6 +72,14 @@ class Modality:
     def of_dmat(
         dmat: DistanceMatrix, intrinsic_dim: Optional[int] = None, n_neighbors=20
     ):
+        """
+        :param dmat: A distance matrix.
+        :param intrinsic_dim: If you have computed the intrinsic dimension
+        of your space by a technique other than MADA, feed the precomputed dimension in here as a parameter.
+        :param n_neighbors: How many nearest neighbors to build when constructing the Isomap embedding.
+
+        :returns: A Modality object constructed from the distance matrix.
+        """
         m = Modality(np.array([[0, 1], [1, 0]]))
         if intrinsic_dim is None:
             intrinsic_dim: int = int(MADA(DM=True).fit_transform(np.copy(dmat)))
@@ -85,7 +106,13 @@ def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
 
     :param modalities: list of modalities
     :param k: how many nearest neighbors to consider
+    :param epsilon: This is a numerical stability parameter,
+       it is added to the denominator of a fraction to prevent dividing by zero.
+    :returns: A matrix of pairwise similarities (not distances!) which can be used in
+       training a k-nearest neighbors classifier to identify cells which are overall most like the query cell
+       from the perspective of multiple morphologies.
     """
+
     if k <= 0:
         raise Exception("k should be a positive integer.")
     if not modalities:
