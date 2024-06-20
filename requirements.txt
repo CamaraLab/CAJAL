@@ -11,7 +11,7 @@ fonttools==4.43.0
 igraph==0.10.2
 imageio==2.33.0
 ipykernel==6.29.4
-ipython==8.25.0
+ipython==8.18.1
 ipywidgets==8.0.2
 jedi==0.19.1
 joblib==1.2.0
