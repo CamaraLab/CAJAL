@@ -4,6 +4,7 @@
 # This Dockerfile builds a Docker image containing CAJAL and all its dependencies, from a local git repo for CAJAL.
 # To run this Dockerfile (build the docker image), put the CAJAL Git repository and this Dockerfile together in the same
 # folder. Rename this Dockerfile to "Dockerfile" if it is not called that already.
+# Edit the RUN command at the end of this file so that the filepaths are appropriate for your machine.
 # Navigate to that folder and run "docker build ." i.e.
 # $ ls myfolder
 # CAJAL Dockerfile
