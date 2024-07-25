@@ -81,3 +81,10 @@ force-exclude = '''
  | \.pre-commit-config.yaml
 )/
 '''
+
+[tool.codespell]
+# Ref: https://github.com/codespell-project/codespell#using-a-config-file
+skip = '.git*,*.css'
+check-hidden = true
+ignore-regex = '^\s*"image/\S+": ".*'
+# ignore-words-list = ''
