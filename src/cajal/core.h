@@ -2,7 +2,7 @@
  *
  * This file has been adapted by Nicolas Bonneel (2013), 
  * from full_graph.h from LEMON, a generic C++ optimization library,
- * to make the other files independant from the rest of 
+ * to make the other files independent from the rest of 
  * the original library.
  * 
  *

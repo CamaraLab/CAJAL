@@ -658,7 +658,7 @@ namespace lemon {
         /// \brief Run the algorithm.
         ///
         /// This function runs the algorithm.
-        /// The paramters can be specified using functions \ref lowerMap(),
+        /// The parameters can be specified using functions \ref lowerMap(),
         /// \ref upperMap(), \ref costMap(), \ref supplyMap(), \ref stSupply(),
         /// \ref supplyType().
         /// For example,
@@ -702,7 +702,7 @@ namespace lemon {
 
         /// \brief Reset all the parameters that have been given before.
         ///
-        /// This function resets all the paramaters that have been given
+        /// This function resets all the parameters that have been given
         /// before using functions \ref lowerMap(), \ref upperMap(),
         /// \ref costMap(), \ref supplyMap(), \ref stSupply(), \ref supplyType().
         ///
@@ -758,7 +758,7 @@ namespace lemon {
         /// that have been given before.
         ///
         /// This function resets the internal data structures and all the
-        /// paramaters that have been given before using functions \ref lowerMap(),
+        /// parameters that have been given before using functions \ref lowerMap(),
         /// \ref upperMap(), \ref costMap(), \ref supplyMap(), \ref stSupply(),
         /// \ref supplyType().
         ///
@@ -958,7 +958,7 @@ namespace lemon {
 
 			_sum_supply = 0;
 
-            // Initialize artifical cost
+            // Initialize artificial cost
             Cost ART_COST;
             if (std::numeric_limits<Cost>::is_exact) {
                 ART_COST = std::numeric_limits<Cost>::max() / 2 + 1;
@@ -1358,7 +1358,7 @@ namespace lemon {
                         }
                     }
                 } else {
-                    // Find the min. cost incomming arc for each demand node
+                    // Find the min. cost incoming arc for each demand node
                     for (int i = 0; i != demand_nodes.size(); ++i) {
                         Node v = demand_nodes[i];
                         Cost c, min_cost = std::numeric_limits<Cost>::max();

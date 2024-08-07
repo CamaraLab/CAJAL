@@ -796,7 +796,7 @@ namespace lemon_omp {
 		/// \brief Run the algorithm.
 		///
 		/// This function runs the algorithm.
-		/// The paramters can be specified using functions \ref lowerMap(),
+		/// The parameters can be specified using functions \ref lowerMap(),
 		/// \ref upperMap(), \ref costMap(), \ref supplyMap(), \ref stSupply(),
 		/// \ref supplyType().
 		/// For example,
@@ -840,7 +840,7 @@ namespace lemon_omp {
 
 		/// \brief Reset all the parameters that have been given before.
 		///
-		/// This function resets all the paramaters that have been given
+		/// This function resets all the parameters that have been given
 		/// before using functions \ref lowerMap(), \ref upperMap(),
 		/// \ref costMap(), \ref supplyMap(), \ref stSupply(), \ref supplyType().
 		///
@@ -890,7 +890,7 @@ namespace lemon_omp {
 		/// that have been given before.
 		///
 		/// This function resets the internal data structures and all the
-		/// paramaters that have been given before using functions \ref lowerMap(),
+		/// parameters that have been given before using functions \ref lowerMap(),
 		/// \ref upperMap(), \ref costMap(), \ref supplyMap(), \ref stSupply(),
 		/// \ref supplyType().
 		///
@@ -1090,7 +1090,7 @@ namespace lemon_omp {
 				(_stype == LEQ && _sum_supply >= 0))) return false;*/
 
 
-			// Initialize artifical cost
+			// Initialize artificial cost
 			Cost ART_COST;
 			if (std::numeric_limits<Cost>::is_exact) {
 				ART_COST = std::numeric_limits<Cost>::max() / 2 + 1;
@@ -1494,7 +1494,7 @@ namespace lemon_omp {
 					}
 				} else {
 					arc_vector.resize(demand_nodes.size());
-					// Find the min. cost incomming arc for each demand node
+					// Find the min. cost incoming arc for each demand node
 #pragma omp parallel for
 					for (int i = 0; i < demand_nodes.size(); ++i) {
 						Node v = demand_nodes[i];
