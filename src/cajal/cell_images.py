@@ -7,6 +7,7 @@ import warnings
 import itertools as it
 from typing import Any, Optional, Literal
 from multiprocessing import Pool, cpu_count
+from math import ceil
 
 import numpy as np
 import numpy.typing as npt
@@ -46,7 +47,7 @@ def polygon_to_bitmap(
     :param shape: The desired shape of the output boolean bitmap.
     """
 
-    if len(vertex_coords.shape) != 2 or vertex_coords[1] != 2:
+    if len(vertex_coords.shape) != 2 or vertex_coords.shape[1] != 2:
         raise ValueError("Vertex_coords should be of shape (z,2)")
 
     return Path(vertex_coords).contains_points(image_coords(shape)).reshape(shape)
@@ -69,10 +70,11 @@ def polygon_to_points(
     :param shape: The shape of a bounding box for the polygon, i.e.,
         the dimensions of the image that the cell is drawn from.
     """
-    if len(vertex_coords.shape) != 2 or vertex_coords[1] != 2:
+    if len(vertex_coords.shape) != 2 or vertex_coords.shape[1] != 2:
         raise ValueError("Vertex_coords should be of shape (z,2)")
-    bitmap = Path(vertex_coords).contains_points(image_coords(shape))
-    return vertex_coords[bitmap, :]
+    im_coords = image_coords(shape)
+    bitmap = Path(vertex_coords).contains_points(im_coords)
+    return im_coords[bitmap, :]
 
 
 def compute_geodesic_dmat(
@@ -89,7 +91,7 @@ def compute_geodesic_dmat(
     :param n_neigh: How many nearest neighbors to consider when
         computing the nearest neighbors graph.
     """
-    if len(coords.shape) != 2 or coords[1] != 2:
+    if len(coords.shape) != 2 or coords.shape[1] != 2:
         raise ValueError("coords should be of shape (z,2)")
 
     knn = kneighbors_graph(coords, n_neigh, mode="connectivity", include_self=False)
@@ -192,15 +194,18 @@ class CellImage:
             image_intensity_levels = np.array(
                 image_intensity_levels, copy=False, ndmin=3
             )
-        original_shape = image_intensity_levels.shape
-        resized_shape = (
-            original_shape[0],
-            original_shape[1] // downsample,
-            original_shape[2] // downsample,
-        )
+        elif len(image_intensity_levels.shape) != 3:
+            raise ValueError("`image_intensity_levels` should be three-dimensional.")
+
+        # original_shape = image_intensity_levels.shape
+        # resized_shape = (
+        #     original_shape[0],
+        #     original_shape[1] // downsample,
+        #     original_shape[2] // downsample,
+        # )
         # Resize the image.
-        image_intensity_levels = skimage.transform.resize(
-            image_intensity_levels, resized_shape, channel_axis=0
+        image_intensity_levels = skimage.transform.rescale(
+            image_intensity_levels, 1 / downsample, channel_axis=0, anti_aliasing=True
         )
         # Cap all pixel intensities at rescale_threshold.
         image_intensity_levels = np.maximum(
@@ -209,19 +214,42 @@ class CellImage:
                 :, np.newaxis, np.newaxis
             ],
         )
+
+        polygonal_boundary /= downsample
+        x_min, y_min = np.min(polygonal_boundary, axis=0)
+        x_min, y_min = int(x_min), int(y_min)
+        x_max, y_max = np.max(polygonal_boundary, axis=0)
+        x_max, y_max = int(ceil(x_max)), int(ceil(y_max))
+        image_intensity_levels = image_intensity_levels[
+            :, x_min : (x_max + 1), y_min : (y_max + 1)
+        ]
+        polygonal_boundary -= np.array((x_min, y_min))[np.newaxis, :]
+
+        nchannels, nrow, ncol = image_intensity_levels.shape
         pixel_indices: npt.NDArray[int] = polygon_to_points(
-            polygonal_boundary / downsample, image_intensity_levels.shape
+            polygonal_boundary, (nrow, ncol)
         )
+        x_min, y_min = np.min(pixel_indices, axis=0)
+        x_max, y_max = np.max(pixel_indices, axis=0)
+
+        pixel_indices[:, 0] -= x_min
+        pixel_indices[:, 1] -= y_min
+
         if distance_metric == "euclidean":
             distance_matrix = squareform(pdist(pixel_indices) * downsample)
         else:
             assert distance_metric == "geodesic"
             distance_matrix = compute_geodesic_dmat(pixel_indices, n_neigh) * downsample
-
         self.image_intensities = image_intensity_levels
         self.distance_matrix = distance_matrix
+        self.pixel_indices = pixel_indices
         n = distance_matrix.shape[0]
         self.distribution = np.ones((n,)) / n
+
+    def feature_matrix(self, channels: tuple[int, ...]):
+        return self.image_intensities[
+            :, self.pixel_indices[:, 0], self.pixel_indices[:, 1]
+        ][np.array(channels), :].transpose()
 
 
 def normalize_across_cells(cells: list[CellImage]):
@@ -235,10 +263,16 @@ def normalize_across_cells(cells: list[CellImage]):
     average pixel intensity is not relevant to the Fused GW distance.)
     """
 
-    all_intensities = np.stack([cell.image_intensities for cell in cells], axis=0)
-    assert len(all_intensities.shape) == 4
-    global_stdev = np.std(all_intensities, axis=(0, 3, 4))
-    assert global_stdev.shape[0] == cells[0].shape[0]
+    all_intensities = np.concatenate(
+        [
+            cell.image_intensities.reshape((cell.image_intensities.shape[0], -1))
+            for cell in cells
+        ],
+        axis=1,
+    )
+    assert len(all_intensities.shape) == 2
+    global_stdev = np.std(all_intensities, axis=1)
+    assert global_stdev.shape[0] == cells[0].image_intensities.shape[0]
 
     for cell in cells:
         cell.image_intensities /= global_stdev[:, np.newaxis, np.newaxis]
@@ -281,12 +315,11 @@ def fused_gromov_wasserstein(
         )
         channels = (channels,)
     if channels is None:
-        channels = list(range(cell1.shape[0]))
+        channels = list(range(cell1.image_intensities.shape[0]))
 
     linear_cost_matrix = cdist(
-            np.stack([cell1[channel] for channel in channels], axis=1),
-            np.stack([cell2[channel] for channel in channels], axis=1),
-        )
+        cell1.feature_matrix(channels), cell2.feature_matrix(channels)
+    )
 
     return ot.fused_gromov_wasserstein(
         linear_cost_matrix,
@@ -320,7 +353,7 @@ def _fgw_index(p: tuple[int, int]):
     """
     i, j = p
     _, log = fused_gromov_wasserstein(_CELLS[i], _CELLS[j], _CHANNELS, **_KWARGS)
-    return log["fgw_dist"]
+    return (i, j, log["fgw_dist"])
 
 
 def fused_gromov_wasserstein_parallel(
