@@ -14,22 +14,22 @@ import numpy.typing as npt
 import skimage.transform
 import networkx as nx
 from scipy.spatial.distance import squareform, pdist, cdist
+from scipy.sparse import csr_matrix
 from sklearn.neighbors import kneighbors_graph
 from matplotlib.path import Path
 import ot
 from tqdm import tqdm
 
 
-def image_coords(shape: tuple[int, int]):
+def image_coords(shape: tuple[int, int]) -> npt.NDArray[np.int64]: # type: ignore
     """
     Given a shape tuple (n,m), returns a numpy array of shape (n * m, 2)
     which enumerates the x and y indices of the array in row-major order.
     """
     n, m = shape
-    xs = np.repeat(np.arange(stop=n, step=1, dtype=int), m)
-    ys = np.tile(np.arange(stop=m, step=1, dtype=int), reps=(n,))
+    xs = np.repeat(np.arange(start=0, stop=n, step=1, dtype=np.int64), m)
+    ys = np.tile(np.arange(start=0, stop=m, step=1, dtype=np.int64), reps=(n,))
     return np.stack((xs, ys), axis=1)
-
 
 def polygon_to_bitmap(
     vertex_coords: npt.NDArray, shape: tuple[int, int]
@@ -55,7 +55,7 @@ def polygon_to_bitmap(
 
 def polygon_to_points(
     vertex_coords: npt.NDArray, shape: tuple[int, int]
-) -> npt.NDArray[int]:
+) -> npt.NDArray[np.int64]:
     """
     Given an array `vertex_coords`, return an array of shape (k, 2),
     where k is the number of pixels that are contained in the polygon
@@ -72,13 +72,13 @@ def polygon_to_points(
     """
     if len(vertex_coords.shape) != 2 or vertex_coords.shape[1] != 2:
         raise ValueError("Vertex_coords should be of shape (z,2)")
-    im_coords = image_coords(shape)
+    im_coords: npt.NDArray[np.int64] = image_coords(shape)
     bitmap = Path(vertex_coords).contains_points(im_coords)
     return im_coords[bitmap, :]
 
 
 def compute_geodesic_dmat(
-    coords: npt.NDArray[int], n_neigh=4
+    coords: npt.NDArray[np.int64], n_neigh=4
 ) -> npt.NDArray[np.float64]:
     """
     Compute a nearest-neighbors graph through an array of integer pixel
@@ -94,7 +94,7 @@ def compute_geodesic_dmat(
     if len(coords.shape) != 2 or coords.shape[1] != 2:
         raise ValueError("coords should be of shape (z,2)")
 
-    knn = kneighbors_graph(coords, n_neigh, mode="connectivity", include_self=False)
+    knn: csr_matrix = kneighbors_graph(coords, n_neigh, mode="connectivity", include_self=False) # type: ignore
     # compute pairwise geodesic distances
     graph = nx.from_numpy_array(knn.toarray())
     with warnings.catch_warnings():
@@ -226,7 +226,7 @@ class CellImage:
         polygonal_boundary -= np.array((x_min, y_min))[np.newaxis, :]
 
         nchannels, nrow, ncol = image_intensity_levels.shape
-        pixel_indices: npt.NDArray[int] = polygon_to_points(
+        pixel_indices: npt.NDArray[np.int64] = polygon_to_points(
             polygonal_boundary, (nrow, ncol)
         )
         x_min, y_min = np.min(pixel_indices, axis=0)
@@ -315,7 +315,7 @@ def fused_gromov_wasserstein(
         )
         channels = (channels,)
     if channels is None:
-        channels = list(range(cell1.image_intensities.shape[0]))
+        channels = tuple(range(cell1.image_intensities.shape[0]))
 
     linear_cost_matrix = cdist(
         cell1.feature_matrix(channels), cell2.feature_matrix(channels)
