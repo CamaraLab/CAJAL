@@ -617,7 +617,7 @@ def fused_gromov_wasserstein(
 
 
 def _init_fgw_pool(
-    cells: list[CellImage], channels: Optional[tuple[int]], kwargs: dict[str, Any]
+    cells: list[CellImage], channels: Optional[tuple[int,...]], kwargs: dict[str, Any]
 ):
     """
     Set a global variable _CELLS so that the parallel process pool can
