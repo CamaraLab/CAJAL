@@ -339,7 +339,7 @@ class CellImage:
             )
         # Cap all pixel intensities at intensity_threshold.
         if intensity_threshold < 1:
-            image_intensity_levels = np.maximum(
+            image_intensity_levels = np.minimum(
                 image_intensity_levels,
                 np.quantile(image_intensity_levels, intensity_threshold, axis=(1, 2))[
                     :, np.newaxis, np.newaxis
