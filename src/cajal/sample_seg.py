@@ -644,7 +644,7 @@ def _fgw_index(p: tuple[int, int]):
 
 def fused_gromov_wasserstein_parallel(
     cells: list[CellImage],
-    channels: Optional[tuple[int]] = None,
+    channels: Optional[tuple[int,...]] = None,
     num_processes: Optional[int] = None,
     chunksize=1,
     **kwargs,
