@@ -21,7 +21,7 @@ import ot
 from tqdm import tqdm
 
 
-def image_coords(shape: tuple[int, int]) -> npt.NDArray[np.int64]: # type: ignore
+def image_coords(shape: tuple[int, int]) -> npt.NDArray[np.int64]:  # type: ignore
     """
     Given a shape tuple (n,m), returns a numpy array of shape (n * m, 2)
     which enumerates the x and y indices of the array in row-major order.
@@ -30,6 +30,7 @@ def image_coords(shape: tuple[int, int]) -> npt.NDArray[np.int64]: # type: ignor
     xs = np.repeat(np.arange(start=0, stop=n, step=1, dtype=np.int64), m)
     ys = np.tile(np.arange(start=0, stop=m, step=1, dtype=np.int64), reps=(n,))
     return np.stack((xs, ys), axis=1)
+
 
 def polygon_to_bitmap(
     vertex_coords: npt.NDArray, shape: tuple[int, int]
@@ -94,7 +95,7 @@ def compute_geodesic_dmat(
     if len(coords.shape) != 2 or coords.shape[1] != 2:
         raise ValueError("coords should be of shape (z,2)")
 
-    knn: csr_matrix = kneighbors_graph(coords, n_neigh, mode="connectivity", include_self=False) # type: ignore
+    knn: csr_matrix = kneighbors_graph(coords, n_neigh, mode="connectivity", include_self=False)  # type: ignore
     # compute pairwise geodesic distances
     graph = nx.from_numpy_array(knn.toarray())
     with warnings.catch_warnings():

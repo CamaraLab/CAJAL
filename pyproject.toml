@@ -53,6 +53,15 @@ dev = [
     "pre-commit >= 2.20.0"
 ]
 
+doc = [
+    "sphinx",
+    "myst_parser",
+    "nbsphinx",
+    "sphinx_rtd_theme",
+    "pandas",
+    "plotly"
+]
+
 vis = [
     "matplotlib >= 3.7.0",
     "networkx",
