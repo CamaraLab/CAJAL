@@ -37,6 +37,7 @@ dependencies = [
         "potpourri3d",
 	"pynndescent>=0.5.13",
         "python-louvain",
+        "pot",
         "scipy>=1.10",
         "scikit-image",
         "tifffile",
