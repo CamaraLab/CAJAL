@@ -9,6 +9,7 @@ import numpy as np
 import ot
 import numpy.typing as npt
 from skimage import measure
+from sklearn.neighbors import kneighbors_graph
 import tifffile
 from scipy.spatial.distance import pdist, cdist, squareform
 from pathos.pools import ProcessPool
