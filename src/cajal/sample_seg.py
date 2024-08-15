@@ -321,7 +321,7 @@ class CellImage:
     @staticmethod
     def _rescale_channels(
         distance_metric: Literal["euclidean"] | Literal["geodesic"],
-        image_intensity_levels: npt.NDArray[np.uint8],
+        image_intensity_levels: npt.NDArray,
         downsample: int,
         intensity_threshold: float,
     ):
@@ -329,13 +329,12 @@ class CellImage:
 
         CellImage._validate_metric(distance_metric)
         image_intensity_levels = CellImage._validate_channels(image_intensity_levels)
-
+        s = image_intensity_levels.shape
         # Resize the image.
         if downsample > 1:
-            image_intensity_levels = skimage.transform.rescale(
+            image_intensity_levels = skimage.transform.resize(
                 image_intensity_levels,
-                1 / downsample,
-                channel_axis=0,
+                (s[0], s[1] // downsample, s[2]//downsample),
                 anti_aliasing=True,
             )
         # Cap all pixel intensities at intensity_threshold.
@@ -362,17 +361,28 @@ class CellImage:
         x_min, y_min = int(x_min), int(y_min)
         x_max, y_max = np.max(polygonal_boundary, axis=0)
         x_max, y_max = int(ceil(x_max)), int(ceil(y_max))
-        image_intensity_levels = image_intensity_levels[
-            :, x_min : (x_max + 1), y_min : (y_max + 1)
-        ]
-        polygonal_boundary -= np.array((x_min, y_min))[np.newaxis, :]
+
+        # image_intensity_levels = image_intensity_levels[
+        #     :, x_min : (x_max + 1), y_min : (y_max + 1)
+        # ]
+        # polygonal_boundary -= np.array((x_min, y_min))[np.newaxis, :]
 
         _, nrow, ncol = image_intensity_levels.shape
         pixel_indices: npt.NDArray[np.int64] = polygon_to_points(
             polygonal_boundary, (nrow, ncol)
         )
+        # Okay, at this point I'm fairly confident that pixel_indices == mask_pts at this point.
         x_min, y_min = np.min(pixel_indices, axis=0)
+        print(x_min)
+        print(y_min)
         x_max, y_max = np.max(pixel_indices, axis=0)
+        print(x_max)
+        print(y_max)
+
+        image_intensity_levels = image_intensity_levels[
+            :, x_min : (x_max + 1), y_min : (y_max + 1)
+        ]
+        print(image_intensity_levels.shape)
 
         pixel_indices[:, 0] -= x_min
         pixel_indices[:, 1] -= y_min
@@ -399,15 +409,22 @@ class CellImage:
         :param image_intensity_levels: A floating-point array of shape (k,
             n, m), where k is the number of image channels for the cell, n
             is the number of pixel rows in the cell, and m is the number
-            of pixel columns in the cell. Code is tested with integer
-            pixel intensities.
+            of pixel columns in the cell. 
+            (That is, the image intensities are stored in row-major order.)
+            Code is tested with integer pixel intensities.
         :param region: region can be either a boolean mask of the same
             shape as the image (where 'true' indicates pixels in the cell)
             or a floating-point array of shape (z,2),
             coding a polygonal boundary for the cell,
             where z is the number of vertices in the polygonal boundary,
             and the i-th row is a pair (x_i,y_i) of coordinates of the
-            i-th vertex. The values can be integers or floats but they
+            i-th vertex (x_i the *column* index, position on the x-axis,
+            and y_i the *row* index, position on the y-axis,
+            in convention with the standard Cartesian coordinate system.
+            Note that this is the opposite convention of 
+            image_intensity_levels.)
+            The values in the polygonal boundary 
+            can be either integers or floats, but (y_i, x_i)
             should lie in the box bounded by (0,0) and
             image_intensity_levels.shape.
         :param downsample: Using the resize function from scikit-image, we
@@ -437,23 +454,22 @@ class CellImage:
             converges to the Euclidean distance matrix.
         """
 
-        k, n, m = image_intensity_levels.shape
-
-        # Validate inputs, downsample and cap the image intensity levels.
+        # Validate inputs, downsample, cap the image intensity levels.
         image_intensity_levels = CellImage._rescale_channels(
             distance_metric, image_intensity_levels, downsample, intensity_threshold
         )
-
+        k, n, m = image_intensity_levels.shape
         if region.dtype == np.bool and region.shape == (n, m):
             segmentation_mask = region
             if downsample > 1:
-                segmentation_mask = skimage.transform.rescale(
-                    segmentation_mask, 1 / downsample, anti_aliasing=False, order=0
+                s = segmentation_mask.shape
+                segmentation_mask = skimage.transform.resize(
+                    segmentation_mask, (s[0]//downsample, s[1]//downsample), anti_aliasing=False, order=0
                 )
             assert segmentation_mask.shape == image_intensity_levels.shape
             pixel_indices = np.argwhere(segmentation_mask)
         elif len(region.shape) == 2 and region.shape[1] == 2:
-            polygonal_boundary = region
+            polygonal_boundary = region[:,::-1]
             # Crop the image and return the pixel indices for the interior of the image.
             image_intensity_levels, pixel_indices = CellImage._restrict_to_polygon(
                 image_intensity_levels, polygonal_boundary / downsample
@@ -482,7 +498,7 @@ class CellImage:
 
     @staticmethod
     def from_segmented_image(
-        segmentation_mask: npt.NDArray[np.int_],
+        segmentation_mask: npt.NDArray,
         image_intensity_levels: npt.NDArray[np.uint8],
         background: int = 0,
         downsample: int = 1,
@@ -495,7 +511,7 @@ class CellImage:
             This cuts down on copying, but it may introduce spooky action at a distance.
 
         :param segmentation_mask: An array of shape (n, m), coding different cells in an image.
-        :param channels: An array of image intensities of shape (k, n, m), where there are k
+        :param image_intensity_levels: An array of image intensities of shape (k, n, m), where there are k
             different channels in the image, and each image is the same shape as the segmentation mask.
         :param background: The value in the segmentation mask associated with the background.
         :param downsample: Using the resize function from scikit-image, we
@@ -517,8 +533,9 @@ class CellImage:
         )
         # Note that anti_aliasing = False and order=0, as it is inappropriate here
         # to linearly interpolate between segmentation mask identifiers.
-        segmentation_mask = skimage.transform.rescale(
-            segmentation_mask, 1 / downsample, anti_aliasing=False, order=0
+        s = segmentation_mask.shape
+        segmentation_mask = skimage.transform.resize(
+            segmentation_mask, (s[0]//downsample, s[1]//downsample), anti_aliasing=False, order=0
         )
         assert segmentation_mask.shape == image_intensity_levels.shape
         cell_ids = _filter_to_cells(segmentation_mask, background)
