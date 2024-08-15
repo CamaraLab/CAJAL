@@ -334,7 +334,7 @@ class CellImage:
         if downsample > 1:
             image_intensity_levels = skimage.transform.resize(
                 image_intensity_levels,
-                (s[0], s[1] // downsample, s[2]//downsample),
+                (s[0], s[1] // downsample, s[2] // downsample),
                 anti_aliasing=True,
             )
         # Cap all pixel intensities at intensity_threshold.
@@ -373,16 +373,11 @@ class CellImage:
         )
         # Okay, at this point I'm fairly confident that pixel_indices == mask_pts at this point.
         x_min, y_min = np.min(pixel_indices, axis=0)
-        print(x_min)
-        print(y_min)
         x_max, y_max = np.max(pixel_indices, axis=0)
-        print(x_max)
-        print(y_max)
 
         image_intensity_levels = image_intensity_levels[
             :, x_min : (x_max + 1), y_min : (y_max + 1)
         ]
-        print(image_intensity_levels.shape)
 
         pixel_indices[:, 0] -= x_min
         pixel_indices[:, 1] -= y_min
@@ -409,7 +404,7 @@ class CellImage:
         :param image_intensity_levels: A floating-point array of shape (k,
             n, m), where k is the number of image channels for the cell, n
             is the number of pixel rows in the cell, and m is the number
-            of pixel columns in the cell. 
+            of pixel columns in the cell.
             (That is, the image intensities are stored in row-major order.)
             Code is tested with integer pixel intensities.
         :param region: region can be either a boolean mask of the same
@@ -421,9 +416,9 @@ class CellImage:
             i-th vertex (x_i the *column* index, position on the x-axis,
             and y_i the *row* index, position on the y-axis,
             in convention with the standard Cartesian coordinate system.
-            Note that this is the opposite convention of 
+            Note that this is the opposite convention of
             image_intensity_levels.)
-            The values in the polygonal boundary 
+            The values in the polygonal boundary
             can be either integers or floats, but (y_i, x_i)
             should lie in the box bounded by (0,0) and
             image_intensity_levels.shape.
@@ -464,12 +459,15 @@ class CellImage:
             if downsample > 1:
                 s = segmentation_mask.shape
                 segmentation_mask = skimage.transform.resize(
-                    segmentation_mask, (s[0]//downsample, s[1]//downsample), anti_aliasing=False, order=0
+                    segmentation_mask,
+                    (s[0] // downsample, s[1] // downsample),
+                    anti_aliasing=False,
+                    order=0,
                 )
             assert segmentation_mask.shape == image_intensity_levels.shape
             pixel_indices = np.argwhere(segmentation_mask)
         elif len(region.shape) == 2 and region.shape[1] == 2:
-            polygonal_boundary = region[:,::-1]
+            polygonal_boundary = region[:, ::-1]
             # Crop the image and return the pixel indices for the interior of the image.
             image_intensity_levels, pixel_indices = CellImage._restrict_to_polygon(
                 image_intensity_levels, polygonal_boundary / downsample
@@ -535,7 +533,10 @@ class CellImage:
         # to linearly interpolate between segmentation mask identifiers.
         s = segmentation_mask.shape
         segmentation_mask = skimage.transform.resize(
-            segmentation_mask, (s[0]//downsample, s[1]//downsample), anti_aliasing=False, order=0
+            segmentation_mask,
+            (s[0] // downsample, s[1] // downsample),
+            anti_aliasing=False,
+            order=0,
         )
         assert segmentation_mask.shape == image_intensity_levels.shape
         cell_ids = _filter_to_cells(segmentation_mask, background)
@@ -551,7 +552,7 @@ class CellImage:
             for id in cell_ids
         ]
         for i in range(len(retv) - 1):
-            assert retv[i].image_intensities == retv[i+1].image_intensities
+            assert retv[i].image_intensities == retv[i + 1].image_intensities
         return retv
 
 
@@ -635,7 +636,7 @@ def fused_gromov_wasserstein(
 
 
 def _init_fgw_pool(
-    cells: list[CellImage], channels: Optional[tuple[int,...]], kwargs: dict[str, Any]
+    cells: list[CellImage], channels: Optional[tuple[int, ...]], kwargs: dict[str, Any]
 ):
     """
     Set a global variable _CELLS so that the parallel process pool can
@@ -661,7 +662,7 @@ def _fgw_index(p: tuple[int, int]):
 
 def fused_gromov_wasserstein_parallel(
     cells: list[CellImage],
-    channels: Optional[tuple[int,...]] = None,
+    channels: Optional[tuple[int, ...]] = None,
     num_processes: Optional[int] = None,
     chunksize=1,
     **kwargs,
