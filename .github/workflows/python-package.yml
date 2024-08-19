@@ -11,7 +11,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build_windows_mac:
+  build_wheels:
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -31,7 +31,7 @@ jobs:
     - name: Build wheels
       run: python -m cibuildwheel --output-dir wheelhouse
       env:
-       CIBW_SKIP: pp39-manylinux_aarch64
+       CIBW_SKIP: pp39-manylinux_aarch64 pp39-manylinux_x86_64 pp39-manylinux_i686
 
     - uses: actions/upload-artifact@v4
       with: 
