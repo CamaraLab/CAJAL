@@ -4,7 +4,7 @@ requires = [
 	 "setuptools >= 70",
 	 "pip>=24",
 	 "wheel",
-	 "Cython",
+	 "Cython>=3",
 	 "numpy"
 	 ]
 # What should the build-backend be?
