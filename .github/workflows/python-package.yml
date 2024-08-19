@@ -31,7 +31,7 @@ jobs:
     - name: Build wheels
       run: python -m cibuildwheel --output-dir wheelhouse
       env:
-       CIBW_SKIP: cp* pp39*
+       CIBW_SKIP: pp*
 
     - uses: actions/upload-artifact@v4
       with: 
