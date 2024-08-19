@@ -12,17 +12,17 @@ on:
 
 jobs:
   build_windows_mac:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, windows-latest]
+        platform: [macos-latest, windows-latest, ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -30,7 +30,14 @@ jobs:
         python -m pip install wheel
         python -m pip install --upgrade pip
         python -m pip install flake8 pytest pytest-cov
+        python -m pip install cibuildwheel==2.20.0
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: cibw-wheels-${{ matrix.platform }}-${{ strategy.job-index }}
+        path: ./wheelhouse/*.whl
+
   test:
     runs-on: ubuntu-latest
     strategy:
