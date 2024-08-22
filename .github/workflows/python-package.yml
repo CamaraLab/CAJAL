@@ -7,8 +7,6 @@ name: Build and Test
 on:
   push:
     branches: [ "main" ]
-    tags:
-    - "v*.*.*"
   pull_request:
     branches: [ "main" ]
 
@@ -33,10 +31,7 @@ jobs:
     - name: Build wheels
       run: python -m cibuildwheel --output-dir wheelhouse
       env:
-       CIBW_SKIP: |
-         pp*
-         *i686
-
+       CIBW_SKIP: pp*
     - uses: actions/upload-artifact@v4
       with: 
         name: cibw-wheels-${{ matrix.platform }}-${{ strategy.job-index }}

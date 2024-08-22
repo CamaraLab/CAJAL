@@ -8,16 +8,26 @@ CAJAL is a Python library for multi-modal cell morphology analyses using Gromov-
 K. W. Govek, P. Nicodemus, Y. Lin, J. Crawford, A. B. Saturnino, H. Cui, K. Zoga, M. P. Hart, P. G. Camara, _CAJAL enables analysis and integration of single-cell morphological data using metric geometry_. **Nature Communications** 14 (2023) 3672. [DOI:10.1038/s41467-023-39424-2](https://doi.org/10.1038/s41467-023-39424-2)
 
 ## Installation
-Until we upload the package to PyPI, the pip installation works from GitHub:
+CAJAL is hosted on the Python Package Index - https://pypi.org/project/cajal/
+
+It is recommended to install CAJAL via pip, which should automatically retrieve the correct wheel for your platform and Python version. It is strongly recommended to create a [virtual environment](https://docs.python.org/3/library/venv.html).
 ```commandline
-pip install git+https://github.com/CamaraLab/CAJAL.git
+pip install cajal
 ```
 Installation on a standard desktop computer should take a few minutes.
 
 ----
 
-A C++ compiler is required for the Gromov-Wasserstein computation and may be required for the potpourri3d library if the precompiled binaries are not compatible with your system.
+CAJAL can be also built from source, by cloning the Github repository.
+
+```commandline
+pip install git+https://github.com/CamaraLab/CAJAL.git
+```
+
+To build CAJAL from source, a C++ compiler is required for the Gromov-Wasserstein computation and may be required for the potpourri3d library if the precompiled binaries are not compatible with your system.
 On Windows, we recommend Microsoft Visual C++ 14.0 or greater, which can be installed via the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/). On Ubuntu, it requires g++ and may require the package python3.x-dev, which registers the Python header files with g++.
+
+CAJAL contains numerous dependencies which are currently hosted only on PyPI; as such, it is not possible at this time to provide a CAJAL conda package. (conda packages require all their dependencies to also be conda packages.) However, it should be possible to install CAJAL in a conda is conscious of, using a conda-managed Python installation and calling pip from within a conda environment.
 
 ----
 
