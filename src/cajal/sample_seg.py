@@ -11,6 +11,18 @@ import itertools as it
 from pathos.pools import ProcessPool
 from .utilities import write_csv_block
 
+def _filter_to_cells(segmask: npt.NDArray[np.int_], background: int) -> list[int]:
+    """
+    Return a list of identifiers for cells in the interior of the image.
+    """
+    cell_ids = set(np.unique(segmask))
+    remove_cells = set()
+    remove_cells.add(background)
+    remove_cells.update(np.unique(segmask[0, :]))
+    remove_cells.update(np.unique(segmask[-1, :]))
+    remove_cells.update(np.unique(segmask[:, 0]))
+    remove_cells.update(np.unique(segmask[:, -1]))
+    return list(cell_ids.difference(remove_cells))
 
 def cell_boundaries(
     imarray: npt.NDArray[np.int_],
@@ -40,18 +52,9 @@ def cell_boundaries(
        containing points sampled from the contours.
     """
 
-    cell_ids = set(np.unique(imarray))
-    remove_cells = set()
-    remove_cells.update(np.unique(imarray[0, :]))
-    remove_cells.update(np.unique(imarray[-1, :]))
-    remove_cells.update(np.unique(imarray[:, 0]))
-    remove_cells.update(np.unique(imarray[:, -1]))
-    cell_id_list = list(cell_ids.difference(remove_cells))
-
-    outlist: List[npt.NDArray[np.float64]] = []
+    cell_id_list = _filter_to_cells(imarray, background)
+    outlist: List[Tuple[int, npt.NDArray[np.float64]]] = []
     for cell in cell_id_list:
-        if cell == background:  # Don't draw a boundary around background
-            continue
         cell_imarray = (imarray == cell) * 1
         boundary_pts_list = measure.find_contours(
             cell_imarray, 0.5, fully_connected="high"
@@ -73,8 +76,9 @@ def cell_boundaries(
                 + str(cell)
             )
         indices = np.linspace(0, boundary_pts.shape[0] - 1, n_sample)
-        outlist.append(boundary_pts[indices.astype("uint32")])
-    return list(enumerate(outlist))
+        outlist.append((cell, boundary_pts[indices.astype("uint32")]))
+    return list(outlist)
+
 
 
 def _compute_intracell_all(
