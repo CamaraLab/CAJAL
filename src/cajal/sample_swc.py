@@ -482,7 +482,7 @@ def compute_icdm_all_euclidean(
     out_csv: str,
     n_sample: int,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
-    name_validate: Callable[str, bool] = default_name_validate,
+    name_validate: Callable[[str], bool] = default_name_validate,
 ) -> list[tuple[str, Err[T]]]:
     r"""
     Compute the intracell Euclidean distance matrices for all swc cells in `infolder`.
@@ -555,6 +555,7 @@ def compute_icdm_all_geodesic(
     preprocess: Callable[
         [SWCForest], Union[Err[T], NeuronTree]
     ] = lambda forest: forest[0],
+    name_validate: Callable[[str], bool] = default_name_validate
 ) -> list[tuple[str, Err[T]]]:
     """
     Compute the intracell geodesic distance matrices for all swc cells in `infolder`.
@@ -568,7 +569,7 @@ def compute_icdm_all_geodesic(
 
     The default preprocessing is to take the largest component.
     """
-    cell_names, file_paths = get_filenames(infolder, default_name_validate)
+    cell_names, file_paths = get_filenames(infolder, name_validate)
 
     def rpcg(file_path) -> Union[Err[T], npt.NDArray[np.float64]]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
