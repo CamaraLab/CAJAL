@@ -416,6 +416,108 @@ def gw_pairwise_parallel(
     return (gw_dmat, None)
 
 
+def gw_query_target_parallel(
+    queries: list[
+        tuple[
+            DistanceMatrix,  # Squareform distance matrix
+            Distribution,  # Probability distribution on cells
+        ]
+    ],
+    targets: list[
+        tuple[
+            DistanceMatrix,  # Squareform distance matrix
+            Distribution,  # Probability distribution on cells
+        ]
+    ],
+    num_processes: int,
+    names: Optional[list[str]] = None,
+    gw_dist_csv: Optional[str] = None,
+    gw_coupling_mat_csv: Optional[str] = None,
+    return_coupling_mats: bool = False,
+) -> tuple[
+    DistanceMatrix,  # GW distance matrix (Squareform)
+    Optional[list[tuple[int, int, Matrix]]],
+]:
+    """Compute the Gromov-Wasserstein distances between query -> target cells.
+
+    Optionally one can also compute their coupling matrices.
+    If appropriate file names are supplied, the output is also written to file.
+    If computing a large number of coupling matrices, for reduced memory consumption it
+    is suggested not to return the coupling matrices, and instead write them to file.
+
+    :param queries: A list of query pairs (A,a) where `A` is a squareform intracell
+        distance matrix and `a` is a probability distribution on the points of
+        `A`.
+    :param targets: A list of target pairs (A,a) where `A` is a squareform intracell
+        distance matrix and `a` is a probability distribution on the points of
+        `A`.
+    :param num_processes: How many Python processes to run in parallel for the computation.
+    :param names: A list of unique cell identifiers for both queries and targets where the name
+        for the i-th query is names[i] and the name for the k-th target is names[len(queries) + k].
+        Or in other words: names is expect to be query names + target names (in that order).
+        This argument is required if gw_dist_csv is not None, or if gw_coupling_mat_csv is
+        not None, and is ignored otherwise.
+    :param gw_dist_csv: If this field is a string giving a file path, the GW distances
+        will be written to this file. A list of cell names must be supplied.
+    :param gw_coupling_mat_csv: If this field is a string giving a file path,
+        the GW coupling
+        matrices will be written to this file. A list of cell names must be supplied.
+    :param return_coupling_mats: Whether the function should return the coupling matrices.
+        Please be warned that for a large
+        number of cells, `couplings` will be large, and memory consumption will be high.
+        If `return_coupling_mats` is False, returns `(gw_dmat, None)`.
+        This argument is independent of whether the coupling matrices are written to a file;
+        one may return the coupling matrices, write them to file, both, or neither.
+
+    :return: If `return_coupling_mats` is True,
+        returns `( gw_dmat, couplings )`,
+        where gw_dmat is a square matrix whose (i,j) entry is the GW distance
+        between two cells, and `couplings` is a list of tuples (i,j,
+        coupling_mat) where `i,j` are indices corresponding to positions in the list `cells`
+        and `coupling_mat` is a coupling matrix between the two cells.
+        If `return_coupling_mats` is False, returns `(gw_dmat, None)`.
+    """
+    # Combine queries and targets
+    GW_cells = []
+    for A, a in queries:
+        GW_cells.append(GW_cell(A, a))
+    for A, a in targets:
+        GW_cells.append(GW_cell(A, a))
+
+    num_queries = len(queries)
+    num_targets = len(targets)
+    gw_dmat = np.zeros((num_queries, num_targets))
+    if return_coupling_mats is not None:
+        gw_coupling_mats = []
+    total_num_pairs = num_queries * num_targets
+    # Prepare indices by offsetting the target indices by the number of queries
+    ij = tqdm(it.product(np.arange(num_queries), np.arange(num_targets) + num_queries), total=total_num_pairs)
+    with Pool(
+        initializer=_init_gw_pool, initargs=(GW_cells, ), processes=num_processes
+    ) as pool:
+        gw_data: Iterator[tuple[int, int, Matrix, float]]
+        gw_data = pool.imap_unordered(_gw_index, ij, chunksize=20)
+        if (gw_dist_csv is not None) or (gw_coupling_mat_csv is not None):
+            if names is None:
+                raise Exception(
+                    "Must supply list of cell identifiers for writing to file."
+                )
+            gw_data = csv_output_writer(
+                names,
+                gw_dist_csv,
+                gw_coupling_mat_csv,
+                gw_data,
+            )
+        for i, j, coupling_mat, gw_dist in gw_data:
+            # Note: we're reverting the offset in target indices
+            gw_dmat[i, j - num_queries] = gw_dist
+            if return_coupling_mats:
+                gw_coupling_mats.append((i, j - num_queries, coupling_mat))
+    if return_coupling_mats:
+        return (gw_dmat, gw_coupling_mats)
+    return (gw_dmat, None)
+
+
 @controller.wrap(limits=1, user_api="blas")
 def gw(
     A: DistanceMatrix,
@@ -472,6 +574,58 @@ def compute_gw_distance_matrix(
         cell_dms,
         num_processes,
         names,
+        gw_dist_csv_loc,
+        gw_coupling_mat_csv_loc,
+        return_coupling_mats,
+    )
+
+
+def compute_gw_distance_matrix_query_target(
+    query_intracell_csv_loc: str,
+    target_intracell_csv_loc: str,
+    gw_dist_csv_loc: str,
+    num_processes: int,
+    gw_coupling_mat_csv_loc: Optional[str] = None,
+    return_coupling_mats: bool = False,
+    verbose: Optional[bool] = False,
+) -> tuple[
+    DistanceMatrix,  # Pairwise GW distance matrix (Squareform)
+    Optional[list[tuple[int, int, Matrix]]],
+]:
+    """Compute the matrix of Gromov-Wasserstein distances between query -> target cells.
+
+    This function is a wrapper for :func:`cajal.run_gw.gw_query_target_parallel` except
+    that it reads icdm's from a file rather than from a list.
+    For the file format of icdm's see :func:`cajal.run_gw.icdm_csv_validate`.
+
+    :param intracell_csv_loc_query: A file containing the intracell distance matrices
+        for the query cells.
+    :param intracell_csv_loc_target: A file containing the intracell distance matrices
+        for the target cells.
+
+    For other parameters see :func:`cajal.run_gw.gw_query_target_parallel`.
+    """
+    query_cell_names_dmats = list(cell_iterator_csv(query_intracell_csv_loc))
+    target_cell_names_dmats = list(cell_iterator_csv(target_intracell_csv_loc))
+
+    query_names: list[str]
+    target_names: list[str]
+
+    query_names = [name for name, _ in query_cell_names_dmats]
+    target_names = [name for name, _ in target_cell_names_dmats]
+
+    # List of pairs (A, a) where A is a square matrix and `a` a probability distribution
+    query_dms: list[tuple[DistanceMatrix, Distribution]]
+    target_dms: list[tuple[DistanceMatrix, Distribution]]
+
+    query_dms = [(c := cell, uniform(c.shape[0])) for _, cell in query_cell_names_dmats]
+    target_dms = [(c := cell, uniform(c.shape[0])) for _, cell in target_cell_names_dmats]
+
+    return gw_query_target_parallel(
+        query_dms,
+        target_dms,
+        num_processes,
+        query_names + target_names,
         gw_dist_csv_loc,
         gw_coupling_mat_csv_loc,
         return_coupling_mats,
