@@ -21,8 +21,6 @@ def test_allbyall():
         verbose=False,
     )
 
-from cajal.run_gw import compute_gw_distance_matrix, compute_gw_distance_matrix_query_target
-import os
 
 def test_query_target():
     intracell_csv_loc="tests/icdm.csv"
