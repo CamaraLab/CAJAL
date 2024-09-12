@@ -4,7 +4,6 @@ n-modality version of the weighted nearest neighbors algorithm
 
 from typing import Optional
 import itertools as it
-import pdb
 import numpy as np
 import numpy.typing as npt
 from sklearn.manifold import Isomap
@@ -121,7 +120,7 @@ def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
     for modality in modalities[1:]:
         if modality.obsv.shape[0] != n_obsvs:
             raise Exception(
-                "Must be a consistent count of exceptions across all modalities."
+                "Must be a consistent count of observations across all modalities."
             )
 
     # Notation follows the paper when appropriate.
@@ -176,19 +175,19 @@ def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
     pairwise_affinity_ratios = np.zeros(shape=(M, M - 1, n_obsvs), dtype=float)
     for i in range(M):
         for j in range(M):
-            if j >= i:
+            if j > i:
                 k = j - 1
             else:
                 k = j
-            pairwise_affinity_ratios[i, k, :] = pairwise_affinities[i, i, :] / (
-                pairwise_affinities[i, j, :] + epsilon
-            )
-
+            if j != i:
+                pairwise_affinity_ratios[i, k, :] = pairwise_affinities[i, i, :] / (
+                    pairwise_affinities[i, j, :] + epsilon
+                )
     similarity_matrix = (
         softmax(pairwise_affinity_ratios, axis=(0, 1)).sum(axis=1)[:, :, np.newaxis]
         * theta
     ).sum(axis=0)
-    similarity_matrix[np.arange(n_obsvs), np.arange(n_obsvs)] = 0
+    similarity_matrix[np.arange(n_obsvs), np.arange(n_obsvs)] = 1
     assert np.all(similarity_matrix[similarity_matrix < 0] > -1e-10)
     assert np.all((similarity_matrix[similarity_matrix > 1] - 1) < 1e-10)
     similarity_matrix[similarity_matrix < 0] = 0
