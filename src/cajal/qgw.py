@@ -1,5 +1,6 @@
 """Functions for computing the quantized Gromov-Wasserstein distance and the SLB between \
 metric measure spaces, and related utilities for file IO and parallel computation."""
+
 # std lib dependencies
 import csv
 import itertools as it
@@ -446,7 +447,6 @@ def _quantized_gw_index(p: tuple[int, int]) -> tuple[int, int, float]:
     """Given input p= (i,j), compute the quantized GW distance between cells i \
     and j in the global list of quantized cells."""
     i, j = p
-    retval: tuple[int, int, float]
     return (
         i,
         j,

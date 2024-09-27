@@ -11,6 +11,7 @@ import itertools as it
 from pathos.pools import ProcessPool
 from .utilities import write_csv_block
 
+
 def _filter_to_cells(segmask: npt.NDArray[np.int_], background: int) -> list[int]:
     """
     Return a list of identifiers for cells in the interior of the image.
@@ -23,6 +24,7 @@ def _filter_to_cells(segmask: npt.NDArray[np.int_], background: int) -> list[int
     remove_cells.update(np.unique(segmask[:, 0]))
     remove_cells.update(np.unique(segmask[:, -1]))
     return list(cell_ids.difference(remove_cells))
+
 
 def cell_boundaries(
     imarray: npt.NDArray[np.int_],
@@ -78,7 +80,6 @@ def cell_boundaries(
         indices = np.linspace(0, boundary_pts.shape[0] - 1, n_sample)
         outlist.append((cell, boundary_pts[indices.astype("uint32")]))
     return list(outlist)
-
 
 
 def _compute_intracell_all(

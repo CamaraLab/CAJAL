@@ -41,6 +41,7 @@ def test_compute_icdm_both():
         infolder=swc_dir,
         out_csv="tests/icdm_euclidean.csv",
         n_sample=50,
+        num_processes=10,
     )
     compute_icdm_all_geodesic(
         infolder=swc_dir,

@@ -11,7 +11,12 @@ def test_isometry():
     d12 = d1_dm_vf - d2_dm_vf + (1 / 3)
     d23 = d2_dm_vf - d3_dm_vf + (1 / 3)
     d31 = d3_dm_vf - d1_dm_vf + (1 / 3)
-    assert (np.allclose(d12 + d23 + d31, np.ones((4950),)))
+    assert np.allclose(
+        d12 + d23 + d31,
+        np.ones(
+            (4950),
+        ),
+    )
     xyz = np.stack((d12, d23, d31), axis=1)
     xy = two_d_projection(xyz)
     assert np.allclose(pdist(xyz), pdist(xy))

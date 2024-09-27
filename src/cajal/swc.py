@@ -3,6 +3,7 @@ Definition of a NeuronNode, NeuronTree and SWCForest class for representing the 
 of an \*.swc file. Basic functions for manipulating, examining, validating and \
 filtering \*.swc files. A function for reading \*.swc files from memory.
 """
+
 from __future__ import annotations
 
 import os
@@ -21,7 +22,7 @@ import dill
 
 from .utilities import Err, T
 
-dill.settings["recurse"] = True
+# dill.settings["recurse"] = True
 
 
 @dataclass
@@ -29,6 +30,7 @@ class NeuronNode:
     r"""
     A NeuronNode represents the contents of a single line in an \*.swc file.
     """
+
     sample_number: int
     structure_id: int
     coord_triple: tuple[float, float, float]
@@ -44,6 +46,7 @@ class NeuronTree:
     r"""
     A NeuronTree represents one connected component of the graph coded in an \*.swc file.
     """
+
     root: NeuronNode
     child_subgraphs: list[NeuronTree]
 

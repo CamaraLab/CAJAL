@@ -2,6 +2,7 @@
 Defines a WeightedTree class, to represent the information relevant in an SWC from the \
 geodesic point of view. Defines functions for manipulating and processing WeightedTrees.
 """
+
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union

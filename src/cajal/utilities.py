@@ -1,6 +1,7 @@
 """
 Helper functions.
 """
+
 from dataclasses import dataclass
 import csv
 from scipy.spatial.distance import squareform

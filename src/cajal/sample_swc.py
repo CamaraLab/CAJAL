@@ -6,6 +6,7 @@ import math
 from typing import Callable, Iterator, Union
 
 import numpy as np
+from pathos.pools import ProcessPool
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean, pdist
 from tqdm import tqdm
@@ -481,6 +482,7 @@ def compute_icdm_all_euclidean(
     infolder: str,
     out_csv: str,
     n_sample: int,
+    num_processes: int = 8,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
     name_validate: Callable[[str], bool] = default_name_validate,
 ) -> list[tuple[str, Err[T]]]:
@@ -537,13 +539,13 @@ def compute_icdm_all_euclidean(
     # args = zip([file_paths,repeat(n_sample),repeat(preprocess)])
     icdms: Iterator[Union[Err[T], npt.NDArray[np.float64]]]
     failed_cells: list[tuple[str, Err[T]]]
-    # with ProcessPool(nodes=num_processes) as pool:
-    # icdms = pool.imap(rpce, file_paths)
-    icdms = map(rpce, file_paths)
-    # icdms = pool.starmap(read_preprocess_compute_euclidean,args)
-    tq_icdms = tqdm(icdms, total=len(cell_names))
 
-    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, tq_icdms), 3)
+    pool = ProcessPool(nodes=num_processes)
+    results = tqdm(pool.imap(rpce, file_paths), total=len(cell_names))
+    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, results), 10)
+    pool.close()
+    pool.join()
+    pool.clear()
     return failed_cells
 
 
@@ -555,7 +557,7 @@ def compute_icdm_all_geodesic(
     preprocess: Callable[
         [SWCForest], Union[Err[T], NeuronTree]
     ] = lambda forest: forest[0],
-    name_validate: Callable[[str], bool] = default_name_validate
+    name_validate: Callable[[str], bool] = default_name_validate,
 ) -> list[tuple[str, Err[T]]]:
     """
     Compute the intracell geodesic distance matrices for all swc cells in `infolder`.
@@ -576,10 +578,11 @@ def compute_icdm_all_geodesic(
 
     icdms: Iterator[Err[T] | npt.NDArray[np.float64]]
     failed_cells: list[tuple[str, Err[T]]]
-    # with ProcessPool(nodes=num_processes) as pool:
-    # pool.restart(force=True)
-    icdms = map(rpcg, file_paths)
-    tq_icdms = tqdm(icdms, total=len(cell_names))
-    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, tq_icdms), 10)
 
+    pool = ProcessPool(nodes=num_processes)
+    results = tqdm(pool.imap(rpcg, file_paths), total=len(cell_names))
+    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, results), 10)
+    pool.close()
+    pool.join()
+    pool.clear()
     return failed_cells

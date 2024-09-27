@@ -1,5 +1,6 @@
 """Functionality to compute Gromov-Wasserstein distances \
 using algorithms in Peyre et al. ICML 2016."""
+
 from __future__ import annotations
 
 import csv

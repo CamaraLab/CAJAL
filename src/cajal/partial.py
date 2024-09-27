@@ -1,4 +1,5 @@
 """For testing partial matching."""
+
 import itertools as it
 
 import numpy as np

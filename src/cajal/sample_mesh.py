@@ -1,6 +1,7 @@
 """
 Functions for sampling points from a triangular mesh
 """
+
 from __future__ import annotations
 import os
 import sys
