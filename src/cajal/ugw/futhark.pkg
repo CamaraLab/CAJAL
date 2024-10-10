@@ -1,0 +1,5 @@
+require {
+  github.com/diku-dk/sorts 0.4.3 #215e70b323b2243afb03363b5561f84ccd06dbcd
+  github.com/diku-dk/cpprandom 1.3.1 #7ea358bd8bbbeb4786030a21a8d947ef37d1e032
+  github.com/diku-dk/segmented 0.4.4 #9653ba17581771f0641d1f3f9618da6d9bc633de
+}
