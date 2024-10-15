@@ -1,4 +1,4 @@
--- This file contains only "core" UGW functions and abstracts away from the convenient pairwise functions.
+-- This file contains only "core" UGW functions and does not consider the problem of parallelizing pairwise across many problems.
 module unbalanced_gw_core (M: real) = {
   import "common"
   import "scaling_unbalanced"
@@ -386,6 +386,11 @@ module unbalanced_gw_core (M: real) = {
     else
       (map (\_ -> zero) u1, map (\_ -> zero) v1, map (map (\_ -> zero)) C' , M.i64 0)
 
+    def ratio_err_ok tol a b = 
+      M.(a * (one + tol) >= b && b * (one + tol) >= a)
+    
+    def any2 f a b =
+      reduce_comm (||) false (map2 f a b)
 
     def init [n][m] (r : sinkhorn.otp[][]) X Y params tol_outerloop =
       let (u0, v0, p0) =
@@ -396,11 +401,9 @@ module unbalanced_gw_core (M: real) = {
       in
       let (_, _,_, final_plan, _) =
         loop (c0 : [n][m]t, u :[n]t, v:[m]t, c1:[n][m]t, loss) = (r.C, u0, v0, p0, initial_loss)
-        while any (M.>= tol_outerloop) ((map2 err c0 c1)) && ((any (any (M.> zero))) c1) do
+        while (any2 (any2 (\x y -> not (ratio_err_ok M.(one + tol_outerloop) x y)))) c0 c1 && ((any (any (M.> zero))) c1) do
         let (u', v', c2, loss) = update u v c1 loss in (c1, u', v', c2, loss)
       in UGW_cost_arr (r with C = final_plan) X Y
-      -- in UGW_eps (r with C = final) X Y
-      
 
     def main rho1 rho2 eps X mu Y nu =
       init {rho1, rho2, eps, mu, nu, C = (tensor mu nu) } X Y

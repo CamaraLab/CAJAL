@@ -30,14 +30,46 @@ const char *futhark_get_tuning_param_name(int);
 const char *futhark_get_tuning_param_class(int);
 
 // Arrays
-
+struct futhark_f64_1d;
+struct futhark_f64_1d *futhark_new_f64_1d(struct futhark_context *ctx, const double *data, int64_t dim0);
+struct futhark_f64_1d *futhark_new_raw_f64_1d(struct futhark_context *ctx, unsigned char *data, int64_t dim0);
+int futhark_free_f64_1d(struct futhark_context *ctx, struct futhark_f64_1d *arr);
+int futhark_values_f64_1d(struct futhark_context *ctx, struct futhark_f64_1d *arr, double *data);
+int futhark_index_f64_1d(struct futhark_context *ctx, double *out, struct futhark_f64_1d *arr, int64_t i0);
+unsigned char *futhark_values_raw_f64_1d(struct futhark_context *ctx, struct futhark_f64_1d *arr);
+const int64_t *futhark_shape_f64_1d(struct futhark_context *ctx, struct futhark_f64_1d *arr);
+struct futhark_f64_2d;
+struct futhark_f64_2d *futhark_new_f64_2d(struct futhark_context *ctx, const double *data, int64_t dim0, int64_t dim1);
+struct futhark_f64_2d *futhark_new_raw_f64_2d(struct futhark_context *ctx, unsigned char *data, int64_t dim0, int64_t dim1);
+int futhark_free_f64_2d(struct futhark_context *ctx, struct futhark_f64_2d *arr);
+int futhark_values_f64_2d(struct futhark_context *ctx, struct futhark_f64_2d *arr, double *data);
+int futhark_index_f64_2d(struct futhark_context *ctx, double *out, struct futhark_f64_2d *arr, int64_t i0, int64_t i1);
+unsigned char *futhark_values_raw_f64_2d(struct futhark_context *ctx, struct futhark_f64_2d *arr);
+const int64_t *futhark_shape_f64_2d(struct futhark_context *ctx, struct futhark_f64_2d *arr);
+struct futhark_f64_3d;
+struct futhark_f64_3d *futhark_new_f64_3d(struct futhark_context *ctx, const double *data, int64_t dim0, int64_t dim1, int64_t dim2);
+struct futhark_f64_3d *futhark_new_raw_f64_3d(struct futhark_context *ctx, unsigned char *data, int64_t dim0, int64_t dim1, int64_t dim2);
+int futhark_free_f64_3d(struct futhark_context *ctx, struct futhark_f64_3d *arr);
+int futhark_values_f64_3d(struct futhark_context *ctx, struct futhark_f64_3d *arr, double *data);
+int futhark_index_f64_3d(struct futhark_context *ctx, double *out, struct futhark_f64_3d *arr, int64_t i0, int64_t i1, int64_t i2);
+unsigned char *futhark_values_raw_f64_3d(struct futhark_context *ctx, struct futhark_f64_3d *arr);
+const int64_t *futhark_shape_f64_3d(struct futhark_context *ctx, struct futhark_f64_3d *arr);
 
 // Opaque values
 
 
 
 // Entry points
-
+int futhark_entry_init_step(struct futhark_context *ctx, struct futhark_f64_2d **out0, const double in0, const double in1, const double in2, const struct futhark_f64_2d *in3, const struct futhark_f64_1d *in4, const struct futhark_f64_2d *in5, const struct futhark_f64_1d *in6, const struct futhark_f64_2d *in7, const double in8, const double in9, const double in10);
+int futhark_entry_init_step0(struct futhark_context *ctx, struct futhark_f64_1d **out0, const double in0, const double in1, const double in2, const struct futhark_f64_2d *in3, const struct futhark_f64_1d *in4, const struct futhark_f64_2d *in5, const struct futhark_f64_1d *in6, const struct futhark_f64_2d *in7, const double in8, const double in9, const double in10, const struct futhark_f64_2d *in11);
+int futhark_entry_ugw_armijo(struct futhark_context *ctx, struct futhark_f64_1d **out0, const double in0, const double in1, const double in2, const struct futhark_f64_2d *in3, const struct futhark_f64_1d *in4, const struct futhark_f64_2d *in5, const struct futhark_f64_1d *in6, const double in7, const double in8, const double in9, const double in10);
+int futhark_entry_ugw_armijo_pairwise(struct futhark_context *ctx, struct futhark_f64_2d **out0, const double in0, const double in1, const double in2, const struct futhark_f64_3d *in3, const double in4, const double in5, const double in6, const double in7);
+int futhark_entry_ugw_cost_arr(struct futhark_context *ctx, struct futhark_f64_1d **out0, const double in0, const double in1, const double in2, const struct futhark_f64_2d *in3, const struct futhark_f64_1d *in4, const struct futhark_f64_2d *in5, const struct futhark_f64_1d *in6, const struct futhark_f64_2d *in7);
+int futhark_entry_ugw_naive(struct futhark_context *ctx, double *out0, const double in0, const double in1, const double in2, const struct futhark_f64_2d *in3, const struct futhark_f64_1d *in4, const struct futhark_f64_2d *in5, const struct futhark_f64_1d *in6, const double in7, const double in8, const double in9);
+int futhark_entry_unbalanced_gw_init(struct futhark_context *ctx, struct futhark_f64_2d **out0, const double in0, const double in1, const double in2, const struct futhark_f64_2d *in3, const struct futhark_f64_1d *in4, const struct futhark_f64_2d *in5, const struct futhark_f64_1d *in6, const struct futhark_f64_2d *in7, const double in8, const double in9, const double in10, const double in11);
+int futhark_entry_unbalanced_gw_pairwise(struct futhark_context *ctx, struct futhark_f64_2d **out0, const struct futhark_f64_3d *in0, const double in1, const double in2, const double in3, const double in4, const double in5, const double in6, const double in7);
+int futhark_entry_unbalanced_gw_pairwise_pt_clouds(struct futhark_context *ctx, struct futhark_f64_2d **out0, const struct futhark_f64_3d *in0, const double in1, const double in2, const double in3, const double in4, const double in5, const double in6, const double in7);
+int futhark_entry_unbalanced_gw_total_cost(struct futhark_context *ctx, struct futhark_f64_1d **out0, const double in0, const double in1, const double in2, const struct futhark_f64_2d *in3, const struct futhark_f64_1d *in4, const struct futhark_f64_2d *in5, const struct futhark_f64_1d *in6, const double in7, const double in8, const double in9, const double in10);
 
 // Miscellaneous
 int futhark_context_sync(struct futhark_context *ctx);

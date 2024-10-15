@@ -27,7 +27,31 @@ module Bindings = struct
   let free = fn "free" (ptr void @-> returning void)
   let strlen = fn "strlen" (ptr char @-> returning size_t)
 
-
+  let array_f64_3d = typedef (ptr void) "array_f64_3d"
+  let futhark_new_f64_3d = fn "futhark_new_f64_3d" (context @-> ptr double @-> int64_t @-> int64_t @-> int64_t @-> returning (array_f64_3d))
+  let futhark_values_f64_3d = fn "futhark_values_f64_3d" (context @-> array_f64_3d @-> ptr double @-> returning (int))
+  let futhark_free_f64_3d = fn "futhark_free_f64_3d" (context @-> array_f64_3d @-> returning (int))
+  let futhark_shape_f64_3d = fn "futhark_shape_f64_3d" (context @-> array_f64_3d @-> returning (ptr int64_t))
+  let array_f64_2d = typedef (ptr void) "array_f64_2d"
+  let futhark_new_f64_2d = fn "futhark_new_f64_2d" (context @-> ptr double @-> int64_t @-> int64_t @-> returning (array_f64_2d))
+  let futhark_values_f64_2d = fn "futhark_values_f64_2d" (context @-> array_f64_2d @-> ptr double @-> returning (int))
+  let futhark_free_f64_2d = fn "futhark_free_f64_2d" (context @-> array_f64_2d @-> returning (int))
+  let futhark_shape_f64_2d = fn "futhark_shape_f64_2d" (context @-> array_f64_2d @-> returning (ptr int64_t))
+  let array_f64_1d = typedef (ptr void) "array_f64_1d"
+  let futhark_new_f64_1d = fn "futhark_new_f64_1d" (context @-> ptr double @-> int64_t @-> returning (array_f64_1d))
+  let futhark_values_f64_1d = fn "futhark_values_f64_1d" (context @-> array_f64_1d @-> ptr double @-> returning (int))
+  let futhark_free_f64_1d = fn "futhark_free_f64_1d" (context @-> array_f64_1d @-> returning (int))
+  let futhark_shape_f64_1d = fn "futhark_shape_f64_1d" (context @-> array_f64_1d @-> returning (ptr int64_t))
+  let futhark_entry_init_step = fn "futhark_entry_init_step" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_init_step0 = fn "futhark_entry_init_step0" (context @-> ptr array_f64_1d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> double @-> double @-> double @-> array_f64_2d @-> returning (int))
+  let futhark_entry_ugw_armijo = fn "futhark_entry_ugw_armijo" (context @-> ptr array_f64_1d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> double @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_ugw_armijo_pairwise = fn "futhark_entry_ugw_armijo_pairwise" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_3d @-> double @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_ugw_cost_arr = fn "futhark_entry_ugw_cost_arr" (context @-> ptr array_f64_1d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> returning (int))
+  let futhark_entry_ugw_naive = fn "futhark_entry_ugw_naive" (context @-> ptr double @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_unbalanced_gw_init = fn "futhark_entry_unbalanced_gw_init" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> double @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_unbalanced_gw_pairwise = fn "futhark_entry_unbalanced_gw_pairwise" (context @-> ptr array_f64_2d @-> array_f64_3d @-> double @-> double @-> double @-> double @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_unbalanced_gw_pairwise_pt_clouds = fn "futhark_entry_unbalanced_gw_pairwise_pt_clouds" (context @-> ptr array_f64_2d @-> array_f64_3d @-> double @-> double @-> double @-> double @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_unbalanced_gw_total_cost = fn "futhark_entry_unbalanced_gw_total_cost" (context @-> ptr array_f64_1d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> double @-> double @-> double @-> double @-> returning (int))
 end
 
 type error =
@@ -143,4 +167,314 @@ let get_opaque_ptr t =
   x
 [@@@ocaml.warning "+32"]
 
+
+module Array_f64_3d = struct
+  type t = futhark_array
+
+  type kind = (float, Bigarray.float64_elt) Bigarray.kind
+  
+  let kind = Bigarray.float64
+
+  let free ctx ptr =
+    let is_null = Ctypes.is_null ptr || Ctypes.is_null (!@ptr) in
+    if not ctx.Context.context_free && not is_null then
+      let () = ignore (Bindings.futhark_free_f64_3d ctx.Context.handle (!@ptr)) in
+      ptr <-@ Ctypes.null
+
+  let cast x =
+    coerce (ptr void) (ptr double) (to_voidp x)
+  
+  let v ctx ba =
+    check_use_after_free `context ctx.Context.context_free;
+    let dims = Genarray.dims ba in
+    let ptr = Bindings.futhark_new_f64_3d ctx.Context.handle (cast @@ bigarray_start genarray ba) (Int64.of_int dims.(0)) (Int64.of_int dims.(1)) (Int64.of_int dims.(2)) in
+    if is_null ptr then raise (Error NullPtr);
+    Context.auto_sync ctx;
+    { ptr = Ctypes.allocate ~finalise:(free ctx) (Ctypes.ptr Ctypes.void) ptr; ctx; shape = dims }
+
+  let values t ba =
+    check_use_after_free `context t.ctx.Context.context_free;
+    let dims = Genarray.dims ba in
+    let a = Array.fold_left ( * ) 1 t.shape in
+    let b = Array.fold_left ( * ) 1 dims in
+    if (a <> b) then raise (Error (InvalidShape (a, b)));
+    let rc = Bindings.futhark_values_f64_3d t.ctx.Context.handle (get_ptr t) (cast @@ bigarray_start genarray ba) in
+    Context.auto_sync t.ctx;
+    if rc <> 0 then raise (Error (Code rc))
+
+  let values_array1 t ba =
+    let ba = genarray_of_array1 ba in
+    let ba = reshape ba t.shape in
+    values t ba
+
+  let get t =
+    let dims = t.shape in
+    let g = Genarray.create kind C_layout dims in
+    values t g;
+    g
+
+  let get_array1 t =
+    let len = Array.fold_left ( * ) 1 t.shape in
+    let g = Array1.create kind C_layout len in
+    values_array1 t g;
+    g
+
+  let shape t = t.shape
+
+  let of_array1 ctx dims arr =
+    let len = Array.fold_left ( * ) 1 dims in
+    assert (len = Array1.dim arr);
+    let g = genarray_of_array1 arr in
+    let g = reshape g dims in
+    v ctx g
+
+  let of_array ctx dims arr =
+    let arr = Array1.of_array kind C_layout arr in
+    of_array1 ctx dims arr
+
+  let ptr_shape ctx ptr =
+    let s = Bindings.futhark_shape_f64_3d ctx ptr in
+    Array.init 3 (fun i -> Int64.to_int !@ (s +@ i))
+
+  let of_ptr ctx ptr =
+    check_use_after_free `context ctx.Context.context_free;
+    if is_null ptr then raise (Error NullPtr);
+    let shape = ptr_shape ctx.Context.handle ptr in
+    { ptr = Ctypes.allocate ~finalise:(free ctx) (Ctypes.ptr Ctypes.void) ptr; ctx; shape }
+
+  let free t = free t.ctx t.ptr
+    
+  let _ = of_ptr
+end
+
+
+module Array_f64_2d = struct
+  type t = futhark_array
+
+  type kind = (float, Bigarray.float64_elt) Bigarray.kind
+  
+  let kind = Bigarray.float64
+
+  let free ctx ptr =
+    let is_null = Ctypes.is_null ptr || Ctypes.is_null (!@ptr) in
+    if not ctx.Context.context_free && not is_null then
+      let () = ignore (Bindings.futhark_free_f64_2d ctx.Context.handle (!@ptr)) in
+      ptr <-@ Ctypes.null
+
+  let cast x =
+    coerce (ptr void) (ptr double) (to_voidp x)
+  
+  let v ctx ba =
+    check_use_after_free `context ctx.Context.context_free;
+    let dims = Genarray.dims ba in
+    let ptr = Bindings.futhark_new_f64_2d ctx.Context.handle (cast @@ bigarray_start genarray ba) (Int64.of_int dims.(0)) (Int64.of_int dims.(1)) in
+    if is_null ptr then raise (Error NullPtr);
+    Context.auto_sync ctx;
+    { ptr = Ctypes.allocate ~finalise:(free ctx) (Ctypes.ptr Ctypes.void) ptr; ctx; shape = dims }
+
+  let values t ba =
+    check_use_after_free `context t.ctx.Context.context_free;
+    let dims = Genarray.dims ba in
+    let a = Array.fold_left ( * ) 1 t.shape in
+    let b = Array.fold_left ( * ) 1 dims in
+    if (a <> b) then raise (Error (InvalidShape (a, b)));
+    let rc = Bindings.futhark_values_f64_2d t.ctx.Context.handle (get_ptr t) (cast @@ bigarray_start genarray ba) in
+    Context.auto_sync t.ctx;
+    if rc <> 0 then raise (Error (Code rc))
+
+  let values_array1 t ba =
+    let ba = genarray_of_array1 ba in
+    let ba = reshape ba t.shape in
+    values t ba
+
+  let get t =
+    let dims = t.shape in
+    let g = Genarray.create kind C_layout dims in
+    values t g;
+    g
+
+  let get_array1 t =
+    let len = Array.fold_left ( * ) 1 t.shape in
+    let g = Array1.create kind C_layout len in
+    values_array1 t g;
+    g
+
+  let shape t = t.shape
+
+  let of_array1 ctx dims arr =
+    let len = Array.fold_left ( * ) 1 dims in
+    assert (len = Array1.dim arr);
+    let g = genarray_of_array1 arr in
+    let g = reshape g dims in
+    v ctx g
+
+  let of_array ctx dims arr =
+    let arr = Array1.of_array kind C_layout arr in
+    of_array1 ctx dims arr
+
+  let ptr_shape ctx ptr =
+    let s = Bindings.futhark_shape_f64_2d ctx ptr in
+    Array.init 2 (fun i -> Int64.to_int !@ (s +@ i))
+
+  let of_ptr ctx ptr =
+    check_use_after_free `context ctx.Context.context_free;
+    if is_null ptr then raise (Error NullPtr);
+    let shape = ptr_shape ctx.Context.handle ptr in
+    { ptr = Ctypes.allocate ~finalise:(free ctx) (Ctypes.ptr Ctypes.void) ptr; ctx; shape }
+
+  let free t = free t.ctx t.ptr
+    
+  let _ = of_ptr
+end
+
+
+module Array_f64_1d = struct
+  type t = futhark_array
+
+  type kind = (float, Bigarray.float64_elt) Bigarray.kind
+  
+  let kind = Bigarray.float64
+
+  let free ctx ptr =
+    let is_null = Ctypes.is_null ptr || Ctypes.is_null (!@ptr) in
+    if not ctx.Context.context_free && not is_null then
+      let () = ignore (Bindings.futhark_free_f64_1d ctx.Context.handle (!@ptr)) in
+      ptr <-@ Ctypes.null
+
+  let cast x =
+    coerce (ptr void) (ptr double) (to_voidp x)
+  
+  let v ctx ba =
+    check_use_after_free `context ctx.Context.context_free;
+    let dims = Genarray.dims ba in
+    let ptr = Bindings.futhark_new_f64_1d ctx.Context.handle (cast @@ bigarray_start genarray ba) (Int64.of_int dims.(0)) in
+    if is_null ptr then raise (Error NullPtr);
+    Context.auto_sync ctx;
+    { ptr = Ctypes.allocate ~finalise:(free ctx) (Ctypes.ptr Ctypes.void) ptr; ctx; shape = dims }
+
+  let values t ba =
+    check_use_after_free `context t.ctx.Context.context_free;
+    let dims = Genarray.dims ba in
+    let a = Array.fold_left ( * ) 1 t.shape in
+    let b = Array.fold_left ( * ) 1 dims in
+    if (a <> b) then raise (Error (InvalidShape (a, b)));
+    let rc = Bindings.futhark_values_f64_1d t.ctx.Context.handle (get_ptr t) (cast @@ bigarray_start genarray ba) in
+    Context.auto_sync t.ctx;
+    if rc <> 0 then raise (Error (Code rc))
+
+  let values_array1 t ba =
+    let ba = genarray_of_array1 ba in
+    let ba = reshape ba t.shape in
+    values t ba
+
+  let get t =
+    let dims = t.shape in
+    let g = Genarray.create kind C_layout dims in
+    values t g;
+    g
+
+  let get_array1 t =
+    let len = Array.fold_left ( * ) 1 t.shape in
+    let g = Array1.create kind C_layout len in
+    values_array1 t g;
+    g
+
+  let shape t = t.shape
+
+  let of_array1 ctx dims arr =
+    let len = Array.fold_left ( * ) 1 dims in
+    assert (len = Array1.dim arr);
+    let g = genarray_of_array1 arr in
+    let g = reshape g dims in
+    v ctx g
+
+  let of_array ctx dims arr =
+    let arr = Array1.of_array kind C_layout arr in
+    of_array1 ctx dims arr
+
+  let ptr_shape ctx ptr =
+    let s = Bindings.futhark_shape_f64_1d ctx ptr in
+    Array.init 1 (fun i -> Int64.to_int !@ (s +@ i))
+
+  let of_ptr ctx ptr =
+    check_use_after_free `context ctx.Context.context_free;
+    if is_null ptr then raise (Error NullPtr);
+    let shape = ptr_shape ctx.Context.handle ptr in
+    { ptr = Ctypes.allocate ~finalise:(free ctx) (Ctypes.ptr Ctypes.void) ptr; ctx; shape }
+
+  let free t = free t.ctx t.ptr
+    
+  let _ = of_ptr
+end
+
+
+let init_step ctx input0 input1 input2 input3 input4 input5 input6 input7 input8 input9 input10 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_init_step ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) (get_ptr input4) (get_ptr input5) (get_ptr input6) (get_ptr input7) input8 input9 input10 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_2d.of_ptr ctx !@out_ptr))
+
+let init_step0 ctx input0 input1 input2 input3 input4 input5 input6 input7 input8 input9 input10 input11 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_init_step0 ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) (get_ptr input4) (get_ptr input5) (get_ptr input6) (get_ptr input7) input8 input9 input10 (get_ptr input11) in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_1d.of_ptr ctx !@out_ptr))
+
+let ugw_armijo ctx input0 input1 input2 input3 input4 input5 input6 input7 input8 input9 input10 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_ugw_armijo ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) (get_ptr input4) (get_ptr input5) (get_ptr input6) input7 input8 input9 input10 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_1d.of_ptr ctx !@out_ptr))
+
+let ugw_armijo_pairwise ctx input0 input1 input2 input3 input4 input5 input6 input7 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_ugw_armijo_pairwise ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) input4 input5 input6 input7 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_2d.of_ptr ctx !@out_ptr))
+
+let ugw_cost_arr ctx input0 input1 input2 input3 input4 input5 input6 input7 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_ugw_cost_arr ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) (get_ptr input4) (get_ptr input5) (get_ptr input6) (get_ptr input7) in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_1d.of_ptr ctx !@out_ptr))
+
+let ugw_naive ctx input0 input1 input2 input3 input4 input5 input6 input7 input8 input9 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate_n double ~count:1 in
+  let rc = Bindings.futhark_entry_ugw_naive ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) (get_ptr input4) (get_ptr input5) (get_ptr input6) input7 input8 input9 in
+  if rc <> 0 then raise (Error (Code rc));
+  (!@out_ptr)
+
+let unbalanced_gw_init ctx input0 input1 input2 input3 input4 input5 input6 input7 input8 input9 input10 input11 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_unbalanced_gw_init ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) (get_ptr input4) (get_ptr input5) (get_ptr input6) (get_ptr input7) input8 input9 input10 input11 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_2d.of_ptr ctx !@out_ptr))
+
+let unbalanced_gw_pairwise ctx input0 input1 input2 input3 input4 input5 input6 input7 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_unbalanced_gw_pairwise ctx.Context.handle out_ptr (get_ptr input0) input1 input2 input3 input4 input5 input6 input7 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_2d.of_ptr ctx !@out_ptr))
+
+let unbalanced_gw_pairwise_pt_clouds ctx input0 input1 input2 input3 input4 input5 input6 input7 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_unbalanced_gw_pairwise_pt_clouds ctx.Context.handle out_ptr (get_ptr input0) input1 input2 input3 input4 input5 input6 input7 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_2d.of_ptr ctx !@out_ptr))
+
+let unbalanced_gw_total_cost ctx input0 input1 input2 input3 input4 input5 input6 input7 input8 input9 input10 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_unbalanced_gw_total_cost ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) (get_ptr input4) (get_ptr input5) (get_ptr input6) input7 input8 input9 input10 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_1d.of_ptr ctx !@out_ptr))
 

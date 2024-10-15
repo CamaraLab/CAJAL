@@ -5,7 +5,8 @@ requires = [
 	 "pip>=24",
 	 "wheel",
 	 "Cython>=3",
-	 "numpy"
+	 "numpy",
+         "futhark-ffi >= 0.15"
 	 ]
 # What should the build-backend be?
 build-backend = "setuptools.build_meta"

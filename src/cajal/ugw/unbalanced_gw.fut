@@ -49,7 +49,7 @@ module unbalanced_gw (M : real) = {
   def unbalanced_gw_pairwise_pt_clouds [m][n][d] (pt_clouds: [m][n][d]t) =
     let dms = map pdist pt_clouds in unbalanced_gw_pairwise dms
 
-} 
+}
 
 module unbalanced_gw64 = unbalanced_gw f64
 
@@ -95,7 +95,7 @@ entry unbalanced_gw_total_cost rho1 rho2 eps X mu Y nu
     exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop
   =
   unbalanced_gw64.unbalanced_gw_total_cost rho1 rho2 eps X mu Y nu
-  { exp_absorb_cutoff, safe_for_exp, loop_count = 10, tol_sinkhorn} tol_outerloop 
+  { exp_absorb_cutoff, safe_for_exp, loop_count = 10, tol_sinkhorn} tol_outerloop
 
 entry unbalanced_gw_pairwise = unbalanced_gw64.unbalanced_gw_pairwise
 
@@ -147,4 +147,3 @@ entry ugw_armijo_pairwise [k][m] rho1 rho2 eps (A: [k][m][m]f64.t) exp_absorb_cu
      safe_for_exp,
      loop_count = 10,
      tol_sinkhorn } tol_outerloop)
-
