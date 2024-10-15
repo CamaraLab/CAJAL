@@ -13772,7 +13772,7 @@ FUTHARK_FUN_ATTR int futrts_entry_ugw_armijo(struct futhark_context *ctx, struct
             bool assert_c_68752;
             
             if (!zl_res_68751) {
-                set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: M.((gradient) M.< zero)", "-> #0  common.fut:220:7-221:22\n   #1  unbalanced_gw_core.fut:400:15-78\n   #2  unbalanced_gw_core.fut:405:41-52\n   #3  unbalanced_gw_core.fut:409:7-11\n   #4  unbalanced_gw_single_core.fut:134:3-138:34\n   #5  unbalanced_gw_single_core.fut:133:1-138:34\n"));
+                set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: M.((gradient) M.< zero)", "-> #0  common.fut:220:7-221:22\n   #1  unbalanced_gw_core.fut:400:15-78\n   #2  unbalanced_gw_core.fut:405:41-52\n   #3  unbalanced_gw_core.fut:409:7-11\n   #4  unbalanced_gw_c.fut:134:3-138:34\n   #5  unbalanced_gw_c.fut:133:1-138:34\n"));
                 err = FUTHARK_PROGRAM_ERROR;
                 goto cleanup;
             }
@@ -16548,7 +16548,7 @@ FUTHARK_FUN_ATTR int futrts_entry_ugw_armijo_pairwise(struct futhark_context *ct
         bool index_certs_44941;
         
         if (!bounds_check_44940) {
-            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_44937, "] out of bounds for array of shape [", (long long) k_41191, "].", "-> #0  unbalanced_gw_single_core.fut:145:53-57\n   #1  /prelude/functional.fut:9:44-45\n   #2  unbalanced_gw_single_core.fut:140:1-149:35\n"));
+            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_44937, "] out of bounds for array of shape [", (long long) k_41191, "].", "-> #0  unbalanced_gw_c.fut:145:53-57\n   #1  /prelude/functional.fut:9:44-45\n   #2  unbalanced_gw_c.fut:140:1-149:35\n"));
             err = FUTHARK_PROGRAM_ERROR;
             goto cleanup;
         }
@@ -16559,7 +16559,7 @@ FUTHARK_FUN_ATTR int futrts_entry_ugw_armijo_pairwise(struct futhark_context *ct
         bool index_certs_44946;
         
         if (!bounds_check_44945) {
-            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_44936, "] out of bounds for array of shape [", (long long) k_41191, "].", "-> #0  unbalanced_gw_single_core.fut:145:45-49\n   #1  /prelude/functional.fut:9:44-45\n   #2  unbalanced_gw_single_core.fut:140:1-149:35\n"));
+            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_44936, "] out of bounds for array of shape [", (long long) k_41191, "].", "-> #0  unbalanced_gw_c.fut:145:45-49\n   #1  /prelude/functional.fut:9:44-45\n   #2  unbalanced_gw_c.fut:140:1-149:35\n"));
             err = FUTHARK_PROGRAM_ERROR;
             goto cleanup;
         }
@@ -19246,7 +19246,7 @@ FUTHARK_FUN_ATTR int futrts_entry_ugw_armijo_pairwise(struct futhark_context *ct
                 bool assert_c_70788;
                 
                 if (!zl_res_70787) {
-                    set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: M.((gradient) M.< zero)", "-> #0  common.fut:220:7-221:22\n   #1  unbalanced_gw_core.fut:400:15-78\n   #2  unbalanced_gw_core.fut:405:41-52\n   #3  unbalanced_gw_core.fut:409:7-11\n   #4  unbalanced_gw_single_core.fut:145:3-149:34\n   #5  /prelude/functional.fut:9:44-45\n   #6  unbalanced_gw_single_core.fut:140:1-149:35\n"));
+                    set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: M.((gradient) M.< zero)", "-> #0  common.fut:220:7-221:22\n   #1  unbalanced_gw_core.fut:400:15-78\n   #2  unbalanced_gw_core.fut:405:41-52\n   #3  unbalanced_gw_core.fut:409:7-11\n   #4  unbalanced_gw_c.fut:145:3-149:34\n   #5  /prelude/functional.fut:9:44-45\n   #6  unbalanced_gw_c.fut:140:1-149:35\n"));
                     err = FUTHARK_PROGRAM_ERROR;
                     goto cleanup;
                 }
@@ -22104,7 +22104,7 @@ FUTHARK_FUN_ATTR int futrts_entry_ugw_naive(struct futhark_context *ctx, double 
     bool assert_c_43627;
     
     if (!defunc_0_reduce_res_60756) {
-        set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: (all M.(all (\\a ->\n              a M.> M.i64 0)) (map2 M.(map2 (M.+)) diff P))", "-> #0  unbalanced_gw_core.fut:324:9-79\n   #1  unbalanced_gw_core.fut:328:49-50\n   #2  unbalanced_gw_core.fut:355:7-85\n   #3  unbalanced_gw_single_core.fut:126:3-96\n   #4  unbalanced_gw_single_core.fut:125:1-126:96\n"));
+        set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: (all M.(all (\\a ->\n              a M.> M.i64 0)) (map2 M.(map2 (M.+)) diff P))", "-> #0  unbalanced_gw_core.fut:324:9-79\n   #1  unbalanced_gw_core.fut:328:49-50\n   #2  unbalanced_gw_core.fut:355:7-85\n   #3  unbalanced_gw_c.fut:126:3-96\n   #4  unbalanced_gw_c.fut:125:1-126:96\n"));
         err = FUTHARK_PROGRAM_ERROR;
         goto cleanup;
     }
@@ -22267,7 +22267,7 @@ FUTHARK_FUN_ATTR int futrts_entry_ugw_naive(struct futhark_context *ctx, double 
     bool assert_c_43630;
     
     if (!zl_res_43629) {
-        set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: M.((gradient) M.< zero)", "-> #0  common.fut:220:7-221:22\n   #1  unbalanced_gw_core.fut:330:39-47\n   #2  unbalanced_gw_core.fut:355:7-85\n   #3  unbalanced_gw_single_core.fut:126:3-96\n   #4  unbalanced_gw_single_core.fut:125:1-126:96\n"));
+        set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: M.((gradient) M.< zero)", "-> #0  common.fut:220:7-221:22\n   #1  unbalanced_gw_core.fut:330:39-47\n   #2  unbalanced_gw_core.fut:355:7-85\n   #3  unbalanced_gw_c.fut:126:3-96\n   #4  unbalanced_gw_c.fut:125:1-126:96\n"));
         err = FUTHARK_PROGRAM_ERROR;
         goto cleanup;
     }
@@ -23432,7 +23432,7 @@ FUTHARK_FUN_ATTR int futrts_entry_ugw_naive(struct futhark_context *ctx, double 
         bool assert_c_43754;
         
         if (!defunc_0_reduce_res_60707) {
-            set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: (all M.(all (\\a ->\n              a M.> M.i64 0)) (map2 M.(map2 (M.+)) diff P))", "-> #0  unbalanced_gw_core.fut:324:9-79\n   #1  unbalanced_gw_core.fut:328:49-50\n   #2  unbalanced_gw_core.fut:355:7-85\n   #3  unbalanced_gw_single_core.fut:126:3-96\n   #4  unbalanced_gw_single_core.fut:125:1-126:96\n"));
+            set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: (all M.(all (\\a ->\n              a M.> M.i64 0)) (map2 M.(map2 (M.+)) diff P))", "-> #0  unbalanced_gw_core.fut:324:9-79\n   #1  unbalanced_gw_core.fut:328:49-50\n   #2  unbalanced_gw_core.fut:355:7-85\n   #3  unbalanced_gw_c.fut:126:3-96\n   #4  unbalanced_gw_c.fut:125:1-126:96\n"));
             err = FUTHARK_PROGRAM_ERROR;
             goto cleanup;
         }
@@ -23557,7 +23557,7 @@ FUTHARK_FUN_ATTR int futrts_entry_ugw_naive(struct futhark_context *ctx, double 
         bool assert_c_43757;
         
         if (!zl_res_43756) {
-            set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: M.((gradient) M.< zero)", "-> #0  common.fut:220:7-221:22\n   #1  unbalanced_gw_core.fut:330:39-47\n   #2  unbalanced_gw_core.fut:355:7-85\n   #3  unbalanced_gw_single_core.fut:126:3-96\n   #4  unbalanced_gw_single_core.fut:125:1-126:96\n"));
+            set_error(ctx, msgprintf("Error: %s\n\nBacktrace:\n%s", "Assertion is false: M.((gradient) M.< zero)", "-> #0  common.fut:220:7-221:22\n   #1  unbalanced_gw_core.fut:330:39-47\n   #2  unbalanced_gw_core.fut:355:7-85\n   #3  unbalanced_gw_c.fut:126:3-96\n   #4  unbalanced_gw_c.fut:125:1-126:96\n"));
             err = FUTHARK_PROGRAM_ERROR;
             goto cleanup;
         }
@@ -28684,7 +28684,7 @@ FUTHARK_FUN_ATTR int futrts_entry_unbalanced_gw_pairwise(struct futhark_context 
         bool index_certs_48681;
         
         if (!bounds_check_48680) {
-            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_48677, "] out of bounds for array of shape [", (long long) mz2080U_32812, "].", "-> #0  unbalanced_gw_single_core.fut:44:58-64\n   #1  unbalanced_gw_single_core.fut:47:17-30\n   #2  unbalanced_gw_single_core.fut:100:32-70\n   #3  unbalanced_gw_single_core.fut:100:1-70\n"));
+            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_48677, "] out of bounds for array of shape [", (long long) mz2080U_32812, "].", "-> #0  unbalanced_gw_c.fut:44:58-64\n   #1  unbalanced_gw_c.fut:47:17-30\n   #2  unbalanced_gw_c.fut:100:32-70\n   #3  unbalanced_gw_c.fut:100:1-70\n"));
             err = FUTHARK_PROGRAM_ERROR;
             goto cleanup;
         }
@@ -28695,7 +28695,7 @@ FUTHARK_FUN_ATTR int futrts_entry_unbalanced_gw_pairwise(struct futhark_context 
         bool index_certs_48686;
         
         if (!bounds_check_48685) {
-            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_48676, "] out of bounds for array of shape [", (long long) mz2080U_32812, "].", "-> #0  unbalanced_gw_single_core.fut:44:49-55\n   #1  unbalanced_gw_single_core.fut:47:17-30\n   #2  unbalanced_gw_single_core.fut:100:32-70\n   #3  unbalanced_gw_single_core.fut:100:1-70\n"));
+            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_48676, "] out of bounds for array of shape [", (long long) mz2080U_32812, "].", "-> #0  unbalanced_gw_c.fut:44:49-55\n   #1  unbalanced_gw_c.fut:47:17-30\n   #2  unbalanced_gw_c.fut:100:32-70\n   #3  unbalanced_gw_c.fut:100:1-70\n"));
             err = FUTHARK_PROGRAM_ERROR;
             goto cleanup;
         }
@@ -32708,7 +32708,7 @@ FUTHARK_FUN_ATTR int futrts_entry_unbalanced_gw_pairwise_pt_clouds(struct futhar
         bool index_certs_48681;
         
         if (!bounds_check_48680) {
-            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_48677, "] out of bounds for array of shape [", (long long) mz2080U_33239, "].", "-> #0  unbalanced_gw_single_core.fut:44:58-64\n   #1  unbalanced_gw_single_core.fut:47:17-30\n   #2  unbalanced_gw_single_core.fut:50:38-60\n   #3  unbalanced_gw_single_core.fut:102:42-90\n   #4  unbalanced_gw_single_core.fut:102:1-90\n"));
+            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_48677, "] out of bounds for array of shape [", (long long) mz2080U_33239, "].", "-> #0  unbalanced_gw_c.fut:44:58-64\n   #1  unbalanced_gw_c.fut:47:17-30\n   #2  unbalanced_gw_c.fut:50:38-60\n   #3  unbalanced_gw_c.fut:102:42-90\n   #4  unbalanced_gw_c.fut:102:1-90\n"));
             err = FUTHARK_PROGRAM_ERROR;
             goto cleanup;
         }
@@ -32719,7 +32719,7 @@ FUTHARK_FUN_ATTR int futrts_entry_unbalanced_gw_pairwise_pt_clouds(struct futhar
         bool index_certs_48686;
         
         if (!bounds_check_48685) {
-            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_48676, "] out of bounds for array of shape [", (long long) mz2080U_33239, "].", "-> #0  unbalanced_gw_single_core.fut:44:49-55\n   #1  unbalanced_gw_single_core.fut:47:17-30\n   #2  unbalanced_gw_single_core.fut:50:38-60\n   #3  unbalanced_gw_single_core.fut:102:42-90\n   #4  unbalanced_gw_single_core.fut:102:1-90\n"));
+            set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) eta_p_48676, "] out of bounds for array of shape [", (long long) mz2080U_33239, "].", "-> #0  unbalanced_gw_c.fut:44:49-55\n   #1  unbalanced_gw_c.fut:47:17-30\n   #2  unbalanced_gw_c.fut:50:38-60\n   #3  unbalanced_gw_c.fut:102:42-90\n   #4  unbalanced_gw_c.fut:102:1-90\n"));
             err = FUTHARK_PROGRAM_ERROR;
             goto cleanup;
         }
@@ -39738,7 +39738,7 @@ FUTHARK_FUN_ATTR int futrts_pairs_9653(struct futhark_context *ctx, struct membl
     bool range_valid_c_41281;
     
     if (!valid_41280) {
-        set_error(ctx, msgprintf("Error: %s%lld%s%lld%s%lld%s\n\nBacktrace:\n%s", "Range ", (long long) (int64_t) 0, "..", (long long) (int64_t) 1, "..<", (long long) n_32473, " is invalid.", "-> #0  /prelude/array.fut:94:3-11\n   #1  unbalanced_gw_single_core.fut:11:41-47\n"));
+        set_error(ctx, msgprintf("Error: %s%lld%s%lld%s%lld%s\n\nBacktrace:\n%s", "Range ", (long long) (int64_t) 0, "..", (long long) (int64_t) 1, "..<", (long long) n_32473, " is invalid.", "-> #0  /prelude/array.fut:94:3-11\n   #1  unbalanced_gw_c.fut:11:41-47\n"));
         err = FUTHARK_PROGRAM_ERROR;
         goto cleanup;
     }
@@ -39799,7 +39799,7 @@ FUTHARK_FUN_ATTR int futrts_pairs_9653(struct futhark_context *ctx, struct membl
             bool index_certs_50521;
             
             if (!bounds_check_50520) {
-                set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) tmp_50517, "] out of bounds for array of shape [", (long long) n_32473, "].", "-> #0  unbalanced_gw_single_core.fut:13:45-52\n   #1  unbalanced_gw_single_core.fut:13:55-61\n"));
+                set_error(ctx, msgprintf("Error: %s%lld%s%lld%s\n\nBacktrace:\n%s", "Index [", (long long) tmp_50517, "] out of bounds for array of shape [", (long long) n_32473, "].", "-> #0  unbalanced_gw_c.fut:13:45-52\n   #1  unbalanced_gw_c.fut:13:55-61\n"));
                 err = FUTHARK_PROGRAM_ERROR;
                 goto cleanup;
             }

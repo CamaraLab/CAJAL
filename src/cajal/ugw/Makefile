@@ -1,43 +1,29 @@
-su = scaling_unbalanced
+.SUFFIXES:
+# This line helps get rid of weird bugs.
+
+# all_futhark_files := $(*.fut)
 ugw = unbalanced_gw
 
-sc = $(ugw)_single_core
-mc = $(ugw)_multicore
-opencl = $(ugw)_opencl
-cuda = $(ugw)_cuda
-
-# check_compile: src/fused_gromov_wasserstein.fut src/scaling_unbalanced.fut \
-# 	src/entropic_gw.fut
-# 	futhark check src/fused_gromov_wasserstein.fut
-# 	futhark check src/scaling_unbalanced.fut
+# sc = single core
+sc = c
+mc = multicore
+opencl = opencl
+cuda = cuda
 
 .PHONY: check
 
 check:
 	for i in *.fut; do futhark check $$i; done
 
-all: single_core/$(sc).fut multicore/$(mc).fut opencl/$(opencl).fut cuda/$(cuda).fut
+.PHONY: all ml
 
-single_core/$(sc).fut: $(ugw).fut
-	cp $(ugw).fut $(sc).fut
-	futhark-bindgen run $(sc).fut single_core/$(sc).ml
-	rm $(sc).fut
-	# mv $(sc).* single_core
+all: $(sc)/$(ugw)_$(sc).c $(mc)/$(ugw)_$(mc).c $(opencl)/$(ugw)_$(opencl).c $(cuda)/$(ugw)_$(cuda).c
+ml: $(sc)/$(ugw)_$(sc).ml $(mc)/$(ugw)_$(mc).ml $(opencl)/$(ugw)_$(opencl).ml $(cuda)/$(ugw)_$(cuda).ml
 
-multicore/$(mc).fut: $(ugw).fut
-	cp $(ugw).fut $(mc).fut
-	futhark-bindgen run --backend multicore $(mc).fut multicore/$(mc).ml
-	rm $(mc).fut
-	# mv $(mc).* multicore
+%.c: *.fut
+	futhark $(@D) $(ugw).fut --library -o $*
 
-opencl/$(opencl).fut: $(ugw).fut
-	cp $(ugw).fut $(opencl).fut
-	futhark-bindgen run --backend opencl $(opencl).fut opencl/$(opencl).ml
-	rm $(opencl).fut
-	# mv $(opencl).* opencl
-
-cuda/$(cuda).fut: $(ugw).fut
-	cp $(ugw).fut $(cuda).fut
-	futhark-bindgen run --backend cuda $(cuda).fut cuda/$(cuda).ml
-	rm $(cuda).fut
-	# mv $(cuda).* cuda
+%.ml: *.fut
+	cp $(ugw).fut $(ugw)_$(@D).fut;\
+	futhark-bindgen run $(ugw)_$(@D).fut $@ --backend $(@D);\
+	rm $(ugw)_$(@D).fut
