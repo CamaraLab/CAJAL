@@ -1,6 +1,6 @@
 from futhark_ffi.build import build
 
-build_single_core = build("src/cajal/ugw/single_core/unbalanced_gw_single_core",
+build_single_core = build("src/cajal/ugw/c/unbalanced_gw_c",
                            "cajal/ugw/single_core")
 build_multicore = build("src/cajal/ugw/multicore/unbalanced_gw_multicore",
                          "cajal/ugw/multicore")
