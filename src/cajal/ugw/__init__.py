@@ -162,17 +162,15 @@ _ugw_armijo_pairwise_signature = Signature(
 )
 
 _ugw_pairwise_docstring = """Given an array of squareform distance matrices of shape (k,n,n),
-    and an array of measures of shape (k,n),
-    compute the pairwise unbalanced Gromov-Wasserstein distance between all of them.
-    Other than replacing two distance matrices with an array of distance matrices,
-    and two distributions with an array of distributions,
-    parameters are as in the function ugw_armijo.
-    Returns an array of shape (k * (k-1)/2, 5) where the rows correspond to cell pairs
-    and the columns are as in ugw_armijo. One can get the matrix of UGW_eps costs by accessing
-    column 4 and applying the scipy.spatial.distance.squareform function.
-    The user should be aware that a few NaN's in the output matrix are likely, and they
-    should try evaluating the UGW for those specific cell pairs at higher values of epsilon.
-    A GW cost of zero in the first column is problematic and potentially indicates a numerical
+    and an array of measures of shape (k,n), compute the pairwise unbalanced Gromov-Wasserstein 
+    distance between all of them. Other than replacing two distance matrices with an array of 
+    distance matrices, and two distributions with an array of distributions, parameters are as
+    in the function ugw_armijo. Returns an array of shape (k * (k-1)/2, 5) where the rows
+    correspond to cell pairs and the columns are as in ugw_armijo. One can get the matrix of
+    UGW_eps costs by accessing column 4 and applying the scipy.spatial.distance.squareform
+    function. The user should be aware that a few NaN's in the output matrix are likely, and they
+    should try evaluating the UGW for those specific cell pairs at higher values of epsilon. A
+    GW cost of zero in the first column is problematic and potentially indicates a numerical
     stability problem."""
 
 _ugw_armijo_pairwise_unif_signature = Signature(
