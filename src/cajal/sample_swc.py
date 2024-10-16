@@ -536,8 +536,6 @@ def compute_icdm_all_euclidean(
     def rpce(file_path: str) -> Union[Err[T], npt.NDArray[np.float64]]:
         return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
 
-    # args = zip([file_paths,repeat(n_sample),repeat(preprocess)])
-    icdms: Iterator[Union[Err[T], npt.NDArray[np.float64]]]
     failed_cells: list[tuple[str, Err[T]]]
 
     pool = ProcessPool(nodes=num_processes)
@@ -576,7 +574,6 @@ def compute_icdm_all_geodesic(
     def rpcg(file_path) -> Union[Err[T], npt.NDArray[np.float64]]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
 
-    icdms: Iterator[Err[T] | npt.NDArray[np.float64]]
     failed_cells: list[tuple[str, Err[T]]]
 
     pool = ProcessPool(nodes=num_processes)

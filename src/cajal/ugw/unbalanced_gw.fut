@@ -137,13 +137,22 @@ entry ugw_armijo rho1 rho2 eps A mu B nu exp_absorb_cutoff safe_for_exp tol_sink
      loop_count = 10,
      tol_sinkhorn } tol_outerloop
 
-entry ugw_armijo_pairwise [k][m] rho1 rho2 eps (A: [k][m][m]f64.t) exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
-  let mu = replicate m (1.0f64 / (f64.i64 m)) in
+entry ugw_armijo_pairwise [k][m] rho1 rho2 eps (A: [k][m][m]f64.t) (distrs: [k][m]f64.t) exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
+  -- let mu = replicate m (1.0f64 / (f64.i64 m)) in
   -- let nu = replicate n (1.0f64 / (f64.i64 n)) in
   pairs.pairs k
   |> map (\(i,j) -> 
-  unbalanced_gw64.armijo.main rho1 rho2 eps A[i] mu A[j] mu
+  unbalanced_gw64.armijo.main rho1 rho2 eps A[i] distrs[i] A[j] distrs[j]
    { exp_absorb_cutoff,
      safe_for_exp,
      loop_count = 10,
      tol_sinkhorn } tol_outerloop)
+
+entry ugw_armijo_pairwise_unif [k][m] rho1 rho2 eps (A: [k][m][m]f64.t) =
+  let mu = replicate m (1.0f64 / (f64.i64 m)) in
+  let distrs = replicate k mu in 
+  ugw_armijo_pairwise rho1 rho2 eps A distrs 
+
+entry ugw_armijo_euclidean [k][m][d] rho1 rho2 eps (pt_clouds: [k][m][d]f64.t) =
+  let dmats = map unbalanced_gw64.pdist pt_clouds in 
+  ugw_armijo_pairwise_unif rho1 rho2 eps dmats
