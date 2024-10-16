@@ -154,8 +154,14 @@ val init_step0: Context.t -> float -> float -> float -> Array_f64_2d.t -> Array_
 (** Entry point: ugw_armijo *)
 val ugw_armijo: Context.t -> float -> float -> float -> Array_f64_2d.t -> Array_f64_1d.t -> Array_f64_2d.t -> Array_f64_1d.t -> float -> float -> float -> float -> (Array_f64_1d.t)
 
+(** Entry point: ugw_armijo_euclidean *)
+val ugw_armijo_euclidean: Context.t -> float -> float -> float -> Array_f64_3d.t -> float -> float -> float -> float -> (Array_f64_2d.t)
+
 (** Entry point: ugw_armijo_pairwise *)
-val ugw_armijo_pairwise: Context.t -> float -> float -> float -> Array_f64_3d.t -> float -> float -> float -> float -> (Array_f64_2d.t)
+val ugw_armijo_pairwise: Context.t -> float -> float -> float -> Array_f64_3d.t -> Array_f64_2d.t -> float -> float -> float -> float -> (Array_f64_2d.t)
+
+(** Entry point: ugw_armijo_pairwise_unif *)
+val ugw_armijo_pairwise_unif: Context.t -> float -> float -> float -> Array_f64_3d.t -> float -> float -> float -> float -> (Array_f64_2d.t)
 
 (** Entry point: ugw_cost_arr *)
 val ugw_cost_arr: Context.t -> float -> float -> float -> Array_f64_2d.t -> Array_f64_1d.t -> Array_f64_2d.t -> Array_f64_1d.t -> Array_f64_2d.t -> (Array_f64_1d.t)

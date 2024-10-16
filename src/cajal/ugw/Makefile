@@ -17,13 +17,11 @@ check:
 
 .PHONY: all ml
 
-all: $(sc)/$(ugw)_$(sc).c $(mc)/$(ugw)_$(mc).c $(opencl)/$(ugw)_$(opencl).c $(cuda)/$(ugw)_$(cuda).c
-ml: $(sc)/$(ugw)_$(sc).ml $(mc)/$(ugw)_$(mc).ml $(opencl)/$(ugw)_$(opencl).ml $(cuda)/$(ugw)_$(cuda).ml
+all: $(sc)/$(ugw).c $(mc)/$(ugw).c $(opencl)/$(ugw).c $(cuda)/$(ugw).c
+ml: $(sc)/$(ugw).ml $(mc)/$(ugw).ml $(opencl)/$(ugw).ml $(cuda)/$(ugw).ml
 
 %.c: *.fut
 	futhark $(@D) $(ugw).fut --library -o $*
 
 %.ml: *.fut
-	cp $(ugw).fut $(ugw)_$(@D).fut;\
-	futhark-bindgen run $(ugw)_$(@D).fut $@ --backend $(@D);\
-	rm $(ugw)_$(@D).fut
+	futhark-bindgen run $(ugw).fut $@ --backend $(@D)

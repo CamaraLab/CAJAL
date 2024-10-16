@@ -27,7 +27,6 @@ module Bindings = struct
   let free = fn "free" (ptr void @-> returning void)
   let strlen = fn "strlen" (ptr char @-> returning size_t)
 
-  let futhark_context_config_set_num_threads = fn "futhark_context_config_set_num_threads" (context_config @-> int @-> returning (void))
   let array_f64_3d = typedef (ptr void) "array_f64_3d"
   let futhark_new_f64_3d = fn "futhark_new_f64_3d" (context @-> ptr double @-> int64_t @-> int64_t @-> int64_t @-> returning (array_f64_3d))
   let futhark_values_f64_3d = fn "futhark_values_f64_3d" (context @-> array_f64_3d @-> ptr double @-> returning (int))
@@ -46,7 +45,9 @@ module Bindings = struct
   let futhark_entry_init_step = fn "futhark_entry_init_step" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> double @-> double @-> double @-> returning (int))
   let futhark_entry_init_step0 = fn "futhark_entry_init_step0" (context @-> ptr array_f64_1d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> double @-> double @-> double @-> array_f64_2d @-> returning (int))
   let futhark_entry_ugw_armijo = fn "futhark_entry_ugw_armijo" (context @-> ptr array_f64_1d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> double @-> double @-> double @-> double @-> returning (int))
-  let futhark_entry_ugw_armijo_pairwise = fn "futhark_entry_ugw_armijo_pairwise" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_3d @-> double @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_ugw_armijo_euclidean = fn "futhark_entry_ugw_armijo_euclidean" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_3d @-> double @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_ugw_armijo_pairwise = fn "futhark_entry_ugw_armijo_pairwise" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_3d @-> array_f64_2d @-> double @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_ugw_armijo_pairwise_unif = fn "futhark_entry_ugw_armijo_pairwise_unif" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_3d @-> double @-> double @-> double @-> double @-> returning (int))
   let futhark_entry_ugw_cost_arr = fn "futhark_entry_ugw_cost_arr" (context @-> ptr array_f64_1d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> returning (int))
   let futhark_entry_ugw_naive = fn "futhark_entry_ugw_naive" (context @-> ptr double @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> double @-> double @-> double @-> returning (int))
   let futhark_entry_unbalanced_gw_init = fn "futhark_entry_unbalanced_gw_init" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> double @-> double @-> double @-> double @-> returning (int))
@@ -94,13 +95,13 @@ module Context = struct
       let () = ignore (Bindings.futhark_context_config_free t.config) in
       t.context_free <- true
 
-  let v ?(debug = false) ?(log = false) ?(profile = false) ?cache_file ?(auto_sync = true) ?(num_threads = 0) () =
+  let v ?(debug = false) ?(log = false) ?(profile = false) ?cache_file ?(auto_sync = true)  () =
     let config = Bindings.futhark_context_config_new () in
     if is_null config then raise (Error NullPtr);
     Bindings.futhark_context_config_set_debugging config (if debug then 1 else 0);
     Bindings.futhark_context_config_set_profiling config (if profile then 1 else 0);
     Bindings.futhark_context_config_set_logging config (if log then 1 else 0);
-        Bindings.futhark_context_config_set_num_threads config num_threads;
+    
     Option.iter (Bindings.futhark_context_config_set_cache_file config) cache_file;
     let handle = Bindings.futhark_context_new config in
     if is_null handle then 
@@ -430,10 +431,24 @@ let ugw_armijo ctx input0 input1 input2 input3 input4 input5 input6 input7 input
   if rc <> 0 then raise (Error (Code rc));
   ((Array_f64_1d.of_ptr ctx !@out_ptr))
 
-let ugw_armijo_pairwise ctx input0 input1 input2 input3 input4 input5 input6 input7 =
+let ugw_armijo_euclidean ctx input0 input1 input2 input3 input4 input5 input6 input7 =
   check_use_after_free `context ctx.Context.context_free;
   let out_ptr = allocate (ptr void) null in
-  let rc = Bindings.futhark_entry_ugw_armijo_pairwise ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) input4 input5 input6 input7 in
+  let rc = Bindings.futhark_entry_ugw_armijo_euclidean ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) input4 input5 input6 input7 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_2d.of_ptr ctx !@out_ptr))
+
+let ugw_armijo_pairwise ctx input0 input1 input2 input3 input4 input5 input6 input7 input8 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_ugw_armijo_pairwise ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) (get_ptr input4) input5 input6 input7 input8 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_2d.of_ptr ctx !@out_ptr))
+
+let ugw_armijo_pairwise_unif ctx input0 input1 input2 input3 input4 input5 input6 input7 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_ugw_armijo_pairwise_unif ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) input4 input5 input6 input7 in
   if rc <> 0 then raise (Error (Code rc));
   ((Array_f64_2d.of_ptr ctx !@out_ptr))
 
