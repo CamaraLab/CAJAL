@@ -7,7 +7,7 @@ requires = [
 	 "Cython>=3",
 	 "numpy",
          "futhark-ffi >= 0.15"
-	 ]
+]
 # What should the build-backend be?
 build-backend = "setuptools.build_meta"
 
@@ -34,6 +34,7 @@ dependencies = [
         "numpy",
 	"cython >= 3",
         "pathos >= 0.3.2",
+        "futhark-ffi >= 0.15",
 	"tqdm>=4.64.1",	
         "potpourri3d",
 	"pynndescent>=0.5.13",

@@ -138,8 +138,6 @@ entry ugw_armijo rho1 rho2 eps A mu B nu exp_absorb_cutoff safe_for_exp tol_sink
      tol_sinkhorn } tol_outerloop
 
 entry ugw_armijo_pairwise [k][m] rho1 rho2 eps (A: [k][m][m]f64.t) (distrs: [k][m]f64.t) exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
-  -- let mu = replicate m (1.0f64 / (f64.i64 m)) in
-  -- let nu = replicate n (1.0f64 / (f64.i64 n)) in
   pairs.pairs k
   |> map (\(i,j) -> 
   unbalanced_gw64.armijo.main rho1 rho2 eps A[i] distrs[i] A[j] distrs[j]
