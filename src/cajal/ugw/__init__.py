@@ -181,8 +181,8 @@ _ugw_armijo_pairwise_unif_signature = Signature(
 )
 
 _ugw_armijo_pairwise_unif_docstring = """This is the same as _ugw_armijo_pairwise,
-    but with all distributions hardcoded to the uniform distribution.
-    May reduce memory usage and cache usage relative to storing the entire constant array."""
+but with all distributions hardcoded to the uniform distribution.
+May reduce memory usage and cache usage relative to storing the entire constant array."""
 
 _ugw_armijo_euclidean_signature = Signature(
     parameters=_coefficient_parameters + [_pt_clouds_parameter] + _fine_tune_parameters,
