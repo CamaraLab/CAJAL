@@ -42,6 +42,7 @@ and with other single-cell data modalities, among other analyses.
    notebooks/Example_2
    notebooks/Example_3
    notebooks/Example_4
+   notebooks/Example_5
 
 .. toctree::
    :maxdepth: 2
