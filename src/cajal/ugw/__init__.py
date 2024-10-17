@@ -1,86 +1,9 @@
 from futhark_ffi import Futhark
-
-from inspect import Parameter, Signature
+from types import MethodType
 from cajal.run_gw import DistanceMatrix
 from cajal.run_gw import Distribution
 import numpy.typing as npt
 import numpy as np
-
-_rho1_parameter = Parameter(
-    name="rho1", kind=Parameter.POSITIONAL_OR_KEYWORD, annotation=float
-)
-_rho2_parameter = Parameter(
-    name="rho2", kind=Parameter.POSITIONAL_OR_KEYWORD, annotation=float
-)
-_eps_parameter = Parameter(
-    name="eps", kind=Parameter.POSITIONAL_OR_KEYWORD, annotation=float
-)
-_A_parameter = Parameter(
-    name="A", kind=Parameter.POSITIONAL_OR_KEYWORD, annotation=DistanceMatrix
-)
-_mu_parameter = Parameter(
-    name="mu", kind=Parameter.POSITIONAL_OR_KEYWORD, annotation=Distribution
-)
-_pt_clouds_parameter = Parameter(
-    name="pt_clouds",
-    kind=Parameter.POSITIONAL_OR_KEYWORD,
-    annotation=npt.NDArray[np.float64],
-)
-_dmats_parameter = Parameter(
-    name="dmats",
-    kind=Parameter.POSITIONAL_OR_KEYWORD,
-    annotation=npt.NDArray[np.float64],
-)
-_measures_parameter = Parameter(
-    name="measures",
-    kind=Parameter.POSITIONAL_OR_KEYWORD,
-    annotation=npt.NDArray[np.float64],
-)
-_B_parameter = Parameter(
-    name="B", kind=Parameter.POSITIONAL_OR_KEYWORD, annotation=DistanceMatrix
-)
-_nu_parameter = Parameter(
-    name="nu", kind=Parameter.POSITIONAL_OR_KEYWORD, annotation=Distribution
-)
-_exp_absorb_cutoff_parameter = Parameter(
-    name="exp_absorb_cutoff",
-    kind=Parameter.POSITIONAL_OR_KEYWORD,
-    annotation=float,
-    default=1e100,
-)
-_safe_for_exp_parameter = Parameter(
-    name="safe_for_exp",
-    kind=Parameter.POSITIONAL_OR_KEYWORD,
-    annotation=float,
-    default=100,
-)
-_tol_sinkhorn_parameter = Parameter(
-    name="tol_sinkhorn",
-    kind=Parameter.POSITIONAL_OR_KEYWORD,
-    annotation=float,
-    default=1e-5,
-)
-_tol_outerloop_parameter = Parameter(
-    name="tol_outerloop",
-    kind=Parameter.POSITIONAL_OR_KEYWORD,
-    annotation=float,
-    default=1e-3,
-)
-
-_coefficient_parameters = [_rho1_parameter, _rho2_parameter, _eps_parameter]
-_fine_tune_parameters = [
-    _exp_absorb_cutoff_parameter,
-    _safe_for_exp_parameter,
-    _tol_sinkhorn_parameter,
-    _tol_outerloop_parameter,
-]
-
-_ugw_armijo_sig = Signature(
-    parameters=_coefficient_parameters
-    + [_A_parameter, _mu_parameter, _B_parameter, _nu_parameter]
-    + _fine_tune_parameters,
-    return_annotation=npt.NDArray[np.float64],
-)
 
 _rho1_docstring = """:param rho1: The first marginal penalty coefficient, controls how much the
     first marginal for the transport plan (sum along rows) is allowed to deviate from mu.
@@ -125,7 +48,7 @@ _tol_outerloop_docstring = """:param tol_outerloop: An accuracy parameter, contr
 
 _ugw_armijo_docstring = "\n".join(
     [
-        """Given two metric measure spaces (A,mu) and (B, nu), compute the 
+        """Given two metric measure spaces (A,mu) and (B, nu), compute the
         unbalanced Gromov-Wasserstein distance between them,
         using an algorithm based on that of Séjourné, Vialard and Peyré,
         with some modifications for numerical stability and convergence.""",
@@ -134,7 +57,7 @@ _ugw_armijo_docstring = "\n".join(
         _eps_docstring,
         """:param A: A square pairwise distance matrix of shape (n, n),
             symmetric and with zeroes along the diagonal.""",
-        """:param mu: A one-dimensional vector of length n with strictly 
+        """:param mu: A one-dimensional vector of length n with strictly
             positive entries. (The algorithm does not currently support zero entries.)""",
         """:param B: A square pairwise distance matrix of shape (m, m),
             symmetric and with zeroes along the diagonal.""",
@@ -154,16 +77,9 @@ _ugw_armijo_docstring = "\n".join(
     ]
 )
 
-_ugw_armijo_pairwise_signature = Signature(
-    parameters=_coefficient_parameters
-    + [_dmats_parameter, _measures_parameter]
-    + _fine_tune_parameters,
-    return_annotation=npt.NDArray[np.float64],
-)
-
 _ugw_pairwise_docstring = """Given an array of squareform distance matrices of shape (k,n,n),
-    and an array of measures of shape (k,n), compute the pairwise unbalanced Gromov-Wasserstein 
-    distance between all of them. Other than replacing two distance matrices with an array of 
+    and an array of measures of shape (k,n), compute the pairwise unbalanced Gromov-Wasserstein
+    distance between all of them. Other than replacing two distance matrices with an array of
     distance matrices, and two distributions with an array of distributions, parameters are as
     in the function ugw_armijo. Returns an array of shape (k * (k-1)/2, 5) where the rows
     correspond to cell pairs and the columns are as in ugw_armijo. One can get the matrix of
@@ -173,21 +89,11 @@ _ugw_pairwise_docstring = """Given an array of squareform distance matrices of s
     GW cost of zero in the first column is problematic and potentially indicates a numerical
     stability problem."""
 
-_ugw_armijo_pairwise_unif_signature = Signature(
-    parameters=_coefficient_parameters + [_dmats_parameter] + _fine_tune_parameters,
-    return_annotation=npt.NDArray[np.float64],
-)
-
-_ugw_armijo_pairwise_unif_docstring = """This is the same as _ugw_armijo_pairwise,
+_ugw_armijo_pairwise_unif_docstring = """This is the same as ugw_armijo_pairwise,
 but with all distributions hardcoded to the uniform distribution.
 May reduce memory usage and cache usage relative to storing the entire constant array."""
 
-_ugw_armijo_euclidean_signature = Signature(
-    parameters=_coefficient_parameters + [_pt_clouds_parameter] + _fine_tune_parameters,
-    return_annotation=npt.NDArray[np.float64],
-)
-
-_ugw_armijo_euclidean_docstring = """This is the same as _ugw_armijo_pairwise_unif,
+_ugw_armijo_euclidean_docstring = """This is the same as ugw_armijo_pairwise_unif,
     but the user passes in the array of point clouds rather than distance matrices,
     and the backend computes the distance matrices dynamically at the moment they
     are needed. This may reduce memory consumption and cache usage."""
@@ -212,15 +118,128 @@ class UGW(Futhark):
     where these other algorithms fail to converge and so we don't encourage their use.
     """
 
-    def __init__(self, backend_module):
-        Futhark.__init__(self, backend_module)
-        self.ugw_armijo.__signature__ = _ugw_armijo_sig
-        self.ugw_armijo.__doc__ = _ugw_armijo_docstring
-        self.ugw_armijo_pairwise.__signature__ = _ugw_armijo_pairwise_signature
-        self.ugw_armijo_pairwise.__doc__ = _ugw_pairwise_docstring
-        self.ugw_armijo_pairwise_unif.__signature__ = (
-            _ugw_armijo_pairwise_unif_signature
+    # These boilerplate function definitions are the only solution I could come up with
+    # to the problem that the C backend does not support named arguments/keyword arguments
+    # at all, they have to be strictly positional.
+    # Also, the C backend doesn't support default arguments.
+    # IMO keyword arguments make it a lot easier to
+    # read and understand code, so this is worth it just for the UI difference of being able
+    # to specify what each parameter means by name, also helps users to read and follow the
+    # tutorials.
+
+    def ugw_armijo(
+        self,
+        rho1: float,
+        rho2: float,
+        eps: float,
+        A_dmat: DistanceMatrix,
+        mu: Distribution,
+        B_dmat: DistanceMatrix,
+        nu: Distribution,
+        exp_absorb_cutoff: float = 1e100,
+        safe_for_exp: float = 100.0,
+        tol_sinkhorn: float = 1e-5,
+        tol_outerloop: float = 1e-3,
+    ):
+        _ugw_armijo_docstring
+
+        self._ugw_armijo(
+            self,
+            rho1,
+            rho2,
+            eps,
+            A_dmat,
+            mu,
+            B_dmat,
+            nu,
+            exp_absorb_cutoff,
+            safe_for_exp,
+            tol_sinkhorn,
+            tol_outerloop,
         )
-        self.ugw_armijo_pairwise_unif.__doc__ = _ugw_armijo_pairwise_unif_docstring
-        self.ugw_armijo_euclidean.__signature__ = _ugw_armijo_euclidean_signature
-        self.ugw_armijo_euclidean.__doc__ = _ugw_armijo_euclidean_docstring
+    ugw_armijo.__doc__ = _ugw_armijo_docstring
+
+    def ugw_armijo_pairwise(
+        self,
+        rho1: float,
+        rho2: float,
+        eps: float,
+        dmats: npt.NDArray[np.float64],
+        distrs: npt.NDArray[np.float64],
+        exp_absorb_cutoff: float = 1e100,
+        safe_for_exp: float = 100.0,
+        tol_sinkhorn: float = 1e-5,
+        tol_outerloop: float = 1e-3,
+    ):
+        return self._ugw_armijo_pairwise(
+            self,
+            rho1,
+            rho2,
+            eps,
+            dmats,
+            distrs,
+            exp_absorb_cutoff,
+            safe_for_exp,
+            tol_sinkhorn,
+            tol_outerloop,
+        )
+    ugw_armijo_pairwise.__doc__ = _ugw_pairwise_docstring
+
+    def ugw_armijo_pairwise_unif(
+        self,
+        rho1: float,
+        rho2: float,
+        eps: float,
+        dmats: npt.NDArray[np.float64],
+        exp_absorb_cutoff: float = 1e100,
+        safe_for_exp: float = 100.0,
+        tol_sinkhorn: float = 1e-5,
+        tol_outerloop: float = 1e-3,
+    ):
+        return self._ugw_armijo_pairwise_unif(
+            rho1,
+            rho2,
+            eps,
+            dmats,
+            exp_absorb_cutoff,
+            safe_for_exp,
+            tol_sinkhorn,
+            tol_outerloop,
+        )
+    ugw_armijo_pairwise_unif.__doc__ = _ugw_armijo_pairwise_unif_docstring
+    
+    def ugw_armijo_euclidean(
+        self,
+        rho1: float,
+        rho2: float,
+        eps: float,
+        pt_clouds: npt.NDArray[np.float64],
+        exp_absorb_cutoff: float = 1e100,
+        safe_for_exp: float = 100.0,
+        tol_sinkhorn: float = 1e-5,
+        tol_outerloop: float = 1e-3,
+    ):
+        return self._ugw_armijo_euclidean(
+            rho1,
+            rho2,
+            eps,
+            pt_clouds,
+            exp_absorb_cutoff,
+            safe_for_exp,
+            tol_sinkhorn,
+            tol_outerloop,
+        )
+    
+    ugw_armijo_euclidean.__doc__ = _ugw_armijo_euclidean_docstring
+
+    def __init__(self, backend):
+        Futhark.__init__(self,backend)
+        self._ugw_armijo = self.ugw_armijo
+        self._ugw_armijo_pairwise = self.ugw_armijo_pairwise
+        self._ugw_armijo_pairwise_unif = self.ugw_armijo_pairwise_unif
+        self._ugw_armijo_euclidean = self.ugw_armijo_euclidean
+
+        self.ugw_armijo = MethodType(UGW.ugw_armijo, self)
+        self.ugw_armijo_pairwise = MethodType(UGW.ugw_armijo_pairwise, self)
+        self.ugw_armijo_pairwise_unif = MethodType(UGW.ugw_armijo_pairwise_unif, self)
+        self.ugw_armijo_euclidean = MethodType(UGW.ugw_armijo_euclidean, self)
