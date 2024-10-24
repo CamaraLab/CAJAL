@@ -118,7 +118,7 @@ the optimal rescaling of :math:`T` for the unbalanced GW problem, which gives an
 
 So, if you do not want more than 10% of the mass of the cells to be destroyed by the transport plan, you should choose :math:`\rho_1,\rho_2` such that :math:`\rho_1+\rho_2\geq -\mathcal{G}(T)/2\ln(0.9)`.
 
- :math:`d_{GW}((A,\mu),(B,\nu))` is 50 units (so that :math:`\mathcal{G}(T)` = 10000, for the optimal strict coupling :math:`T`)
+:math:`d_{GW}((A,\mu),(B,\nu))` is 50 units (so that :math:`\mathcal{G}(T)` = 10000, for the optimal strict coupling :math:`T`)
 then for given values of :math:`\rho_1,\rho_2`, an upper bound for :math:`UGW((A,\mu),(B,\nu))` is :math:`\min_{\alpha\in[0,1]} \mathcal{L}(\alpha T)= 10000 \cdot \min_{\alpha\in[0,1]} \alpha^2 + (\rho_1+\rho_2)\sigma(\alpha^2)`, where :math:`\sigma(x)= x\ln x-x+ 1`.
 
 
