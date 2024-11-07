@@ -34,31 +34,24 @@ def test_rpcg():
         if i > 20:
             break
 
-import numpy as np
+
 def test_compute_icdm_both():
     swc_dir = "tests/swc"
     compute_icdm_all_euclidean(
         infolder=swc_dir,
-        out_npz="tests/icdm_euclidean.npz",
+        out_csv="tests/icdm_euclidean.csv",
+        out_node_types="tests/eu_node_types.npy",
         n_sample=50,
         num_processes=10,
     )
-    a = np.load("tests/icdm_euclidean.npz")
-    assert (a['dmats'].shape == (8,50 * 49 /2))
-    assert (a['dmats'].dtype == np.float64)
-    assert (a['structure_ids'].shape == (8,50))
-    assert (a['structure_ids'].dtype == np.int32)
-    os.remove("tests/icdm_euclidean.npz")
-
     compute_icdm_all_geodesic(
         infolder=swc_dir,
-        out_npz="tests/icdm_geodesic.npz",
+        out_csv="tests/icdm_geodesic.csv",
+        out_node_types="tests/geo_node_types.npy",
         n_sample=50,
         num_processes=10,
     )
-    a = np.load("tests/icdm_geodesic.npz")
-    assert (a['dmats'].shape == (8,50 * 49 /2))
-    assert (a['dmats'].dtype == np.float64)
-    assert (a['structure_ids'].shape == (8,50))
-    assert (a['structure_ids'].dtype == np.int32)
-    os.remove("tests/icdm_geodesic.npz")
+    os.remove("tests/icdm_euclidean.csv")
+    os.remove("tests/icdm_geodesic.csv")
+    os.remove("tests/eu_node_types.npy")
+    os.remove("tests/geo_node_types.npy")

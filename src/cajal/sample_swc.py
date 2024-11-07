@@ -3,12 +3,10 @@ Functions for sampling points from an SWC reconstruction of a neuron.
 """
 
 import math
-from typing import Callable, Union, Any, Optional
+from typing import Callable, Union
 
 import numpy as np
-from pathos.helpers import cpu_count
 from pathos.pools import ProcessPool
-import itertools as it
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean, pdist
 from tqdm import tqdm
@@ -22,7 +20,7 @@ from .swc import (
     read_swc,
     weighted_depth,
 )
-from .utilities import Err, T
+from .utilities import Err, T, write_csv_block
 from .weighted_tree import (
     WeightedTree,
     WeightedTree_of,
@@ -498,7 +496,8 @@ def read_preprocess_compute_geodesic(
 
 def compute_icdm_all_euclidean(
     infolder: str,
-    out_npz: str,
+    out_csv: str,
+    out_node_types: str,
     n_sample: int,
     num_processes: int = 8,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
@@ -514,10 +513,11 @@ def compute_icdm_all_euclidean(
     modified SWCForest `processed_forest`. Sample n_sample many points from the
     neuron, evenly spaced, and compute the Euclidean intracell matrix. Write
     the resulting intracell distance matrices for all cells passing the
-    preprocessing test to an npz file with path `out_npz`.
+    preprocessing test to a csv file with path `out_csv`.
 
     :param infolder: Directory of input \*.swc files.
-    :param out_npz: Output file to write to.
+    :param out_csv: Output file to write the pairwise distances to.
+    :param out_node_types: Output file to write the node labels
     :param n_sample: How many points to sample from each cell.
     :param preprocess: `preprocess` is expected to be roughly of the following form:
 
@@ -554,21 +554,16 @@ def compute_icdm_all_euclidean(
     def rpce(file_path: str) -> Union[Err[T], npt.NDArray[np.float64]]:
         return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
 
-    failed_cells: list[tuple[str, Err[T]]] = []
-    dmats = []
-    structure_ids = []
+    # args = zip([file_paths,repeat(n_sample),repeat(preprocess)])
+    # icdms: Iterator[Union[Err[T], npt.NDArray[np.float64]]]
+    failed_cells: list[tuple[str, Err[T]]]
+
     pool = ProcessPool(nodes=num_processes)
-
-    for x in tqdm(pool.imap(rpce, file_paths), total=len(cell_names)):
-        if isinstance(x, Err):
-            failed_cells.append(x)
-        else:
-            dmats.append(x[0])
-            structure_ids.append(x[1])
-
-    dmats = np.stack(dmats)
-    structure_ids = np.stack(structure_ids)
-    np.savez(out_npz, dmats=dmats, structure_ids=structure_ids)
+    results = tqdm(pool.imap(rpce, file_paths), total=len(cell_names))
+    failed_cells = write_csv_block(
+        out_csv, n_sample, zip(cell_names, results), 10,
+        out_node_types=out_node_types
+    )
     pool.close()
     pool.join()
     pool.clear()
@@ -577,7 +572,8 @@ def compute_icdm_all_euclidean(
 
 def compute_icdm_all_geodesic(
     infolder: str,
-    out_npz: str,
+    out_csv: str,
+    out_node_types: str,
     n_sample: int,
     num_processes: int = 8,
     preprocess: Callable[
@@ -602,117 +598,16 @@ def compute_icdm_all_geodesic(
     def rpcg(file_path) -> Union[Err[T], npt.NDArray[np.float64]]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
 
-    failed_cells: list[tuple[str, Err[T]]] = []
-    dmats = []
-    structure_ids = []
+    # icdms: Iterator[Err[T] | npt.NDArray[np.float64]]
+    failed_cells: list[tuple[str, Err[T]]]
 
     pool = ProcessPool(nodes=num_processes)
-    for x in tqdm(pool.imap(rpcg, file_paths), total=len(cell_names)):
-        if isinstance(x, Err):
-            failed_cells.append(x)
-        else:
-            dmats.append(x[0])
-            structure_ids.append(x[1])
-    dmats = np.stack(dmats)
-    structure_ids = np.stack(structure_ids)
-    np.savez(out_npz, dmats=dmats, structure_ids=structure_ids)
+    results = tqdm(pool.imap(rpcg, file_paths), total=len(cell_names))
+    failed_cells = write_csv_block(
+        out_csv, n_sample, zip(cell_names, results), 10,
+        out_node_types=out_node_types
+    )
     pool.close()
     pool.join()
     pool.clear()
     return failed_cells
-
-
-def _init_fgw_pool(dmats, structure_ids, kwargs: dict[str, Any]):
-    global _DMATS
-    _DMATS = dmats
-    global _STRUCTURE_IDS
-    _STRUCTURE_IDS = structure_ids
-    global _KWARGS
-    _KWARGS = kwargs
-
-
-def _fgw_index(p: tuple[int, int]):
-    """
-    Compute the Fused GW distance between cells i and j
-    in the master cell list.
-    """
-    i, j = p
-    structure_ids = _STRUCTURE_IDS
-
-    i_1 = structure_ids[i] == 1
-    i_3 = structure_ids[i] == 3
-    i_4 = structure_ids[i] == 4
-    i_34 = np.logical_or(i_3, i_4)
-    j_1 = structure_ids[j] == 1
-    j_3 = structure_ids[j] == 3
-    j_4 = structure_ids[j] == 4
-    j_34 = np.logical_or(j_3, j_4)
-
-    basal_apical_matrix = np.logical_or(
-        np.logical_and(i_3[:, np.newaxis], j_4[np.newaxis, :]),
-        np.logical_and(i_4[:, np.newaxis], j_3[np.newaxis, :]),
-    )
-
-    soma_dendrite_matrix = np.logical_or(
-        np.logical_and(i_1[:, np.newaxis], j_34[np.newaxis, :]),
-        np.logical_and(i_34[:, np.newaxis], j_1[np.newaxis, :]),
-    )
-
-    cost_matrix = (
-        _KWARGS["basal_apical_penalty"] * basal_apical_matrix
-        + _KWARGS["soma_dendrite_penalty"] * soma_dendrite_matrix
-    )
-
-    _, log = fused_gromov_wasserstein(_DMATS[i], _DMATS[j], cost_matrix, **_KWARGS)
-    return (i, j, log["fgw_dist"])
-
-
-def fused_gromov_wasserstein(
-    intracell_npz_loc: str,
-    basal_apical_penalty: float,
-    soma_dendrite_penalty: float,
-    num_processes: Optional[int] = None,
-        chunksize: int = 1,
-        **kwargs,
-):
-    """Compute the matrix of fused Gromov-Wasserstein distances between cells.
-
-    :param intracell_npz_loc: A *.npz file containing the intracell
-        distance matrices for all cells, and the identifiers for the nodes.
-
-    :param fgw_npz_loc: Where to write the fused GW distances.
-    :param basal_apical_penalty: The cost that the transport plan will pay for aligning a \
-        basal dendrite node with an apical dendrite node, instead of with nodes of the same type.
-    :soma_dendrite_penalty: The cost that the transport plan will pay for aligning a soma \
-        node with a dendrite node, rather than aligning soma nodes to soma nodes \
-        and dendrites to dendrites.
-    """
-    intracell_data = np.load(intracell_npz_loc)
-    dmats = intracell_data["dmats"]
-    num_cells = dmats.shape[0]
-    structure_ids = intracell_data["structure_ids"]
-    kwargs["log"] = True
-    kwargs["basal_apical_penalty"] = basal_apical_penalty
-    kwargs["soma_dendrite_penalty"] = soma_dendrite_penalty
-    if num_processes is None:
-        num_processes = cpu_count()
-    # compute pairwise fGW distances between all objects
-    index_pairs = it.combinations(
-        iter(range(num_cells)), 2
-    )  # object pairs to compute fGW / OT for
-    total_num_pairs = int(
-        (num_cells * (num_cells - 1)) / 2
-    )  # total number of object pairs to compute (for progress bar)
-
-    with ProcessPool(
-        initializer=_init_fgw_pool,
-        initargs=(dmats, structure_ids, kwargs),
-        processes=num_processes,
-    ) as pool:
-        res = pool.uimap(_fgw_index, index_pairs, chunksize=chunksize)
-        # store GW distances
-        fgw_dmat = np.zeros((num_cells, num_cells))
-        for i, j, fgw_dist in tqdm(res, total=total_num_pairs, position=0, leave=True):
-            fgw_dmat[i, j] = fgw_dist
-            fgw_dmat[j, i] = fgw_dist
-    return fgw_dmat

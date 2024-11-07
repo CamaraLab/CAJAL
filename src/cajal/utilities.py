@@ -177,27 +177,33 @@ def read_gw_couplings(
                 )
     return gw_coupling_mat_dict
 
-
 T = TypeVar("T")
-
 
 @dataclass
 class Err(Generic[T]):
     code: T
-
 
 def write_csv_block(
     out_csv: str,
     sidelength: int,
     dist_mats: Iterator[tuple[str, Union[Err[T], npt.NDArray[np.float64]]]],
     batch_size: int,
+    **kwargs
 ) -> list[tuple[str, Err[T]]]:
     """
     :param sidelength: The side length of all matrices in dist_mats.
     :param dist_mats: an iterator over pairs (name, arr), where arr is an
     vector-form array (rank 1) or an error code.
     """
+    for i in kwargs:
+        print(i)
+    fused = "out_node_types" in kwargs
+    assert fused
+
     failed_cells: list[tuple[str, Err[T]]] = []
+    if fused:
+        node_types: list[npt.NDArray[np.int32]] = []
+        
     with open(out_csv, "w", newline="") as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=",")
         firstline = ["cell_id"] + [
@@ -209,11 +215,18 @@ def write_csv_block(
             for name, cell in next_batch:
                 if isinstance(cell, Err):
                     failed_cells.append((name, cell))
-                else:
+                elif fused:
+                    good_cells.append([name] + cell[0].tolist())
+                    node_types.append(cell[1])
+                else:           # Not fused
                     good_cells.append([name] + cell.tolist())
             csvwriter.writerows(good_cells)
-    return failed_cells
 
+    if fused:
+        stacks = np.stack(node_types)
+        with open(kwargs['out_node_types'], 'wb') as f:
+            np.save(f, stacks)
+    return failed_cells
 
 def knn_graph(dmat: npt.NDArray[np.float64], nn: int) -> npt.NDArray[np.int_]:
     """
