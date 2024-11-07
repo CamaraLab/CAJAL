@@ -33,6 +33,7 @@ and with other single-cell data modalities, among other analyses.
    computing-gw-distances
    benchmarking
    average_swc_shape
+   gw_variants
 
 .. toctree::
    :maxdepth: 1
@@ -42,6 +43,7 @@ and with other single-cell data modalities, among other analyses.
    notebooks/Example_2
    notebooks/Example_3
    notebooks/Example_4
+   notebooks/Example_5
 
 .. toctree::
    :maxdepth: 2

@@ -5,8 +5,9 @@ requires = [
 	 "pip>=24",
 	 "wheel",
 	 "Cython>=3",
-	 "numpy"
-	 ]
+	 "numpy",
+         "futhark-ffi >= 0.15"
+]
 # What should the build-backend be?
 build-backend = "setuptools.build_meta"
 
@@ -33,10 +34,12 @@ dependencies = [
         "numpy",
 	"cython >= 3",
         "pathos >= 0.3.2",
+        "futhark-ffi >= 0.15",
 	"tqdm>=4.64.1",	
         "potpourri3d",
 	"pynndescent>=0.5.13",
         "python-louvain",
+        "pot",
         "scipy>=1.10",
         "scikit-image",
         "tifffile",
@@ -55,7 +58,19 @@ dev = [
     "plotly",
     "nbsphinx",
     "navis",
+    "black",
+    "flake8",
+    "ipywidgets",
     "sphinx_rtd_theme"
+]
+
+doc = [
+    "sphinx",
+    "myst_parser",
+    "nbsphinx",
+    "sphinx_rtd_theme",
+    "pandas",
+    "plotly"
 ]
 
 vis = [
