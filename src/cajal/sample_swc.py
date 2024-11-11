@@ -3,11 +3,13 @@ Functions for sampling points from an SWC reconstruction of a neuron.
 """
 
 import math
-from typing import Callable, Union
-
+from typing import Callable, Union, Any, Optional
+import ot
 import numpy as np
-from pathos.pools import ProcessPool
+import csv
+from pathos.pools import ProcessPool, ThreadPool
 import numpy.typing as npt
+import itertools as it
 from scipy.spatial.distance import euclidean, pdist
 from tqdm import tqdm
 
@@ -20,7 +22,7 @@ from .swc import (
     read_swc,
     weighted_depth,
 )
-from .utilities import Err, T, write_csv_block
+from .utilities import Err, T, write_csv_block, cell_iterator_csv, uniform
 from .weighted_tree import (
     WeightedTree,
     WeightedTree_of,
@@ -28,6 +30,9 @@ from .weighted_tree import (
     WeightedTreeRoot,
     weighted_depth_wt,
     weighted_dist_from_root,
+)
+from .types import (
+    Distribution, DistanceMatrix # Matrix, Array
 )
 
 # Warning: Of 509 neurons downloaded from the Allen Brain Initiative
@@ -611,3 +616,124 @@ def compute_icdm_all_geodesic(
     pool.join()
     pool.clear()
     return failed_cells
+
+def fused_gromov_wasserstein(
+        cell1_dmat : DistanceMatrix,
+        cell1_distribution: Distribution,
+        cell1_node_types : npt.NDArray[np.int32],
+        cell2_dmat : DistanceMatrix,
+        cell2_distribution: Distribution,        
+        cell2_node_types: npt.NDArray[np.int32],
+        penalty_dictionary: dict[tuple[int,int],float],
+        **kwargs
+):
+    penalty_matrix = np.zeros(shape=(cell1_node_types.shape[0],
+                                     cell2_node_types.shape[0]))
+    for ((i,j),p) in penalty_dictionary.items():
+        penalty_matrix += np.logical_and((cell1_node_types==i)[:,np.newaxis],(cell2_node_types==j)[np.newaxis,:]) * p
+        penalty_matrix += np.logical_and((cell1_node_types==j)[:,np.newaxis],(cell2_node_types==i)[np.newaxis,:]) * p
+
+    return ot.fused_gromov_wasserstein(
+        penalty_matrix,
+        cell1_dmat,
+        cell2_dmat,
+        p=cell1_distribution,
+        q=cell2_distribution,
+        **kwargs
+    )
+
+
+def _init_fgw_pool(
+    cells: list[tuple[npt.NDArray[np.float64],npt.NDArray[np.float64]]],
+    node_types: npt.NDArray[np.int32],
+    penalty_dictionary: dict[tuple[int,int],float],
+    kwargs: dict[str, Any]
+):
+    """
+    Set a global variable _CELLS so that the parallel process pool can
+    access it.
+    """
+    global _CELLS
+    _CELLS = cells
+    global _NODE_TYPES
+    _NODE_TYPES = node_types
+    global _KWARGS
+    _KWARGS = kwargs
+    global _PENALTY_DICTIONARY
+    _PENALTY_DICTIONARY = penalty_dictionary
+
+def _fgw_index(p: tuple[int, int]):
+    """
+    Compute the Fused GW distance between cells i and j
+    in the master cell list.
+    """
+    i, j = p
+    (_,log)= fused_gromov_wasserstein(
+        _CELLS[i][0],
+        _CELLS[i][1],
+        _NODE_TYPES[i],
+        _CELLS[j][0],
+        _CELLS[j][1],
+        _NODE_TYPES[j],
+        _PENALTY_DICTIONARY,
+        **_KWARGS
+    )
+    return (i, j, log["fgw_dist"])
+
+def fused_gromov_wasserstein_parallel(
+        intracell_csv_loc: str,
+        swc_node_types: str,
+        fgw_dist_csv_loc: str,
+        num_processes : int,        
+        soma_dendrite_penalty: float,
+        basal_apical_penalty: float,
+        penalty_dictionary: Optional[dict[tuple[int,int],float]] = None,
+        fgw_dist_npy_loc: Optional[str] = None,
+        chunksize=5,
+        **kwargs
+):
+    cell_names_dmats = list(cell_iterator_csv(intracell_csv_loc))
+    node_types: npt.NDArray[np.int32]
+    node_types = np.load(swc_node_types)
+    names: list[str]
+    names = [name for name, _ in cell_names_dmats]
+    num_cells = len(names)
+    # List of pairs (A, a) where A is a square matrix and `a` a probability distribution
+    cells: list[tuple[DistanceMatrix, Distribution]]
+    cells = [(c := cell, uniform(c.shape[0])) for _, cell in cell_names_dmats]
+        # compute pairwise fGW distances between all objects
+
+    index_pairs = it.combinations(
+        iter(range(num_cells)), 2
+    )  # object pairs to compute fGW / OT for
+    total_num_pairs = int(
+        (num_cells * (num_cells - 1)) / 2
+    )  # total number of object pairs to compute (for progress bar)
+    kwargs["log"] = True
+
+    if penalty_dictionary is None:
+        penalty_dictionary = dict()
+        penalty_dictionary[(1,3)] = soma_dendrite_penalty,
+        penalty_dictionary[(1,4)] = soma_dendrite_penalty,
+        penalty_dictionary[(3,4)] = basal_apical_penalty
+
+    with ThreadPool(
+        initializer=_init_fgw_pool,
+        initargs=(cells, node_types, penalty_dictionary, kwargs),
+        processes=num_processes,
+    ) as pool:
+        res = pool.uimap(_fgw_index, index_pairs, chunksize=chunksize)
+        # store GW distances
+        fgw_dmat = np.zeros((num_cells, num_cells))
+        for i, j, fgw_dist in tqdm(res, total=total_num_pairs, position=0, leave=True):
+            fgw_dmat[i, j] = fgw_dist
+            fgw_dmat[j, i] = fgw_dist
+    if fgw_dist_npy_loc is not None:
+        with open(fgw_dist_npy_loc,'wb') as outfile:
+            np.save(outfile,fgw_dmat)
+
+    with open(fgw_dist_csv_loc,'w') as outfile:
+        csvwrite= csv.writer(outfile)
+        csvwrite.writerow(["first_object", "second_object", "gw_distance"])
+        for i, j in it.combinations(iter(range(num_cells)), 2):
+           csvwrite.writerow([names[i],names[j],str(fgw_dmat[i,j])])

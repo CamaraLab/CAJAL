@@ -13,6 +13,8 @@ import leidenalg
 import community as community_louvain
 import igraph as ig
 import networkx as nx
+from math import ceil, sqrt
+from .types import DistanceMatrix
 
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import dijkstra
@@ -483,3 +485,91 @@ def avg_shape_spt(
     retmat = squareform(dmat_avg_capped)
     retmat[mask] = 0
     return retmat, confidence
+
+def cell_iterator_csv(
+    intracell_csv_loc: str,
+) -> Iterator[tuple[str, DistanceMatrix]]:
+    """
+    :param intracell_csv_loc: A full file path to a csv file.
+
+    :return: an iterator over cells in the csv file, given as tuples of the form
+        (name, dmat). Intracell distance matrices are in squareform.
+    """
+    icdm_csv_validate(intracell_csv_loc)
+    with open(intracell_csv_loc, "r", newline="") as icdm_csvfile:
+        csv_reader = csv.reader(icdm_csvfile, delimiter=",")
+        # Assume a header
+        next(csv_reader)
+        while ell := next(csv_reader, None):
+            cell_name = ell[0]
+            arr = squareform(
+                np.array([float(x) for x in ell[1:]], dtype=np.float64),
+                force="tomatrix",
+            )
+            yield cell_name, arr
+
+def icdm_csv_validate(intracell_csv_loc: str) -> None:
+    """
+    Raise an exception if the file in intracell_csv_loc fails to pass formatting tests.
+
+    If formatting tests are passed, the function returns none.
+
+    :param intracell_csv_loc: The (full) file path for the CSV file containing the intracell
+        distance matrix.
+
+    The file format for an intracell distance matrix is as follows:
+
+    * A line whose first character is '#' is discarded as a comment.
+    * The first line which is not a comment is discarded as a "header" - this line may
+          contain the column titles for each of the columns.
+    * Values separated by commas. Whitespace is not a separator.
+    * The first value in the first non-comment line should be the string 'cell_id', and
+          all values in the first column after that should be a unique identifier for that cell.
+    * All values after the first column should be floats.
+    * Not including the cell id in the first column, each row except the header should contain
+          the entries of an intracell distance matrix lying strictly above the diagonal,
+          as in the footnotes of
+          https://docs.scipy.org/doc/scipy/reference/\
+          generated/scipy.spatial.distance.squareform.html
+    """
+    with open(intracell_csv_loc, "r", newline="") as icdm_infile:
+        csv_reader = csv.reader(icdm_infile, delimiter=",")
+        header = next(csv_reader)
+        while header[0] == "#":
+            header = next(csv_reader)
+        if header[0] != "cell_id":
+            raise ValueError("Expects header on first line starting with 'cell_id' ")
+        linenum = 1
+        for line in csv_reader:
+            if line[0] == "#":
+                continue
+            for value in line[1:]:
+                try:
+                    float(value)
+                except ValueError:
+                    print(
+                        "Unexpected value at file line "
+                        + str(linenum)
+                        + ", could not convert value"
+                        + str(value)
+                        + " to a float"
+                    )
+                    raise
+
+            line_length = len(header[1:])
+            side_length = ceil(sqrt(2 * line_length))
+            if side_length * (side_length - 1) != 2 * line_length:
+                raise ValueError(
+                    "Line " + str(linenum) + " is not in upper triangular form."
+                )
+            linenum += 1
+
+def uniform(n: int) -> npt.NDArray[np.float64]:
+    """Compute the uniform distribution on n points, as a vector of floats."""
+    return np.ones((n,), dtype=float) / n
+
+def n_c_2(n: int):
+    """Compute the number of ordered pairs of distinct elements in the set {1,...,n}."""
+    return (n * (n - 1)) // 2
+
+

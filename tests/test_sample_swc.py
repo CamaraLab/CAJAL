@@ -5,6 +5,7 @@ from src.cajal.sample_swc import (
     read_preprocess_compute_euclidean,
     compute_icdm_all_euclidean,
     compute_icdm_all_geodesic,
+    fused_gromov_wasserstein_parallel
 )
 from src.cajal.utilities import Err
 import os
@@ -35,12 +36,14 @@ def test_rpcg():
             break
 
 
-def test_compute_icdm_both():
+def test_fgw_par():
     swc_dir = "tests/swc"
+    out_eu_csv = "tests/icdm_euclidean.csv"
+    out_eu_nt = "tests/eu_node_types.npy"
     compute_icdm_all_euclidean(
         infolder=swc_dir,
-        out_csv="tests/icdm_euclidean.csv",
-        out_node_types="tests/eu_node_types.npy",
+        out_csv=out_eu_csv,
+        out_node_types= out_eu_nt,
         n_sample=50,
         num_processes=10,
     )
@@ -51,7 +54,19 @@ def test_compute_icdm_both():
         n_sample=50,
         num_processes=10,
     )
-    os.remove("tests/icdm_euclidean.csv")
-    os.remove("tests/icdm_geodesic.csv")
-    os.remove("tests/eu_node_types.npy")
-    os.remove("tests/geo_node_types.npy")
+    out_geo_csv = "tests/icdm_geodesic.csv"
+    out_geo_nt = "tests/geo_node_types.npy"
+
+    fused_gromov_wasserstein_parallel(
+        intracell_csv_loc = out_geo_csv,
+        swc_node_types = out_geo_nt,
+        fgw_dist_csv_loc = "tests/geo_fgw.csv",
+        num_processes = 2,
+        soma_dendrite_penalty = 1000.,
+        basal_apical_penalty = 1000.,
+    )
+    
+    os.remove(out_eu_csv)
+    os.remove(out_geo_csv)
+    os.remove(out_eu_nt)
+    os.remove(out_geo_nt)
