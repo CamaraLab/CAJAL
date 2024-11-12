@@ -2,6 +2,7 @@ import sys
 from typing import NewType, Any
 import numpy as np
 import numpy.typing as npt
+
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 

@@ -504,6 +504,7 @@ def compute_icdm_all_euclidean(
     num_processes: int = 8,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
     name_validate: Callable[[str], bool] = default_name_validate,
+    write_fn=write_csv_block,
 ) -> list[tuple[str, Err[T]]]:
     r"""
     Compute the intracell Euclidean distance matrices for all swc cells in `infolder`.
@@ -535,7 +536,8 @@ def compute_icdm_all_euclidean(
         #. If all tests are passed, apply a transformation to `forest` and return
            the modified `new_forest`. (For example, filter out all axon nodes to
            focus on the dendrites, or filter out all undefined nodes, or filter out
-           all components which have fewer than 10% of the nodes in the largest component.)
+           all components which have fewer than 10% of the nodes in the
+           largest component.)
 
         If `preprocess(forest)` returns an instance of the
         :class:`utilities.Err` class, this file is not sampled from, and its
@@ -562,7 +564,7 @@ def compute_icdm_all_euclidean(
 
     pool = ProcessPool(nodes=num_processes)
     results = tqdm(pool.imap(rpce, file_paths), total=len(cell_names))
-    failed_cells = write_csv_block(
+    failed_cells = write_fn(
         out_csv, n_sample, zip(cell_names, results), 10, out_node_types=out_node_types
     )
     pool.close()
@@ -581,6 +583,7 @@ def compute_icdm_all_geodesic(
         [SWCForest], Union[Err[T], NeuronTree]
     ] = lambda forest: forest[0],
     name_validate: Callable[[str], bool] = default_name_validate,
+    write_fn=write_csv_block,
 ) -> list[tuple[str, Err[T]]]:
     """
     Compute the intracell geodesic distance matrices for all swc cells in `infolder`.
@@ -599,12 +602,10 @@ def compute_icdm_all_geodesic(
     def rpcg(file_path) -> Union[Err[T], npt.NDArray[np.float64]]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
 
-    # icdms: Iterator[Err[T] | npt.NDArray[np.float64]]
     failed_cells: list[tuple[str, Err[T]]]
-
     pool = ProcessPool(nodes=num_processes)
     results = tqdm(pool.imap(rpcg, file_paths), total=len(cell_names))
-    failed_cells = write_csv_block(
+    failed_cells = write_fn(
         out_csv, n_sample, zip(cell_names, results), 10, out_node_types=out_node_types
     )
     pool.close()
@@ -781,7 +782,8 @@ def fused_gromov_wasserstein_parallel(
     soma_dendrite_penalty: float,
     basal_apical_penalty: float,
     penalty_dictionary: Optional[dict[tuple[int, int], float]] = None,
-    chunksize=5,
+    chunksize: int = 5,
+    sample_points_npz: Optional[str] = None,
     **kwargs,
 ):
     """
@@ -810,15 +812,23 @@ def fused_gromov_wasserstein_parallel(
     :param chunksize: A parallelization parameter, the
     number of jobs fed to each process at a time.
     """
-    cell_names_dmats = list(cell_iterator_csv(intracell_csv_loc))
+    cells: list[tuple[DistanceMatrix, Distribution]]
     node_types: npt.NDArray[np.int32]
-    node_types = np.load(swc_node_types)
     names: list[str]
-    names = [name for name, _ in cell_names_dmats]
+
+    if sample_points_npz is None:
+        cell_names_dmats = list(cell_iterator_csv(intracell_csv_loc))
+        node_types = np.load(swc_node_types)
+        cells = [(c := cell, uniform(c.shape[0])) for _, cell in cell_names_dmats]
+        names = [name for name, _ in cell_names_dmats]
+    else:
+        a = np.load(sample_points_npz)
+        cells = a["dmats"]
+        node_types = a["structure_ids"]
+        names = a["names"]
+
     num_cells = len(names)
     # List of pairs (A, a) where A is a square matrix and `a` a probability distribution
-    cells: list[tuple[DistanceMatrix, Distribution]]
-    cells = [(c := cell, uniform(c.shape[0])) for _, cell in cell_names_dmats]
     # compute pairwise fGW distances between all objects
 
     index_pairs = it.combinations(

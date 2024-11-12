@@ -179,33 +179,33 @@ def read_gw_couplings(
                 )
     return gw_coupling_mat_dict
 
+
 T = TypeVar("T")
+
 
 @dataclass
 class Err(Generic[T]):
     code: T
+
 
 def write_csv_block(
     out_csv: str,
     sidelength: int,
     dist_mats: Iterator[tuple[str, Union[Err[T], npt.NDArray[np.float64]]]],
     batch_size: int,
-    **kwargs
+    **kwargs,
 ) -> list[tuple[str, Err[T]]]:
     """
     :param sidelength: The side length of all matrices in dist_mats.
     :param dist_mats: an iterator over pairs (name, arr), where arr is an
     vector-form array (rank 1) or an error code.
     """
-    for i in kwargs:
-        print(i)
     fused = "out_node_types" in kwargs
-    assert fused
 
     failed_cells: list[tuple[str, Err[T]]] = []
     if fused:
         node_types: list[npt.NDArray[np.int32]] = []
-        
+
     with open(out_csv, "w", newline="") as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=",")
         firstline = ["cell_id"] + [
@@ -220,15 +220,59 @@ def write_csv_block(
                 elif fused:
                     good_cells.append([name] + cell[0].tolist())
                     node_types.append(cell[1])
-                else:           # Not fused
+                else:  # Not fused
                     good_cells.append([name] + cell.tolist())
             csvwriter.writerows(good_cells)
 
     if fused:
         stacks = np.stack(node_types)
-        with open(kwargs['out_node_types'], 'wb') as f:
+        with open(kwargs["out_node_types"], "wb") as f:
             np.save(f, stacks)
     return failed_cells
+
+
+def write_npz(
+    out_npz: str,
+    sidelength: int,
+    dist_mats: Iterator[tuple[str, Union[Err[T], npt.NDArray[np.float64]]]],
+    **kwargs,
+) -> list[tuple[str, Err[T]]]:
+    """
+    Write the stream to an npz file. This writing method keeps all data in memory
+    at one time so it may be inappropriate for situtations where the point clouds are
+    large or there are many cells.
+
+    :param sidelength: The side length of all matrices in dist_mats.
+    :param dist_mats: an iterator over pairs (name, arr), where arr is an
+    vector-form array (rank 1) or an error code.
+    """
+
+    fused = "out_node_types" in kwargs
+    names = []
+    dmats = []
+    failed_cells: list[tuple[str, Err[T]]] = []
+    if fused:
+        node_types: list[npt.NDArray[np.int32]] = []
+
+    for name, cell in dist_mats:
+        if isinstance(x, Err[T]):
+            failed_cells.append(name, x)
+        else:
+            names.append(name)
+            if fused:
+                dmats.append(x[0])
+                node_types.append(x[1])
+            else:
+                dmats.append(x)
+
+    with open(out_npz, "wb") as npzfile:
+        if fused:
+            np.savez(npzfile, names=names, dmats=dmats, structure_ids=node_types)
+        else:
+            np.savez(npzfile, names=names, dmats=dmats)
+
+    return failed_cells
+
 
 def knn_graph(dmat: npt.NDArray[np.float64], nn: int) -> npt.NDArray[np.int_]:
     """
@@ -486,6 +530,7 @@ def avg_shape_spt(
     retmat[mask] = 0
     return retmat, confidence
 
+
 def cell_iterator_csv(
     intracell_csv_loc: str,
 ) -> Iterator[tuple[str, DistanceMatrix]]:
@@ -507,6 +552,7 @@ def cell_iterator_csv(
                 force="tomatrix",
             )
             yield cell_name, arr
+
 
 def icdm_csv_validate(intracell_csv_loc: str) -> None:
     """
@@ -564,12 +610,12 @@ def icdm_csv_validate(intracell_csv_loc: str) -> None:
                 )
             linenum += 1
 
+
 def uniform(n: int) -> npt.NDArray[np.float64]:
     """Compute the uniform distribution on n points, as a vector of floats."""
     return np.ones((n,), dtype=float) / n
 
+
 def n_c_2(n: int):
     """Compute the number of ordered pairs of distinct elements in the set {1,...,n}."""
     return (n * (n - 1)) // 2
-
-

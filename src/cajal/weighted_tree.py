@@ -18,6 +18,7 @@ class WeightedTreeRoot:
     subtrees: list[WeightedTreeChild]
     structure_id: int
 
+
 @dataclass
 class WeightedTreeChild:
     subtrees: list[WeightedTreeChild]
@@ -72,7 +73,7 @@ def WeightedTree_of(tree: NeuronTree) -> WeightedTreeRoot:
                     unique_id=child_tree.root.sample_number,
                     parent=wt_parent,
                     dist=dist,
-                    structure_id=child_tree.root.structure_id
+                    structure_id=child_tree.root.structure_id,
                 )
                 correspondence_dict[child_tree.root.sample_number] = new_wt
                 wt_parent.subtrees.append(new_wt)

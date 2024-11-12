@@ -32,6 +32,7 @@ from .gw_cython import GW_cell, gw_cython_core
 
 T = TypeVar("T")
 
+
 def _batched(itera: Iterator[T], n: int) -> Iterator[List[T]]:
     """Batch data into tuples of length n. The last batch may be shorter."""
     # batched('ABCDEFG', 3) --> ABC DEF G
@@ -333,6 +334,7 @@ def gw(
     Bb = B @ b
     c_B = ((B * B) @ b) @ b
     return gw_cython_core(A, a, Aa, c_A, B, b, Bb, c_B, max_iters_descent, max_iters_ot)
+
 
 def compute_gw_distance_matrix(
     intracell_csv_loc: str,
