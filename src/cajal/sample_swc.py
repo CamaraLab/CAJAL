@@ -1,6 +1,4 @@
-"""
-Functions for sampling points from an SWC reconstruction of a neuron.
-"""
+"""Functions for sampling points from an SWC reconstruction of a neuron."""
 
 import math
 from typing import Callable, Union, Any, Optional
@@ -32,9 +30,7 @@ from .weighted_tree import (
     weighted_depth_wt,
     weighted_dist_from_root,
 )
-from .types import (
-    Distribution, DistanceMatrix # Matrix, Array
-)
+from .types import Distribution, DistanceMatrix  # Matrix, Array
 
 from threadpoolctl import ThreadpoolController
 
@@ -263,9 +259,7 @@ def _sample_at_given_stepsize_wt(
 def _geodesic_distance_children(
     wt1: WeightedTreeChild, h1: float, wt2: WeightedTreeChild, h2: float
 ):
-    """
-    Compute the geodesic distance between p1 = (wt1,h1) and p2 = (wt2, h2).
-    """
+    """Compute the geodesic distance between p1 = (wt1,h1) and p2 = (wt2, h2)."""
     depth1 = wt1.depth
     unique_id1 = wt1.unique_id
     wt_parent1 = wt1.parent
@@ -569,8 +563,7 @@ def compute_icdm_all_euclidean(
     pool = ProcessPool(nodes=num_processes)
     results = tqdm(pool.imap(rpce, file_paths), total=len(cell_names))
     failed_cells = write_csv_block(
-        out_csv, n_sample, zip(cell_names, results), 10,
-        out_node_types=out_node_types
+        out_csv, n_sample, zip(cell_names, results), 10, out_node_types=out_node_types
     )
     pool.close()
     pool.join()
@@ -612,8 +605,7 @@ def compute_icdm_all_geodesic(
     pool = ProcessPool(nodes=num_processes)
     results = tqdm(pool.imap(rpcg, file_paths), total=len(cell_names))
     failed_cells = write_csv_block(
-        out_csv, n_sample, zip(cell_names, results), 10,
-        out_node_types=out_node_types
+        out_csv, n_sample, zip(cell_names, results), 10, out_node_types=out_node_types
     )
     pool.close()
     pool.join()
@@ -622,22 +614,42 @@ def compute_icdm_all_geodesic(
 
 
 controller = ThreadpoolController()
+
+
 @controller.wrap(limits=1, user_api="blas")
 def fused_gromov_wasserstein(
-        cell1_dmat : DistanceMatrix,
-        cell1_distribution: Distribution,
-        cell1_node_types : npt.NDArray[np.int32],
-        cell2_dmat : DistanceMatrix,
-        cell2_distribution: Distribution,        
-        cell2_node_types: npt.NDArray[np.int32],
-        penalty_dictionary: dict[tuple[int,int],float],
-        **kwargs
+    cell1_dmat: DistanceMatrix,
+    cell1_distribution: Distribution,
+    cell1_node_types: npt.NDArray[np.int32],
+    cell2_dmat: DistanceMatrix,
+    cell2_distribution: Distribution,
+    cell2_node_types: npt.NDArray[np.int32],
+    penalty_dictionary: dict[tuple[int, int], float],
+    **kwargs,
 ):
-    penalty_matrix = np.zeros(shape=(cell1_node_types.shape[0],
-                                     cell2_node_types.shape[0]))
-    for ((i,j),p) in penalty_dictionary.items():
-        penalty_matrix += np.logical_and((cell1_node_types==i)[:,np.newaxis],(cell2_node_types==j)[np.newaxis,:]) * p
-        penalty_matrix += np.logical_and((cell1_node_types==j)[:,np.newaxis],(cell2_node_types==i)[np.newaxis,:]) * p
+    """
+    Compute the fused Gromov-Wasserstein distance between cells.
+
+    Penalties for mismatched node types should be supplied by the user.
+    """
+    penalty_matrix = np.zeros(
+        shape=(cell1_node_types.shape[0], cell2_node_types.shape[0])
+    )
+    for (i, j), p in penalty_dictionary.items():
+        penalty_matrix += (
+            np.logical_and(
+                (cell1_node_types == i)[:, np.newaxis],
+                (cell2_node_types == j)[np.newaxis, :],
+            )
+            * p
+        )
+        penalty_matrix += (
+            np.logical_and(
+                (cell1_node_types == j)[:, np.newaxis],
+                (cell2_node_types == i)[np.newaxis, :],
+            )
+            * p
+        )
 
     return ot.fused_gromov_wasserstein(
         penalty_matrix,
@@ -645,19 +657,20 @@ def fused_gromov_wasserstein(
         cell2_dmat,
         p=cell1_distribution,
         q=cell2_distribution,
-        **kwargs
+        **kwargs,
     )
 
 
 def _init_fgw_pool(
-    cells: list[tuple[npt.NDArray[np.float64],npt.NDArray[np.float64]]],
+    cells: list[tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]],
     node_types: npt.NDArray[np.int32],
-    penalty_dictionary: dict[tuple[int,int],float],
-    kwargs: dict[str, Any]
+    penalty_dictionary: dict[tuple[int, int], float],
+    kwargs: dict[str, Any],
 ):
     """
-    Set a global variable _CELLS so that the parallel process pool can
-    access it.
+    Set a few global variables so that the parallel process pool can access them.
+
+    This is a private function.
     """
     global _CELLS
     _CELLS = cells
@@ -668,13 +681,11 @@ def _init_fgw_pool(
     global _PENALTY_DICTIONARY
     _PENALTY_DICTIONARY = penalty_dictionary
 
+
 def _fgw_index(p: tuple[int, int]):
-    """
-    Compute the Fused GW distance between cells i and j
-    in the master cell list.
-    """
+    """Compute the Fused GW distance between cells i and j in the master cell list."""
     i, j = p
-    (_,log)= fused_gromov_wasserstein(
+    (_, log) = fused_gromov_wasserstein(
         _CELLS[i][0],
         _CELLS[i][1],
         _NODE_TYPES[i],
@@ -682,38 +693,123 @@ def _fgw_index(p: tuple[int, int]):
         _CELLS[j][1],
         _NODE_TYPES[j],
         _PENALTY_DICTIONARY,
-        **_KWARGS
+        **_KWARGS,
     )
     return (i, j, log["fgw_dist"])
 
-def _sort_distances(dmat,node_types):
-    soma_nodes = node_types == 1
-    distance_from_soma_nodes = np.sum(dmat[soma_nodes,:],axis=0)
-    min_index = np.argmin(distance_from_soma_nodes)
-    sort_by = np.argsort(dmat[min_index])
-    dmat = dmat[:,sort_by][sort_by,:]
 
-def gw_upper_bound_unif(
-        dmat1,
-        distr1,
-        dmat2,
-        distr2
-):
-    
-    
-    
+def _sort_distances(dmat, node_types):
+    soma_nodes = node_types == 1
+    if np.any(soma_nodes):
+        distance_from_soma_nodes = np.sum(dmat[soma_nodes, :], axis=0)
+        min_index = np.argmin(distance_from_soma_nodes)
+        sort_by = np.argsort(dmat[min_index])
+        dmat = dmat[:, sort_by][sort_by, :]
+        node_types = node_types[sort_by]
+        return (dmat, node_types)
+    else:
+        distances = np.sum(dmat, axis=0)
+        min_index = np.argmin(distances)
+        sort_by = np.argsort(dmat[min_index])
+        dmat = dmat[:, sort_by][sort_by, :]
+        node_types = node_types[sort_by]
+        return (dmat, node_types)
+
+
+def gw_cost(A, a, B, b, P):
+    """
+    Compute the GW cost of the given transport plan.
+
+    (A,a) and (B, b) are metric measure spaces. P is a transport plan.
+    """
+    c_A = ((A * A) @ a) @ a
+    c_B = ((B * B) @ b) @ b
+    return c_A + c_B - 2 * ((A @ P @ B) * P).sum()
+
+
+def gw_dist(A, a, B, b, P):
+    """
+    Compute the GW distance of the given transport plan.
+
+    We distinguish between GW distance and GW cost. GW distance is a metric,
+    and GW cost is simpler to work with.
+    """
+    return math.sqrt(gw_cost(A, a, B, b, P)) / 2
+
+
+def gw_cost_unif(A, a, B, b):
+    """Compute the GW cost of the uniform transport plan."""
+    c_A = ((A * A) @ a) @ a
+    c_B = ((B * B) @ b) @ b
+    Aa = A @ a
+    Bb = B @ b
+    return (
+        c_A
+        + c_B
+        - 2
+        * (
+            np.multiply(Aa[:, np.newaxis], Bb[np.newaxis, :], order="C")
+            * (a[:, np.newaxis] * b[np.newaxis, :])
+        ).sum()
+    )
+
+
+def gw_cost_upper_bound(A_dmat, a_distr, A_node_types, B_dmat, b_distr, B_node_types):
+    """
+    Compute a simple upper bound to the GW cost between spaces.
+
+    This function was written for the simple case where (A_dmat, a_distr) and
+    (B_dmat, b_distr) are metric measure spaces of the same dimensions. It
+    will fail if A_dmat is the wrong size.
+    """
+    A_dmat_sorted, a_distr_sorted = _sort_distances(A_dmat, a_distr)
+    B_dmat_sorted, b_distr_sorted = _sort_distances(B_dmat, b_distr)
+    gw_cost(
+        A_dmat_sorted,
+        a_distr_sorted,
+        B_dmat_sorted,
+        b_distr_sorted,
+        np.eye(N=A_dmat.shape[0]),
+    )
+
+
 def fused_gromov_wasserstein_parallel(
-        intracell_csv_loc: str,
-        swc_node_types: str,
-        fgw_dist_csv_loc: str,
-        num_processes : int,        
-        soma_dendrite_penalty: float,
-        basal_apical_penalty: float,
-        penalty_dictionary: Optional[dict[tuple[int,int],float]] = None,
-        fgw_dist_npy_loc: Optional[str] = None,
-        chunksize=5,
-        **kwargs
+    intracell_csv_loc: str,
+    swc_node_types: str,
+    fgw_dist_csv_loc: str,
+    num_processes: int,
+    soma_dendrite_penalty: float,
+    basal_apical_penalty: float,
+    penalty_dictionary: Optional[dict[tuple[int, int], float]] = None,
+    chunksize=5,
+    **kwargs,
 ):
+    """
+    Compute the fused GW distance pairwise in parallel between many neurons.
+
+    :param intracell_csv_loc: The path to the file where the sampled points are stored.
+    :param swc_node_types: The path to the swc node type file.
+    :param fgw_dist_csv_loc: Where you want the fused GW distances to be written.
+    :param num_processes: How many parallel processes you want this to run on.
+    :param soma_dendrite_penalty: This represents the penalty paid by the transport plan
+    for aligning a soma node with a dendrite node. By choosing this coefficient
+    sufficiently large, the algorithm favors transport plans which align soma nodes
+    to soma nodes and dendrite nodes to dendrite nodes. Choosing the coefficient
+    to be too large may be counterproductive.
+    :param basal_apical_penalty: The penalty paid by the transport plan for aligning
+    a basal dendrite node with an apical dendrite node, if this distinction is
+    indeed captured in the morphological reconstructions.
+    :param penalty_dictionary: The user can choose the penalty
+    to align nodes of any two different types. For example, if their
+    data contains nodes with structure id's 3,4 and 5, the user
+    can impose a penalty for joining a node of type 3 to a node of type 4,
+    4 to 5, and 3 to 5. If this parameter is supplied then
+    the previous two parameters are ignored as this parameter overrides them;
+    the user can reproduce the behavior by adding penalty keys for (1,3), (1,4)
+    and (3,4) appropriately.
+    :param chunksize: A parallelization parameter, the
+    number of jobs fed to each process at a time.
+    """
     cell_names_dmats = list(cell_iterator_csv(intracell_csv_loc))
     node_types: npt.NDArray[np.int32]
     node_types = np.load(swc_node_types)
@@ -723,7 +819,7 @@ def fused_gromov_wasserstein_parallel(
     # List of pairs (A, a) where A is a square matrix and `a` a probability distribution
     cells: list[tuple[DistanceMatrix, Distribution]]
     cells = [(c := cell, uniform(c.shape[0])) for _, cell in cell_names_dmats]
-        # compute pairwise fGW distances between all objects
+    # compute pairwise fGW distances between all objects
 
     index_pairs = it.combinations(
         iter(range(num_cells)), 2
@@ -735,9 +831,9 @@ def fused_gromov_wasserstein_parallel(
 
     if penalty_dictionary is None:
         penalty_dictionary = dict()
-        penalty_dictionary[(1,3)] = soma_dendrite_penalty,
-        penalty_dictionary[(1,4)] = soma_dendrite_penalty,
-        penalty_dictionary[(3,4)] = basal_apical_penalty
+        penalty_dictionary[(1, 3)] = (soma_dendrite_penalty,)
+        penalty_dictionary[(1, 4)] = (soma_dendrite_penalty,)
+        penalty_dictionary[(3, 4)] = basal_apical_penalty
 
     with Pool(
         initializer=_init_fgw_pool,
@@ -750,12 +846,11 @@ def fused_gromov_wasserstein_parallel(
         for i, j, fgw_dist in tqdm(res, total=total_num_pairs, position=0, leave=True):
             fgw_dmat[i, j] = fgw_dist
             fgw_dmat[j, i] = fgw_dist
-    if fgw_dist_npy_loc is not None:
-        with open(fgw_dist_npy_loc,'wb') as outfile:
-            np.save(outfile,fgw_dmat)
 
-    with open(fgw_dist_csv_loc,'w') as outfile:
-        csvwrite= csv.writer(outfile)
+    with open(fgw_dist_csv_loc, "w") as outfile:
+        csvwrite = csv.writer(outfile)
         csvwrite.writerow(["first_object", "second_object", "gw_distance"])
         for i, j in it.combinations(iter(range(num_cells)), 2):
-           csvwrite.writerow([names[i],names[j],str(fgw_dmat[i,j])])
+            csvwrite.writerow([names[i], names[j], str(fgw_dmat[i, j])])
+
+    return fgw_dmat
