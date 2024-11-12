@@ -139,7 +139,7 @@ class UGW(Futhark):
         exp_absorb_cutoff: float = 1e100,
         safe_for_exp: float = 100.0,
         tol_sinkhorn: float = 1e-5,
-        tol_outerloop: float = 1e-3,
+        tol_outerloop: float = 1.0,
     ):
         _ugw_armijo_docstring
 

@@ -7,7 +7,8 @@ from typing import Callable, Union, Any, Optional
 import ot
 import numpy as np
 import csv
-from pathos.pools import ProcessPool, ThreadPool
+from pathos.pools import ProcessPool
+from multiprocessing import Pool
 import numpy.typing as npt
 import itertools as it
 from scipy.spatial.distance import euclidean, pdist
@@ -34,6 +35,8 @@ from .weighted_tree import (
 from .types import (
     Distribution, DistanceMatrix # Matrix, Array
 )
+
+from threadpoolctl import ThreadpoolController
 
 # Warning: Of 509 neurons downloaded from the Allen Brain Initiative
 # database, about 5 had a height of at least 1000 nodes. Therefore on
@@ -617,6 +620,9 @@ def compute_icdm_all_geodesic(
     pool.clear()
     return failed_cells
 
+
+controller = ThreadpoolController()
+@controller.wrap(limits=1, user_api="blas")
 def fused_gromov_wasserstein(
         cell1_dmat : DistanceMatrix,
         cell1_distribution: Distribution,
@@ -680,6 +686,22 @@ def _fgw_index(p: tuple[int, int]):
     )
     return (i, j, log["fgw_dist"])
 
+def _sort_distances(dmat,node_types):
+    soma_nodes = node_types == 1
+    distance_from_soma_nodes = np.sum(dmat[soma_nodes,:],axis=0)
+    min_index = np.argmin(distance_from_soma_nodes)
+    sort_by = np.argsort(dmat[min_index])
+    dmat = dmat[:,sort_by][sort_by,:]
+
+def gw_upper_bound_unif(
+        dmat1,
+        distr1,
+        dmat2,
+        distr2
+):
+    
+    
+    
 def fused_gromov_wasserstein_parallel(
         intracell_csv_loc: str,
         swc_node_types: str,
@@ -717,12 +739,12 @@ def fused_gromov_wasserstein_parallel(
         penalty_dictionary[(1,4)] = soma_dendrite_penalty,
         penalty_dictionary[(3,4)] = basal_apical_penalty
 
-    with ThreadPool(
+    with Pool(
         initializer=_init_fgw_pool,
         initargs=(cells, node_types, penalty_dictionary, kwargs),
         processes=num_processes,
     ) as pool:
-        res = pool.uimap(_fgw_index, index_pairs, chunksize=chunksize)
+        res = pool.imap_unordered(_fgw_index, index_pairs, chunksize=chunksize)
         # store GW distances
         fgw_dmat = np.zeros((num_cells, num_cells))
         for i, j, fgw_dist in tqdm(res, total=total_num_pairs, position=0, leave=True):

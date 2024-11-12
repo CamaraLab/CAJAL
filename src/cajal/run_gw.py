@@ -16,7 +16,7 @@ else:
     from tqdm import tqdm  # type: ignore[assignment]
 
 from .types import Distribution, DistanceMatrix, Matrix, Array, MetricMeasureSpace
-from .utilities import cell_iterator_csv, icdm_validate, n_c_2, uniform
+from .utilities import cell_iterator_csv, icdm_csv_validate, n_c_2, uniform
 from math import ceil, sqrt
 from multiprocessing import Pool
 
@@ -31,9 +31,6 @@ from threadpoolctl import ThreadpoolController
 from .gw_cython import GW_cell, gw_cython_core
 
 T = TypeVar("T")
-
-controller = ThreadpoolController()
-
 
 def _batched(itera: Iterator[T], n: int) -> Iterator[List[T]]:
     """Batch data into tuples of length n. The last batch may be shorter."""
