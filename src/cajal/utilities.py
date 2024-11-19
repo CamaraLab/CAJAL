@@ -235,6 +235,7 @@ def write_npz(
     out_npz: str,
     sidelength: int,
     dist_mats: Iterator[tuple[str, Union[Err[T], npt.NDArray[np.float64]]]],
+    batch_size: int,
     **kwargs,
 ) -> list[tuple[str, Err[T]]]:
     """
@@ -254,16 +255,16 @@ def write_npz(
     if fused:
         node_types: list[npt.NDArray[np.int32]] = []
 
-    for name, cell in dist_mats:
-        if isinstance(x, Err[T]):
-            failed_cells.append(name, x)
+    for name, result in dist_mats:
+        if isinstance(result, Err):
+            failed_cells.append((name, result))
         else:
             names.append(name)
             if fused:
-                dmats.append(x[0])
-                node_types.append(x[1])
+                dmats.append(result[0])
+                node_types.append(result[1])
             else:
-                dmats.append(x)
+                dmats.append(result)
 
     with open(out_npz, "wb") as npzfile:
         if fused:

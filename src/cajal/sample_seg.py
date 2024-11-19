@@ -16,6 +16,7 @@ from pathos.pools import ProcessPool
 from matplotlib.path import Path
 import multiprocessing
 import networkx as nx
+import scipy.sparse
 from tqdm import tqdm
 import skimage
 
@@ -264,7 +265,9 @@ def compute_geodesic_dmat(
     if len(coords.shape) != 2 or coords.shape[1] != 2:
         raise ValueError("coords should be of shape (z,2)")
 
-    knn: csr_matrix = kneighbors_graph(coords, n_neigh, mode="connectivity", include_self=False)  # type: ignore
+    knn: scipy.sparse.csr_matrix = kneighbors_graph(
+        coords, n_neigh, mode="connectivity", include_self=False
+    )
     # compute pairwise geodesic distances
     graph = nx.from_numpy_array(knn.toarray())
     with warnings.catch_warnings():
@@ -371,7 +374,7 @@ class CellImage:
         pixel_indices: npt.NDArray[np.int64] = polygon_to_points(
             polygonal_boundary, (nrow, ncol)
         )
-        # Okay, at this point I'm fairly confident that pixel_indices == mask_pts at this point.
+        # I'm fairly confident that pixel_indices == mask_pts at this line.
         x_min, y_min = np.min(pixel_indices, axis=0)
         x_max, y_max = np.max(pixel_indices, axis=0)
 
@@ -505,12 +508,14 @@ class CellImage:
         n_neigh: int = 4,
     ) -> List["CellImage"]:
         """
-        :warning: The list of objects returned by this function all share (alias) the same field image_intensities.
+        :warning: The list of objects returned by this function all share
+            (alias) the same field image_intensities.
             This cuts down on copying, but it may introduce spooky action at a distance.
 
         :param segmentation_mask: An array of shape (n, m), coding different cells in an image.
-        :param image_intensity_levels: An array of image intensities of shape (k, n, m), where there are k
-            different channels in the image, and each image is the same shape as the segmentation mask.
+        :param image_intensity_levels: An array of image intensities of shape (k, n, m),
+            where there are k different channels in the image, and each image is the same shape
+            as the segmentation mask.
         :param background: The value in the segmentation mask associated with the background.
         :param downsample: Using the resize function from scikit-image, we
             rescale the picture by a factor of 1/downsample, lowering the

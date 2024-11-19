@@ -1,5 +1,5 @@
 import sys
-from typing import NewType, Any
+from typing import NewType
 import numpy as np
 import numpy.typing as npt
 

@@ -157,6 +157,7 @@ class UGW(Futhark):
             tol_sinkhorn,
             tol_outerloop,
         )
+
     ugw_armijo.__doc__ = _ugw_armijo_docstring
 
     def ugw_armijo_pairwise(
@@ -183,6 +184,7 @@ class UGW(Futhark):
             tol_sinkhorn,
             tol_outerloop,
         )
+
     ugw_armijo_pairwise.__doc__ = _ugw_pairwise_docstring
 
     def ugw_armijo_pairwise_unif(
@@ -206,8 +208,9 @@ class UGW(Futhark):
             tol_sinkhorn,
             tol_outerloop,
         )
+
     ugw_armijo_pairwise_unif.__doc__ = _ugw_armijo_pairwise_unif_docstring
-    
+
     def ugw_armijo_euclidean(
         self,
         rho1: float,
@@ -229,11 +232,11 @@ class UGW(Futhark):
             tol_sinkhorn,
             tol_outerloop,
         )
-    
+
     ugw_armijo_euclidean.__doc__ = _ugw_armijo_euclidean_docstring
 
     def __init__(self, backend):
-        Futhark.__init__(self,backend)
+        Futhark.__init__(self, backend)
         self._ugw_armijo = self.ugw_armijo
         self._ugw_armijo_pairwise = self.ugw_armijo_pairwise
         self._ugw_armijo_pairwise_unif = self.ugw_armijo_pairwise_unif

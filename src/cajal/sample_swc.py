@@ -432,7 +432,7 @@ def icdm_geodesic(
                 == math.comb(num_samples, 2) - math.comb(num_samples - i, 2) + j - i
             )
     return np.array(dist_list), np.array(
-        [wt.structure_id for (wt, h) in pts_list], dtype=np.int32
+        [wt.structure_id for (wt, _) in pts_list], dtype=np.int32
     )
 
 

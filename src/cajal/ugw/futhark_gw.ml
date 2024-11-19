@@ -21,6 +21,14 @@ let bigarray_of_npy filename =
     | None -> raise (Invalid_argument "Help")
     | Some bigarray ->
        genarray_of_array2 bigarray
+    ;;
+    
+let bigarray_of_npz filename entry =
+  Npy.Npz.read (Npy.Npz.open_in filename) entry
+  |> Npy.to_bigarray c_layout Float64
+  |> function
+    | None -> raise (Invalid_argument "The npz file could not be read.")
+    | Some bigarray -> bigarray
 
 let read_dir_i (readfile : int -> string -> 'a) (dir : string) (n : int option)=
   let filenames =
@@ -47,13 +55,34 @@ type params = { rho1 : float; rho2 : float; epsilon : float;
 
 module Vectorform : sig
   type t = (float, float64_elt, c_layout) Genarray.t
+  val num_pts_t : t -> int 
   type arr
+  val num_pts_arr : arr -> int 
+  val slice_left : arr -> int -> t
+  val n_pt_clouds : arr -> int
+  val get : t -> int -> int -> int -> float
   val arr_of_npy : string -> arr
+  val arr_of_npz : string -> string -> arr
   val to_file : t -> string -> unit
 end = struct
   open Bigarray
   type t = (float, float64_elt, c_layout) Genarray.t
   type arr = (float, float64_elt, c_layout) Genarray.t
+
+  let n_pts_k m = 
+    let n = Int.of_float @@ Float.ceil @@ Float.sqrt @@ float_of_int @@ 2 * m in
+    assert (n * (n-1) = 2 * m); n
+
+  let num_pts_t a = 
+    let m = (Bigarray.Genarray.dims a).(0) in
+    n_pts_k m
+  ;;
+let num_pts_arr a = 
+    let m = (Bigarray.Genarray.dims a).(1) in
+    n_pts_k m
+;;
+  let slice_left arr k = Bigarray.Genarray.slice_left arr [|k|];;
+  let n_pt_clouds : arr -> int = fun arr -> (Bigarray.Genarray.dims arr).(0);;
   let arr_of_npy filename : arr =
   let result = bigarray_of_npy filename in
   let m = Genarray.nth_dim result 1 in
@@ -62,11 +91,34 @@ end = struct
     result
   let to_file : t -> string -> unit = fun arr str -> 
     Npy.write arr str
+
+  let arr_of_npz filename dict_name : arr =
+  let result = bigarray_of_npz filename dict_name in
+  let m = Genarray.nth_dim result 1 in
+  let n = Int.of_float @@ Float.ceil @@ Float.sqrt @@ float_of_int @@ 2 * m in
+    assert (n * (n-1) = 2 * m);
+    result
+  
+  let k_of_i ~n ~i = n * i - (i * (i+1))/2;;
+
+  let coords ~n ~i ~j =
+    if i < j then 
+      (k_of_i ~n ~i) + j - i - 1 else
+    if j < i then 
+      (k_of_i ~n ~i:j) + i - j - 1 else
+        failwith "i=j"
+      
+  let get : t -> int -> int -> int -> float = 
+    fun arr n i j ->
+      if i = j then 0. else Bigarray.Genarray.get arr [|coords ~n ~i ~j|]
+
 end
 
 module Squareform : sig
   type t
+  val of_vectorform: Vectorform.t -> t
   type arr
+  val of_vectorform_arr: Vectorform.arr -> arr
   val arr_of_npy: string -> int option -> arr
   val num_pts_t: t -> int
   val num_pts_arr: arr -> int   
@@ -106,7 +158,20 @@ end = struct
         match n with 
         | Some l -> Genarray.sub_left a 0 l
         | None -> a
+  ;;
+  let of_vectorform a = 
+    let m = Genarray.nth_dim a 1 in
+    let n = Int.of_float @@ Float.ceil @@ Float.sqrt @@ float_of_int @@ 2 * m in
+    Bigarray.Genarray.init Float64 c_layout [|n; n|]
+    (let n = Vectorform.n_pts a in fun arr -> Vectorform.get a n arr.(0) arr.(1))
   
+  let of_vectorform_arr a = 
+    let m = Vectorform.n_pt_clouds a in 
+    let n = Vectorform.n_pts_arr a in 
+    Bigarray.Genarray.init Float64 c_layout [|m;n;n|] 
+    (fun coords -> let open Vectorform in get (slice_left a (coords.(0))) n (coords.(1)) (coords.(2)))
+  ;;
+
   let num_pts_t t = Genarray.nth_dim t 0
   let num_pts_arr arr = Genarray.nth_dim arr 1
   let num_spaces arr = Genarray.nth_dim arr 0

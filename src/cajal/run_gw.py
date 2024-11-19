@@ -8,7 +8,7 @@ import csv
 # std lib dependencies
 import itertools as it
 import sys
-from typing import Iterator, List, Optional, TypeVar, NewType
+from typing import Iterator, List, Optional, TypeVar
 
 if "ipykernel" in sys.modules:
     from tqdm.notebook import tqdm
@@ -16,8 +16,7 @@ else:
     from tqdm import tqdm  # type: ignore[assignment]
 
 from .types import Distribution, DistanceMatrix, Matrix, Array, MetricMeasureSpace
-from .utilities import cell_iterator_csv, icdm_csv_validate, n_c_2, uniform
-from math import ceil, sqrt
+from .utilities import cell_iterator_csv, icdm_csv_validate, uniform
 from multiprocessing import Pool
 
 import numpy as np
