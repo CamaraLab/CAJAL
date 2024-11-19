@@ -5,6 +5,7 @@ from typing import Callable, Union, Any, Optional
 import ot
 import numpy as np
 import csv
+from scipy.spatial.distance import squareform
 from pathos.pools import ProcessPool
 from multiprocessing import Pool
 import numpy.typing as npt
@@ -824,8 +825,13 @@ def fused_gromov_wasserstein_parallel(
     else:
         a = np.load(sample_points_npz)
         cells = a["dmats"]
+        k = cells.shape[1]
+        n = int(math.ceil(math.sqrt(k * 2)))
+        u = uniform(n)
+        cells = [(squareform(cell,force='tosquareform'), u) for cell in cells]
         node_types = a["structure_ids"]
         names = a["names"]
+        a.close()
 
     num_cells = len(names)
     # List of pairs (A, a) where A is a square matrix and `a` a probability distribution

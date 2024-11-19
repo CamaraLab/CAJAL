@@ -163,11 +163,11 @@ end = struct
     let m = Genarray.nth_dim a 1 in
     let n = Int.of_float @@ Float.ceil @@ Float.sqrt @@ float_of_int @@ 2 * m in
     Bigarray.Genarray.init Float64 c_layout [|n; n|]
-    (let n = Vectorform.n_pts a in fun arr -> Vectorform.get a n arr.(0) arr.(1))
+    (let n = Vectorform.num_pts_t a in fun arr -> Vectorform.get a n arr.(0) arr.(1))
   
   let of_vectorform_arr a = 
     let m = Vectorform.n_pt_clouds a in 
-    let n = Vectorform.n_pts_arr a in 
+    let n = Vectorform.num_pts_arr a in 
     Bigarray.Genarray.init Float64 c_layout [|m;n;n|] 
     (fun coords -> let open Vectorform in get (slice_left a (coords.(0))) n (coords.(1)) (coords.(2)))
   ;;
