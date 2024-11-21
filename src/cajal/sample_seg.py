@@ -204,7 +204,7 @@ def image_coords(shape: tuple[int, int]) -> npt.NDArray[np.int64]:  # type: igno
 
 def polygon_to_bitmap(
     vertex_coords: npt.NDArray, shape: tuple[int, int]
-) -> npt.NDArray[np.bool]:
+) -> npt.NDArray[bool]:
     """
     Given an array `vertex_coords`, return a boolean mask of shape
     `shape` where points lying inside the polygon are `true` and
@@ -457,7 +457,7 @@ class CellImage:
             distance_metric, image_intensity_levels, downsample, intensity_threshold
         )
         k, n, m = image_intensity_levels.shape
-        if region.dtype == np.bool and region.shape == (n, m):
+        if region.dtype == bool and region.shape == (n, m):
             segmentation_mask = region
             if downsample > 1:
                 s = segmentation_mask.shape

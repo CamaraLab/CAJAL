@@ -627,6 +627,7 @@ def fused_gromov_wasserstein(
     cell2_distribution: Distribution,
     cell2_node_types: npt.NDArray[np.int32],
     penalty_dictionary: dict[tuple[int, int], float],
+    worst_case_gw_increase: Optional[float] = None,
     **kwargs,
 ):
     """
@@ -653,20 +654,88 @@ def fused_gromov_wasserstein(
             * p
         )
 
+    if worst_case_gw_increase is not None:
+        (plan, log) = ot.gromov.gromov_wasserstein(
+            cell1_dmat,
+            cell2_dmat,
+            p=cell1_distribution,
+            q=cell2_distribution,
+            symmetric=True, log=True)
+        G0 = plan
+        scalar = worst_case_gw_increase * log['gw_dist']/((penalty_matrix * plan).sum())
+        penalty_matrix *= scalar
+    else:
+        G0 = cell1_distribution[:,np.newaxis] * cell2_distribution[np.newaxis,:]
+    
     return ot.fused_gromov_wasserstein(
         penalty_matrix,
         cell1_dmat,
         cell2_dmat,
         p=cell1_distribution,
         q=cell2_distribution,
+        G0=G0,
         **kwargs,
     )
 
+# @controller.wrap(limits=1, user_api="blas")
+# def fused_gromov_wasserstein_adaptive(
+#     cell1_dmat: DistanceMatrix,
+#     cell1_distribution: Distribution,
+#     cell1_node_types: npt.NDArray[np.int32],
+#     cell2_dmat: DistanceMatrix,
+#     cell2_distribution: Distribution,
+#     cell2_node_types: npt.NDArray[np.int32],
+#     penalty_dictionary: dict[tuple[int, int], float],
+#     max_gw_increase_percentage: float,
+#     **kwargs,
+# ):
+#     """
+#     Compute the fused Gromov-Wasserstein distance between cells.
+
+#     Penalties for mismatched node types should be supplied by the user.
+#     """
+#     penalty_matrix = np.zeros(
+#         shape=(cell1_node_types.shape[0], cell2_node_types.shape[0])
+#     )
+#     for (i, j), p in penalty_dictionary.items():
+#         penalty_matrix += (
+#             np.logical_and(
+#                 (cell1_node_types == i)[:, np.newaxis],
+#                 (cell2_node_types == j)[np.newaxis, :],
+#             )
+#             * p
+#         )
+#         penalty_matrix += (
+#             np.logical_and(
+#                 (cell1_node_types == j)[:, np.newaxis],
+#                 (cell2_node_types == i)[np.newaxis, :],
+#             )
+#             * p
+#         )
+
+#     (plan, log) = ot.gromov.gromov_wasserstein(
+#         cell1_dmat,
+#         cell2_dmat,
+#         p=cell1_distribution,
+#         q=cell2_distribution,
+#         symmetric=True, log=True)
+
+#     penalty_matrix *= log['gw_dist']/( (penalty_matrix * plan).sum() )
+#     return ot.fused_gromov_wasserstein(
+#         penalty_matrix,
+#         cell1_dmat,
+#         cell2_dmat,
+#         p=cell1_distribution,
+#         q=cell2_distribution,
+#         G0=plan
+#         **kwargs,
+#     )
 
 def _init_fgw_pool(
     cells: list[tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]],
     node_types: npt.NDArray[np.int32],
     penalty_dictionary: dict[tuple[int, int], float],
+    worst_case_gw_increase: Optional[float],
     kwargs: dict[str, Any],
 ):
     """
@@ -678,6 +747,8 @@ def _init_fgw_pool(
     _CELLS = cells
     global _NODE_TYPES
     _NODE_TYPES = node_types
+    global _WORST_CASE_GW_INCREASE
+    _WORST_CASE_GW_INCREASE=worst_case_gw_increase
     global _KWARGS
     _KWARGS = kwargs
     global _PENALTY_DICTIONARY
@@ -695,6 +766,7 @@ def _fgw_index(p: tuple[int, int]):
         _CELLS[j][1],
         _NODE_TYPES[j],
         _PENALTY_DICTIONARY,
+        _WORST_CASE_GW_INCREASE,
         **_KWARGS,
     )
     return (i, j, log["fgw_dist"])
@@ -783,8 +855,9 @@ def fused_gromov_wasserstein_parallel(
     soma_dendrite_penalty: float,
     basal_apical_penalty: float,
     penalty_dictionary: Optional[dict[tuple[int, int], float]] = None,
-    chunksize: int = 5,
+    chunksize: int = 20,
     sample_points_npz: Optional[str] = None,
+    worst_case_gw_increase: Optional[float] = None,
     **kwargs,
 ):
     """
@@ -853,7 +926,7 @@ def fused_gromov_wasserstein_parallel(
 
     with Pool(
         initializer=_init_fgw_pool,
-        initargs=(cells, node_types, penalty_dictionary, kwargs),
+        initargs=(cells, node_types, penalty_dictionary, worst_case_gw_increase, kwargs),
         processes=num_processes,
     ) as pool:
         res = pool.imap_unordered(_fgw_index, index_pairs, chunksize=chunksize)
