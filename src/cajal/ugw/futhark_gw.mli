@@ -20,8 +20,11 @@ type params = { rho1 : float; rho2 : float; epsilon : float;
 
 module Vectorform : sig
   type t
+  val num_pts_t: t -> int
   type arr
+  val num_pts_arr: arr -> int
   val arr_of_npy : string -> arr
+  val arr_of_npz : string -> string -> arr
   val to_file : t -> string -> unit
 end
 
@@ -29,7 +32,9 @@ module Squareform: sig
   type t
   type arr
   val num_pts_t: t -> int
-  val num_pts_arr: arr -> int    
+  val num_pts_arr: arr -> int
+  val of_vectorform : Vectorform.t -> t
+  val of_vectorform_arr : Vectorform.arr -> arr    
   val num_spaces: arr -> int
   val arr_of_npy: string -> int option -> arr
   val unbalanced_gw_armijo : 
