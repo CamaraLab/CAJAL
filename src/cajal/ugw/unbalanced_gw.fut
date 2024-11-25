@@ -150,14 +150,22 @@ module naive = {
 entry ugw_armijo_pairwise [k][m] rho1 rho2 eps (A: [k][m][m]f64.t) (distrs: [k][m]f64.t) exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
   pairs.pairs k
   |> map (\(i,j) ->
-      -- let output = 
 	unbalanced_gw64.armijo.main
 	rho1 rho2 eps A[i] distrs[i] A[j] distrs[j]
        {exp_absorb_cutoff, loop_count=1, safe_for_exp, tol_sinkhorn} tol_outerloop)
-      -- if unbalanced_gw64.(output[0] > zero) then output else
-      -- 	unbalanced_gw64.armijo.main
-      -- 	rho1 rho2 eps A[i] distrs[i] A[j] distrs[j]
-      --  {exp_absorb_cutoff, loop_count=1, safe_for_exp, tol_sinkhorn} tol_outerloop)
+
+entry ugw_armijo_pairwise_increasing [k][m] (ugw_dmat:[k][k]f64)(ratio:f64)
+  rho1 rho2 eps (A: [k][m][m]f64.t) (distrs: [k][m]f64.t) exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
+  pairs.pairs k
+  |> map (\(i,j) ->
+	    loop (current_ugw, current_epsilon) = (eps, ugw_dmat[i][j]) while f64.isnan current_ugw do
+	    let increase_eps = current_epsilon f64.* ratio in
+	    let arr = unbalanced_gw64.armijo.main 
+		      rho1 rho2 increase_eps A[i] distrs[i] A[j] distrs[j]
+		      {exp_absorb_cutoff, loop_count=1, safe_for_exp, tol_sinkhorn} tol_outerloop
+	    in
+	    (f64.(arr[0] + (arr[1] * rho1) + (arr[2]) * rho2), increase_eps)
+	 ) |> unzip |> (\o -> o.0)
 
 entry ugw_armijo rho1 rho2 eps A mu B nu exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
   ugw_armijo_pairwise rho1 rho2 eps [A,B] [mu, nu]
