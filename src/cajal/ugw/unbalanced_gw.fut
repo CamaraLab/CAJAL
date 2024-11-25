@@ -2,7 +2,7 @@
 -- Gromov Wasserstein Distance: Conic Formulation and Relaxation" by
 -- Thibault Séjourné, François-Xavier Vialard and Gabriel Peyré
 
-module pairs = {
+module pairs(M: real) = {
   import "lib/github.com/diku-dk/segmented/segmented"
   -- import "scaling_unbalanced"
     -- This code is a slight modification of replicate iota in the stdlib.
@@ -17,6 +17,13 @@ module pairs = {
     let snd' = segmented_iota flags in
     let snd = map2 (\a b-> a+b+1) fst snd' in
     zip fst snd
+
+  def k_of_i_j n i j =
+    let k_of_i n i = i64.(n * i - (i * (i+1))/2) in
+    (k_of_i n i) + j - i - 1
+
+  def squareform [z] (a: [z]M.t) (n : i64) : [n][n]M.t =
+    tabulate_2d n n (\i j -> if i64.(i<j) then a[k_of_i_j n i j] else if i64.(i>j) then a[k_of_i_j n j i] else M.i32 0)
 }
 
 module unbalanced_gw (M : real) = {
@@ -28,6 +35,7 @@ module unbalanced_gw (M : real) = {
   -- module sinkhorn = scaling_unbalanced M
   -- module gw = gromov_wasserstein M
   type t = M.t
+  module pairs = pairs(M)
     
   def unbalanced_gw_total_cost [n][m] 
     rho1 rho2 eps (X : [n][n]t) mu (Y : [m][m]t) nu
@@ -138,6 +146,7 @@ module original = {
 -- They should be correct. In our experience they perform poorly compared to the others
 -- and are not worth using. They are included only for benchmarking.
 module naive = {
+  module pairs = pairs(f64)
   def ugw_naive rho1 rho2 eps A mu B nu tau c tol_outerloop =
     unbalanced_gw64.gradient_descent.naive_descent rho1 rho2 eps A mu B nu {tau, c} tol_outerloop
 
@@ -147,8 +156,9 @@ module naive = {
    |>  map(\(i,j) -> unbalanced_gw64.gradient_descent.naive_descent rho1 rho2 eps A[i] mu A[j] mu {tau, c} tol_outerloop)
 }
 
+module pairsf64= pairs(f64)
 entry ugw_armijo_pairwise [k][m] rho1 rho2 eps (A: [k][m][m]f64.t) (distrs: [k][m]f64.t) exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
-  pairs.pairs k
+  pairsf64.pairs k
   |> map (\(i,j) ->
 	unbalanced_gw64.armijo.main
 	rho1 rho2 eps A[i] distrs[i] A[j] distrs[j]
@@ -156,7 +166,7 @@ entry ugw_armijo_pairwise [k][m] rho1 rho2 eps (A: [k][m][m]f64.t) (distrs: [k][
 
 entry ugw_armijo_pairwise_increasing [k][m] (ugw_dmat:[k][k]f64)(ratio:f64)
   rho1 rho2 eps (A: [k][m][m]f64.t) (distrs: [k][m]f64.t) exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
-  pairs.pairs k
+  pairsf64.pairs k
   |> map (\(i,j) ->
 	    loop (current_ugw, current_epsilon) = (eps, ugw_dmat[i][j]) while f64.isnan current_ugw do
 	    let increase_eps = current_epsilon f64.* ratio in
@@ -165,7 +175,7 @@ entry ugw_armijo_pairwise_increasing [k][m] (ugw_dmat:[k][k]f64)(ratio:f64)
 		      {exp_absorb_cutoff, loop_count=1, safe_for_exp, tol_sinkhorn} tol_outerloop
 	    in
 	    (f64.(arr[0] + (arr[1] * rho1) + (arr[2]) * rho2), increase_eps)
-	 ) |> unzip |> (\o -> o.0)
+	 ) |> unzip |> (\o -> o.0) |> (\a -> pairsf64.squareform a k)
 
 entry ugw_armijo rho1 rho2 eps A mu B nu exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
   ugw_armijo_pairwise rho1 rho2 eps [A,B] [mu, nu]
