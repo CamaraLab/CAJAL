@@ -168,7 +168,7 @@ entry ugw_armijo_pairwise_increasing [k][m] (ugw_dmat:[k][k]f64)(ratio:f64)
   rho1 rho2 eps (A: [k][m][m]f64.t) (distrs: [k][m]f64.t) exp_absorb_cutoff safe_for_exp tol_sinkhorn tol_outerloop =
   pairsf64.pairs k
   |> map (\(i,j) ->
-	    loop (current_ugw, current_epsilon) = (eps, ugw_dmat[i][j]) while f64.isnan current_ugw do
+	    loop (current_ugw, current_epsilon) = (ugw_dmat[i][j], eps) while f64.isnan current_ugw do
 	    let increase_eps = current_epsilon f64.* ratio in
 	    let arr = unbalanced_gw64.armijo.main 
 		      rho1 rho2 increase_eps A[i] distrs[i] A[j] distrs[j]
