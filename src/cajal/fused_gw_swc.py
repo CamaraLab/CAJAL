@@ -23,7 +23,9 @@ from .gw_cython import gw
 
 
 def to_penalty_matrix(
-    penalty_dictionary: dict[tuple[int, int], float], cell1_node_types, cell2_node_types
+        penalty_dictionary: dict[tuple[int, int], float],
+        cell1_node_types,
+        cell2_node_types
 ):
     penalty_matrix = np.zeros(
         shape=(cell1_node_types.shape[0], cell2_node_types.shape[0])
@@ -100,61 +102,11 @@ def fused_gromov_wasserstein(
         **kwargs,
     )
 
-
-# @controller.wrap(limits=1, user_api="blas")
-# def fused_gromov_wasserstein_adaptive(
-#     cell1_dmat: DistanceMatrix,
-#     cell1_distribution: Distribution,
-#     cell1_node_types: npt.NDArray[np.int32],
-#     cell2_dmat: DistanceMatrix,
-#     cell2_distribution: Distribution,
-#     cell2_node_types: npt.NDArray[np.int32],
-#     penalty_dictionary: dict[tuple[int, int], float],
-#     max_gw_increase_percentage: float,
-#     **kwargs,
-# ):
-#     """
-#     Compute the fused Gromov-Wasserstein distance between cells.
-
-#     Penalties for mismatched node types should be supplied by the user.
-#     """
-#     penalty_matrix = np.zeros(
-#         shape=(cell1_node_types.shape[0], cell2_node_types.shape[0])
-#     )
-#     for (i, j), p in penalty_dictionary.items():
-#         penalty_matrix += (
-#             np.logical_and(
-#                 (cell1_node_types == i)[:, np.newaxis],
-#                 (cell2_node_types == j)[np.newaxis, :],
-#             )
-#             * p
-#         )
-#         penalty_matrix += (
-#             np.logical_and(
-#                 (cell1_node_types == j)[:, np.newaxis],
-#                 (cell2_node_types == i)[np.newaxis, :],
-#             )
-#             * p
-#         )
-
-#     (plan, log) = ot.gromov.gromov_wasserstein(
-#         cell1_dmat,
-#         cell2_dmat,
-#         p=cell1_distribution,
-#         q=cell2_distribution,
-#         symmetric=True, log=True)
-
-#     penalty_matrix *= log['gw_dist']/( (penalty_matrix * plan).sum() )
-#     return ot.fused_gromov_wasserstein(
-#         penalty_matrix,
-#         cell1_dmat,
-#         cell2_dmat,
-#         p=cell1_distribution,
-#         q=cell2_distribution,
-#         G0=plan
-#         **kwargs,
-#     )
-
+_CELLS: list[tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]]
+_NODE_TYPES: npt.NDArray[np.int32]
+_PENALTY_DICTIONARY: dict[tuple[int,int],float]
+_WORST_CASE_GW_INCREASE: Optional[float]
+_KWARGS: dict
 
 def _init_fgw_pool(
     cells: list[tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]],
@@ -192,7 +144,7 @@ def _fgw_index(p: tuple[int, int]):
         _NODE_TYPES[j],
         _PENALTY_DICTIONARY,
         _WORST_CASE_GW_INCREASE,
-        **_KWARGS,
+        **_KWARGS,  # type: ignore
     )
     return (i, j, log["fgw_dist"])
 
@@ -274,7 +226,7 @@ def gw_cost_upper_bound(A_dmat, a_distr, A_node_types, B_dmat, b_distr, B_node_t
 
 def _load(
     intracell_csv_loc: str, swc_node_types: str, sample_points_npz: Optional[str]
-) -> tuple[list[MetricMeasureSpace], npt.NDArray[np.int64], list[str]]:
+) -> tuple[list[MetricMeasureSpace], npt.NDArray[np.int32], list[str]]:
     """
     :returns: A list of cells, a 2d- array of their node types, and a list of their names.
     """
@@ -285,39 +237,37 @@ def _load(
         names = [name for name, _ in cell_names_dmats]
     else:
         a = np.load(sample_points_npz)
-        cells = a["dmats"]
-        k = cells.shape[1]
+        cell_dmats = a["dmats"]
+        k = cell_dmats.shape[1]
         n = int(math.ceil(math.sqrt(k * 2)))
         u = uniform(n)
-        cells = [(squareform(cell, force="tosquareform"), u) for cell in cells]
-        node_types = a["structure_ids"]
-        names = a["names"]
+        cells = [(squareform(cell, force="tosquareform"), u) for cell in cell_dmats]
+        node_types=a["structure_ids"]
+        names = a["names"].tolist()
         a.close()
 
     return (cells, node_types, names)
 
 
 def fused_gromov_wasserstein_estimate_costs(
-    intracell_csv_loc: str,
-    swc_node_types: str,
+    cells,
+    swc_node_types : list[npt.NDArray[np.int64]],
     sample_size: int,
     penalty_dictionary: dict[tuple[int, int], float],
-    sample_points_npz: Optional[str] = None,
 ):
-    cells, node_types, _ = _load(intracell_csv_loc, swc_node_types, sample_points_npz)
     n = len(cells)
     n_pairs = n_c_2(n)
     k = int(n_pairs / sample_size)
-    to_sample = it.islice(it.combinations(zip(cells, node_types), 2), 0, None, k)
+    to_sample = it.islice(it.combinations(zip(cells, swc_node_types), 2), 0, None, k)
     ell = []
-    u = uniform(node_types.shape[1])
-    for (cell1, nt1), (cell2, nt2) in to_sample:
-        coupling_mat, gw_dist = gw(cell1, u, cell2, u)
+    # u = uniform(node_types.shape[1])
+    for ((dmat1, distr1), nt1), ((dmat2, distr2), nt2) in to_sample:
+        coupling_mat, gw_dist = gw(dmat1, distr1, dmat2, distr2)
         penalty_matrix = to_penalty_matrix(penalty_dictionary, nt1, nt2)
         ell.append(
             float((penalty_matrix * coupling_mat).sum()) / (4 * gw_dist * gw_dist)
         )
-    np.median(np.array(ell))
+    return np.median(np.array(ell))
 
 
 def fused_gromov_wasserstein_parallel(
@@ -362,28 +312,26 @@ def fused_gromov_wasserstein_parallel(
     number of jobs fed to each process at a time.
     """
     cells: list[tuple[DistanceMatrix, Distribution]]
-    node_types: npt.NDArray[np.int32]
+    node_types: list[npt.NDArray[np.int32]]
     names: list[str]
     cells, node_types, names = _load(
         intracell_csv_loc, swc_node_types, sample_points_npz
     )
     num_cells = len(names)
-
     index_pairs = it.combinations(
         iter(range(num_cells)), 2
     )  # object pairs to compute fGW / OT for
     total_num_pairs = n_c_2(num_cells)
     kwargs["log"] = True
-
     if penalty_dictionary is None:
         penalty_dictionary = dict()
         penalty_dictionary[(1, 3)] = soma_dendrite_penalty
         penalty_dictionary[(1, 4)] = soma_dendrite_penalty
         penalty_dictionary[(3, 4)] = basal_apical_penalty
-
     if (not dynamically_adjust) and (worst_case_gw_increase is not None):
         estimate = fused_gromov_wasserstein_estimate_costs(
-            intracell_csv_loc, swc_node_types, sample_size, sample_points_npz
+            cells, node_types, sample_size,
+            penalty_dictionary # type: ignore
         )
         if estimate == 0:
             raise Exception(

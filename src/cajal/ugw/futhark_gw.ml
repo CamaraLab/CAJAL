@@ -115,10 +115,12 @@ let num_pts_arr a =
 end
 
 module Squareform : sig
-  type t
+  type t = private (float, Bigarray.float64_elt, c_layout) Bigarray.Genarray.t
+
   val of_vectorform: Vectorform.t -> t
   type arr
   val of_vectorform_arr: Vectorform.arr -> arr
+  val t_of_npy: string -> int option -> t
   val arr_of_npy: string -> int option -> arr
   val num_pts_t: t -> int
   val num_pts_arr: arr -> int   
@@ -146,10 +148,30 @@ module Squareform : sig
   params -> 
   (float, float64_elt, c_layout) Genarray.t
 
+  val ugw_armijo_pairwise_increasing :
+    Context.t ->
+    original_ugw_dmat:t ->
+    increasing_ratio:float ->
+    arr ->
+    params ->
+    t
+  
 end = struct
   open Bigarray
   type t = (float, float64_elt, c_layout) Genarray.t
+  let to_genarray x = x
   type arr = (float, float64_elt, c_layout) Genarray.t
+  let t_of_npy str n =
+    (Npy.read_copy str) |> Npy.to_bigarray c_layout Float64 |>
+    Option.get
+    |> fun a -> let dims = (Genarray.dims a) in
+    if (dims.(0) = dims.(1)) then
+        match n with 
+        | Some l -> Genarray.sub_left a 0 l
+        | None -> a
+          else failwith "Expected a squareform distance matrix."
+  ;;
+    
   let arr_of_npy str n = 
     (Npy.read_copy str) |> Npy.to_bigarray c_layout Float64 |>
     Option.get
@@ -193,6 +215,20 @@ let unbalanced_gw_armijo_pairwise_unif ctx arr params =
     let dmats = Array_f64_3d.v ctx arr in
     Unbalanced_gw.ugw_armijo_pairwise_unif
         ctx params.rho1 params.rho2 params.epsilon dmats
+        params.exp_absorb_cutoff
+        params.safe_for_exp
+        params.tol_sinkhorn
+        params.tol_outerloop
+  |> Array_f64_2d.get
+
+let ugw_armijo_pairwise_increasing ctx ~(original_ugw_dmat:t) ~(increasing_ratio:float) arr params =
+  let original_ugw_dmat = Array_f64_2d.v ctx original_ugw_dmat in
+  let dmats = Array_f64_3d.v ctx arr in
+  let u = Bigarray.Genarray.(init Float64 c_layout [|nth_dim arr 0; nth_dim arr 1|]
+                               (fun _ -> 1./.(Float.of_int (nth_dim arr 1)) )) |> Array_f64_2d.v ctx
+  in
+    Unbalanced_gw.ugw_armijo_pairwise_increasing 
+      ctx original_ugw_dmat increasing_ratio params.rho1 params.rho2 params.epsilon dmats u
         params.exp_absorb_cutoff
         params.safe_for_exp
         params.tol_sinkhorn
