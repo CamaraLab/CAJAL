@@ -27,7 +27,6 @@ module type network_simplex_context = {
 -- }
 
 module network_simplex(M : network_simplex_context) = {
-  -- N : Numeric
   module N = M.N
   type index = M.tree.index
   type t = N.t
@@ -36,30 +35,44 @@ module network_simplex(M : network_simplex_context) = {
   import "lib/github.com/diku-dk/segmented/segmented"
 
   def xor (x: bool) (y: bool) = bool.(x != y)
+
+  -- | The first problem we want to solve is constructing
+  -- the initial spanning tree for a complete bipartite graph.
+  -- First, suppose we have a complete bipartite graph
+  -- whose first set of elements is called { \mu_0, \dots, \mu_{n-1})
+  -- and whose second set of elements is called {\nu_0,\dots,\nu_{m-1}}.
+  -- Then for any (n,m)-shuffle \sigma (https://planetmath.org/pqshuffle)
+  -- I propose suggest the following tree structure associated to the shuffle:
+  -- the last \mu_i in any consecutive streak of \mu's is connected to
+  -- all the \nu's in the consecutive streak of \nu's immediately succeeding \mu_i,
+  -- and conversely.
+  -- In other words, there is a connection from \mu_i to \nu_j if
+  -- \sigma(\mu_i) < \sigma(\nu_j) and every value strictly between
+  -- \sigma(\mu_i) and \sigma(\nu_j) is of the form \sigma(\nu_k) for some k.
+  -- And the same with \mu_i,\nu_j being swapped appropriately.
+  -- For example, in the shuffle
+  
+  -- \mu_0, \nu_0, \mu_1,\nu_1, \nu_2, \mu_2, \mu_3, \nu_3
+
+  -- we connect  \mu_0 -> \nu_0, \nu_0 -> \mu_1, \mu_1 ->\nu_1,
+  -- \mu_1 -> \nu_2, \nu_2 ->\mu_2,\nu_2 ->\mu_3, \mu_3 ->\nu_3.
+
+  -- Thus in order to construct an initial transport plan for the
+  -- optimal coupling, it suffices to find an (n,m)-shuffle
+  -- such that the resulting tree structure is compatible
+  -- with the probability distribution constraints.
+
+					    
   def begin_streak [n] (b: [n]bool) : [n]i64 =
     let diffs =
-      ([false] ++ map2 xor (map (\i -> b[i]) (0..<(n-1))) (map (\i -> b[i+1])
-							       (0..<(n-1)))) :> [n]bool
+      ([false] ++ map2 xor (map (\i -> b[i]) (0..<(n-1)))
+	       (map (\i -> b[i+1]) (0..<(n-1)))) :> [n]bool
     in
     let a = map (\i -> if diffs[i] then i else 0) (iota n) in
     segmented_scan (i64.+) (0) diffs a
 
-  -- def initial_spanning_tree_ot [n][m] (mu: [n]N.t) (nu: [m]N.t) :
-  --  (M.tree.structure[(n+m)], M.tree.data[(n+m)]N.t) =
-  --   let mu_cum = scan (N.+) (N.i32 0) mu in
-  --   let nu_cum = scan (N.+) (N.i32 0) nu in
-  --   let f (i:i32 , t) =
-  --     if i == 0 then (N.i32 0) else
-  --     if t then nu_cum[i-1] else mu_cum[i-1]
-  --   in
-  --   let Z1 = zip (replicate n false) (0..<n) in
-  --   let Z2 = zip (replicate m true) (0..<m) in
-  --   let X = radix_sort_by_key f (M.num_bits) (M.get_bit) (Z1 ++ Z2) in
-  --   let (indices,partition) = unzip X in
-
-
   -- This function constructs an initial spanning tree on
-  -- the graph arising from an optimal transport problem.
+  -- the bipartite graph arising from an optimal transport problem.
   -- In optimal transport, we have sets A and B,
   -- the edges are exactly given by pairs (i,j) with i in A and j in B,
   -- and flows are unbounded.
