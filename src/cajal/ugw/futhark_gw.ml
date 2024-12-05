@@ -155,8 +155,7 @@ module Squareform : sig
     increasing_ratio:float ->
     arr ->
     params ->
-    t
-  
+    (float, float64_elt, c_layout) Genarray.t
 end = struct
   open Bigarray
   type t = (float, float64_elt, c_layout) Genarray.t

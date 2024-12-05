@@ -55,7 +55,7 @@ module Squareform: sig
     increasing_ratio:float ->
     arr ->
     params ->
-    t
+    (float, float64_elt, c_layout) Genarray.t
 end
 
 module Pt_cloud : sig
