@@ -44,7 +44,8 @@ let copy_to index filename bigarray () =
   (bigarray_of_npy filename)
   (Genarray.slice_left bigarray [| index |] )
 
-let uniform k = Genarray.init Float64 c_layout [| k |] (fun _ -> 1.0 /. (float_of_int k ))
+let uniform k = Genarray.init Float64 c_layout [| k |]
+    (fun _ -> 1.0 /. (float_of_int k ))
 
 type params = { rho1 : float; rho2 : float; epsilon : float;
                exp_absorb_cutoff : float;
@@ -150,7 +151,7 @@ module Squareform : sig
 
   val ugw_armijo_pairwise_increasing :
     Context.t ->
-    original_ugw_dmat:t ->
+    original_ugw_vform_dmat:(float, float64_elt, c_layout) Genarray.t ->
     increasing_ratio:float ->
     arr ->
     params ->
@@ -159,7 +160,7 @@ module Squareform : sig
 end = struct
   open Bigarray
   type t = (float, float64_elt, c_layout) Genarray.t
-  let to_genarray x = x
+
   type arr = (float, float64_elt, c_layout) Genarray.t
   let t_of_npy str n =
     (Npy.read_copy str) |> Npy.to_bigarray c_layout Float64 |>
@@ -221,8 +222,12 @@ let unbalanced_gw_armijo_pairwise_unif ctx arr params =
         params.tol_outerloop
   |> Array_f64_2d.get
 
-let ugw_armijo_pairwise_increasing ctx ~(original_ugw_dmat:t) ~(increasing_ratio:float) arr params =
-  let original_ugw_dmat = Array_f64_2d.v ctx original_ugw_dmat in
+let ugw_armijo_pairwise_increasing ctx
+    ~original_ugw_vform_dmat
+    ~(increasing_ratio:float)
+    arr
+    params =
+  let original_ugw_dmat = Array_f64_2d.v ctx original_ugw_vform_dmat in
   let dmats = Array_f64_3d.v ctx arr in
   let u = Bigarray.Genarray.(init Float64 c_layout [|nth_dim arr 0; nth_dim arr 1|]
                                (fun _ -> 1./.(Float.of_int (nth_dim arr 1)) )) |> Array_f64_2d.v ctx

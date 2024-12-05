@@ -19,7 +19,7 @@ type params = { rho1 : float; rho2 : float; epsilon : float;
              }
 
 module Vectorform : sig
-  type t = private (float, Bigarray.float64_elt, c_layout) Bigarray.Genarray.t
+  type t = private (float, float64_elt, c_layout) Genarray.t
   val num_pts_t: t -> int
   type arr
   val num_pts_arr: arr -> int
@@ -51,12 +51,11 @@ module Squareform: sig
   val sub_left: arr -> int -> int -> arr
   val ugw_armijo_pairwise_increasing :
     Context.t ->
-    original_ugw_dmat:t ->
+    original_ugw_vform_dmat:(float, float64_elt, c_layout) Genarray.t ->
     increasing_ratio:float ->
     arr ->
     params ->
     t
-
 end
 
 module Pt_cloud : sig
