@@ -110,10 +110,10 @@ module tree_impl = {
 
 module tree : tree = tree_impl
 
-module Make_tree (tree: tree) = {
-  open tree
+-- module Make_tree (tree: tree) = {
+--   open tree
 
-}
+-- }
 
 module type WeightedDiGraph = {
   module N : numeric
@@ -124,8 +124,6 @@ module type WeightedDiGraph = {
   val cost: arc -> N.t
   type t
 }
-
-
 
 -- module WeightedDiGraph_impl = {
 --   module N = i64

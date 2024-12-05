@@ -36,47 +36,103 @@ module network_simplex(M : network_simplex_context) = {
 
   def xor (x: bool) (y: bool) = bool.(x != y)
 
-  -- | The first problem we want to solve is constructing
-  -- the initial spanning tree for a complete bipartite graph.
-  -- First, suppose we have a complete bipartite graph
-  -- whose first set of elements is called { \mu_0, \dots, \mu_{n-1})
-  -- and whose second set of elements is called {\nu_0,\dots,\nu_{m-1}}.
-  -- Then for any (n,m)-shuffle \sigma (https://planetmath.org/pqshuffle)
-  -- I propose suggest the following tree structure associated to the shuffle:
-  -- the last \mu_i in any consecutive streak of \mu's is connected to
-  -- all the \nu's in the consecutive streak of \nu's immediately succeeding \mu_i,
-  -- and conversely.
-  -- In other words, there is a connection from \mu_i to \nu_j if
-  -- \sigma(\mu_i) < \sigma(\nu_j) and every value strictly between
-  -- \sigma(\mu_i) and \sigma(\nu_j) is of the form \sigma(\nu_k) for some k.
-  -- And the same with \mu_i,\nu_j being swapped appropriately.
-  -- For example, in the shuffle
+  -- | begin-streak b is an array of integer indices
+  -- for b, such that (begin-streak b)[i] is the array index
+  -- for the first boolean in the contiguous streak of booleans that
+  -- i belongs to.
   
-  -- \mu_0, \nu_0, \mu_1,\nu_1, \nu_2, \mu_2, \mu_3, \nu_3
-
-  -- we connect  \mu_0 -> \nu_0, \nu_0 -> \mu_1, \mu_1 ->\nu_1,
-  -- \mu_1 -> \nu_2, \nu_2 ->\mu_2,\nu_2 ->\mu_3, \mu_3 ->\nu_3.
-
-  -- Thus in order to construct an initial transport plan for the
-  -- optimal coupling, it suffices to find an (n,m)-shuffle
-  -- such that the resulting tree structure is compatible
-  -- with the probability distribution constraints.
-
-					    
+  -- (begin-streak b)[i] is always <= i,
+  -- with equality iff (b = 0 or b[i-1] != b[i]).
+  -- Example:
+  -- begin_streak [t, t, t, f, f, f, t, t, f] =
+  --              [0, 0, 0, 3, 3, 3, 6, 6, 7]
   def begin_streak [n] (b: [n]bool) : [n]i64 =
-    let diffs =
-      ([false] ++ map2 xor (map (\i -> b[i]) (0..<(n-1)))
-	       (map (\i -> b[i+1]) (0..<(n-1)))) :> [n]bool
-    in
-    let a = map (\i -> if diffs[i] then i else 0) (iota n) in
-    segmented_scan (i64.+) (0) diffs a
+    let contiguous_streak_start_flag =
+      let b_upshift = spread n b[0] (map (+1) (0..<n)) b :> [n]bool in
+      map2 xor b b_upshift
+    in      
+    -- I think this is correct but it seems less readable so I deleted it.
+    -- let diffs = ([false] ++ map2 xor (map (\i -> b[i]) (0..<(n-1)))
+    -- 	       (map (\i -> b[i+1]) (0..<(n-1)))) :> [n]bool in 
+    --
+    -- This line exploits the fact that the prefix sum (scan) of the array
+    -- [k, 0, 0, 0, 0,...] is
+    -- [k, k, k, k, k,...]
+    let a = map (\i -> if contiguous_streak_start_flag[i] then i else 0) (iota n) in
+    segmented_scan (i64.+) (0) contiguous_streak_start_flag a
 
-  -- This function constructs an initial spanning tree on
-  -- the bipartite graph arising from an optimal transport problem.
-  -- In optimal transport, we have sets A and B,
-  -- the edges are exactly given by pairs (i,j) with i in A and j in B,
-  -- and flows are unbounded.
-  -- The underlying
+  -- Let X = { 0, ...,  n-1} and Y = { 0, ..., m-1 }.
+  -- Let G be the "complete bipartite graph" between X and Y,
+  -- so there is an edge from every element in X to every element in Y.
+  -- In this case we care about the complete *directed* bipartite graph "from" X to Y, that is,
+  -- the graph which has an edge from x to y for each pair (x,y), but no
+  -- edges going the other way. This will simplify the problem,
+  -- and let us avoid thinking about negative demand.
+
+  -- We are interested here in constructing a spanning tree for G,
+  -- and we are in particular interested in trees having the property that
+  -- no two edges cross, so there are no two edges (i, j) and (i', j')
+  -- with the property that i < i' and j > j'. It is easy to see that
+  -- this requirement forces us to connect 0_X to 0_Y, and (n-1)_X to (m-1)_Y.
+
+  -- I claim that trees satisfying this property are in
+  -- one-to-one correspondence with (n-1,m-1)-shuffles (https://planetmath.org/pqshuffle).
+  -- For readability we introduce the set X' = { 0,...,n-2 }, Y' = {0, ... , m-2},
+  -- and we think of the element i in X' as the dividing line between i \in X and i+1 \in X.
+  -- We identify the disjoint union X' \coprod Y' with the set {0,...,n+m-3} under the correspondence
+  -- x' \mapsto x', y' \mapsto n-1+y'.
+  -- We identify (n-1, m-1)-shuffles with bijective functions X' \coprod Y' \to {0,..., n+m-2} with the property that
+  -- x'_0 < x'_1 -> \sigma(x'_0) < \sigma(x'_1), y'_0 < y'_1 -> \sigma(y'_0) < \sigma(y'_1).
+  -- We think of elements of X as corresponding to lower subsets of X' -
+  -- the number k \in X is associated to the set { x' \in X' | x' < k } of "cuts" or "divisions" to the left of k;
+  -- 0 \in X corresponds to the empty subset of X', and X' itself corresponds to n-1.
+  
+  -- Now that this notation is introduced, for an (n-1,m-1)-shuffle \sigma : X' \coprod Y' \to {0,...,n+m-2}
+  -- we associate to this shuffle the tree which has an edge from n_X to n_Y iff for some natural number k,
+
+  -- \sigma^{-1}({0..<k}) = { x' \in X' | x' < n_X } \cup { y' \in Y' | y' < n_Y }.
+  
+  -- where the \cup should be a disjoint union.
+  -- We call this edge the k-th edge.
+  -- In particular, if k = 0 then both sides of this equation are empty,
+  -- so we always connect 0_X to 0_Y.
+  -- Similarly if k = n+m-2 then one can take n_X = n-1 and n_Y = m-1.
+
+  -- For the sake of satisfying the marginal constraints, we must
+  -- consider whether the graph defines a valid transport plan.
+  -- Let \mu be a measure on X and \nu a measure on Y, both of equal mass.
+  -- Let f_X' : X' -> \mathbb{R} be the cumulative sum 
+  -- f_X'(x') = \sum_{i<=x'} \mu[i], similarly f_Y' : Y' -> \mathbb{R}.
+  -- We write f : X' \coprod Y' \to \mathbb{R} for f_{X'} \coprod f_{Y'} \to \mathbb{R}.
+  
+  -- A permutation \sigma : X' \coprod Y \to { 0,...,n+m-3} is compatible with a valid transport plan
+  -- if and only if it satisfies f(a) < f(b) -> \sigma(a) < \sigma(b).
+  -- It is not required to satisfy the stronger condition (a <= b) -> \sigma(a) <= \sigma(b);
+  -- one can have f(a) = f(b) and \sigma(a) > \sigma(b).
+  -- However, the presence of a pair of distinct elements a, b with f(a) = f(b) does complicate things,
+  -- as it implies the existence of degenerate (constrained) edges in the tree, which
+  -- is a problem for the network simplex algorithm.
+  -- Following Section 11.6 of "Network flows" (1996) we will impose the additional constraint
+  -- that we want the tree constructed by the function to be "strongly feasible",
+  -- so every edge with zero flow points toward the root.
+  -- This requires us to designate a distinguished root node - we choose 0_X.
+  -- Whether an edge is pointing "up" or "down" is also a function of the (n-1,m-1)-shufle.
+  -- The 0th edge points down, and for k > 0, the k-th edge points down if
+  -- \sigma^{-1}(k-1) \in Y', otherwise the k-th edge points up.
+
+  -- For the time being we will ignore measures which have zero mass, because this isn't currently
+  -- relevant to our intended applications and because the problem is easily solved at the end-user
+  -- level by filtering out zeros. This basically means that we should make our order into a
+  -- total order by adding the additional stipulation that if x' \in X', y' in Y' and f(x') = f(y'),
+  -- then x' < y'. This makes the optimal solution unique.
+
+  --| initial_spanning_tree_ot accepts two measures, mu and nu, which are assumed to be
+  -- nonnegative and have the same mass. It returns a spanning tree through the
+  -- complete bipartite graph from mu to nu, which corresponds to a feasible solution to the
+  -- optimal transport problem.
+  -- All edges in the tree are from mu to nu.
+  -- If nu is strictly positive everywhere, then the tree is strongly feasible.
+
   def initial_spanning_tree_ot [n][m] (mu: [n]N.t) (nu: [m]N.t) :
    M.tree.structure[(n+m)] =
     let f (i: i64) =
