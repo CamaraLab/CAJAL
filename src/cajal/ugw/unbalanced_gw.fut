@@ -53,7 +53,7 @@ module unbalanced_gw (M : real) = {
       unbalanced_gw_total_cost rho1 rho2 eps dms[i] u dms[j] u
        {exp_absorb_cutoff, loop_count=10, safe_for_exp, tol_sinkhorn} tol_outerloop in
       if M.(output[0] > zero) then output else
-      unbalanced_gw_total_cost rho1 rho2 eps dms[trace i] u dms[trace j] u
+      unbalanced_gw_total_cost rho1 rho2 eps dms[i] u dms[j] u
        {exp_absorb_cutoff, loop_count=1, safe_for_exp, tol_sinkhorn} tol_outerloop	
     in
     map ugw (pairs.pairs m)
@@ -171,7 +171,10 @@ entry ugw_armijo_pairwise_increasing [k][m]
   pairsf64.pairs k
   |> map (\(i,j) ->
 	    loop (current_ugw, current_epsilon) =
-	      (ugw_dmat[pairsf64.k_of_i_j m i j], eps) while f64.isnan current_ugw[4] do
+	      (ugw_dmat[pairsf64.k_of_i_j
+			k i j],
+	        eps)
+	    while f64.isnan current_ugw[4] do
 	    let increase_eps = current_epsilon f64.* ratio in
 	    let arr =
 	      unbalanced_gw64.armijo.main
