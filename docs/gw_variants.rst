@@ -2,7 +2,7 @@ Variants of Gromov-Wasserstein
 ==============================
 
 The Gromov-Wasserstein distance is highly useful for quantifying differences in cell morphology, and a number of variants of Gromov-Wasserstein distance have been proposed in the literature. This page explains two such variants, "Unbalanced Gromov-Wasserstein" and "Fused Gromov-Wasserstein".
-
+Here we focus on the mathematics; for applications see Tutorial 5.
 
 Gromov-Wasserstein
 ------------------
@@ -147,3 +147,37 @@ The coefficient :math:`\varepsilon` has the physical meaning that the 'couplings
 
 To choose :math:`\varepsilon` appropriately, we advise that you experiment with your data set at different values of :math:`\varepsilon`. For sufficiently small :math:`\varepsilon`, the algorithm will tend to diverge due to numerical instability; the most accurate possible result will be given by choosing the smallest possible value of :math:`\varepsilon` for which all values terminate. One can increase :math:`\varepsilon` beyond this point, which will tend to make the algorithm converge faster, but to a less accurate answer, so it is a tradeoff to be made based on the size of the dataset to be computed and the precision necessary for the results to be useful. Our experience is that :math:`\rho_1,\rho_2` should be at least 20x larger than :math:`\varepsilon` for the results to be decently accurate, and a higher ratio is probably better.
 
+Fused Gromov-Wasserstein
+------------------------
+
+We let $(X,\mu)$, $(Y,\nu)$ and $\mathcal{G}$ be as before.
+
+Classical Gromov-Wasserstein treats cells purely geometrically, as shapes. In searching for good alignments between two neurons, it doesn't consider some important information present in cell morphology reconstructions, such as the labels for the soma and dendrite nodes.
+On biological grounds, it is reasonable to argue that a "good alignment" between two neurons should align the soma node to the soma node, align axon to axon, basal dendrites to basal dendrites, and apical dendrites to apical dendrites. Fused Gromov-Wasserstein is a construct
+which modifies classical Gromov-Wasserstein to add a penalty term for transport plans which align nodes of different types. By making the penalty term large, we can bias the search algorithm towards transport plans which reflect the additional information available in the cell structure.
+
+The formula for the fused GW cost of a transport plan is
+
+.. math::
+
+   \mathcal{F}(T) = \alpha\mathcal{G}(T) + (1-\alpha)\sum_{ij}C_{ij}T_{ij}
+
+and we define
+
+.. math::
+   FGW_C((X,\mu),(Y,\nu)) = \inf_T \mathcal{F}(T)
+
+where $C_{ij}$ is a user-supplied penalty matrix, and the value $C_{ij}$ indicates the intrinsic penalty for aligning $X_i$ to $Y_j$.
+
+In our implementation, the user supplies the penalty for aligning nodes of distinct SWC structure id labels. It is easiest to choose these on relative grounds: for example, if the user wants to impose the constraint that aligning a soma node to a dendrite node is ten times worse than 
+aligning a basal dendrite node to an apical node, they can choose the soma-to-dendrite penalty to be 10 and the basal-to-apical penalty to be 1. Once this is done, it remains to choose the coefficient $\alpha$ appropriately.
+
+Note that if $T^{GW}$ is the optimal transport plan for classical Gromov-Wasserstein and $C$ is a proposed cost matrix, then an upper bound for $FGW_C(X,Y)$ is $\mathcal{F}(T^{GW})$.
+It follows that, if $T^{FGW}$ is the optimal transport plan for fused GW, then 
+
+.. math::
+   \mathcal{G}(T^{FGW}) \leq \mathcal{G}(T^{GW}) + (\frac{1-\alpha}{\alpha})(\sum_{ij}C_{ij}T^{GW}_{ij})
+
+One can interpret this inequality as follows: by increasing the term $(\frac{1-\alpha}{\alpha})$, the algorithm will be willing to accept higher distortion in order to better align nodes of similar types. If the user chooses, say, $(\frac{1-\alpha}{\alpha}) = 0.3$,
+then the GW cost of the transport plan $T^{FGW}$ will be at most 30% more than the GW cost of the original transport plan. Thus, our approach to giving an interpretable interface is to allow the user to control how much additional distortion they are willing to accept in the transport plan
+in order to align nodes of the same type.

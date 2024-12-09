@@ -93,6 +93,14 @@ _ugw_armijo_pairwise_unif_docstring = """This is the same as ugw_armijo_pairwise
 but with all distributions hardcoded to the uniform distribution.
 May reduce memory usage and cache usage relative to storing the entire constant array."""
 
+_ugw_armijo_pairwise_increasing_docstring = """This is a post-processing step for ugw_armijo_pairwise.
+It loops through the output and identifies all pairs of matrices where the algorithm failed to converge,
+and re-runs the computation for those inputs repeatedly at exponentially increasing values of the parameter
+epsilon until the algorithm stabilizes. This is step is useful for situations where you want a
+complete picture of the whole space of cells even if some of the UGW values are slightly off due to the increased
+regularization parameter.
+"""
+
 _ugw_armijo_euclidean_docstring = """This is the same as ugw_armijo_pairwise_unif,
     but the user passes in the array of point clouds rather than distance matrices,
     and the backend computes the distance matrices dynamically at the moment they
@@ -138,8 +146,8 @@ class UGW(Futhark):
         nu: Distribution,
         exp_absorb_cutoff: float = 1e100,
         safe_for_exp: float = 100.0,
-        tol_sinkhorn: float = 1e-5,
-        tol_outerloop: float = 1.0,
+        tol_sinkhorn: float = 1e-4,
+        tol_outerloop: float = 0.4,
     ):
         _ugw_armijo_docstring
 
@@ -169,8 +177,8 @@ class UGW(Futhark):
         distrs: npt.NDArray[np.float64],
         exp_absorb_cutoff: float = 1e100,
         safe_for_exp: float = 100.0,
-        tol_sinkhorn: float = 1e-5,
-        tol_outerloop: float = 1e-3,
+        tol_sinkhorn: float = 1e-4,
+        tol_outerloop: float = 0.4,
     ):
         return self._ugw_armijo_pairwise(
             self,
@@ -195,8 +203,8 @@ class UGW(Futhark):
         dmats: npt.NDArray[np.float64],
         exp_absorb_cutoff: float = 1e100,
         safe_for_exp: float = 100.0,
-        tol_sinkhorn: float = 1e-5,
-        tol_outerloop: float = 1e-3,
+        tol_sinkhorn: float = 1e-4,
+        tol_outerloop: float = 0.4,
     ):
         return self._ugw_armijo_pairwise_unif(
             rho1,
@@ -210,6 +218,36 @@ class UGW(Futhark):
         )
 
     ugw_armijo_pairwise_unif.__doc__ = _ugw_armijo_pairwise_unif_docstring
+    
+    def ugw_armijo_pairwise_increasing(
+        self,
+        ugw_dmat: npt.NDArray[np.float64],
+        increasing_ratio: float,
+        rho1: float,
+        rho2: float,
+        eps: float,
+        dmats: npt.NDArray[np.float64],
+        distrs: npt.NDArray[np.float64],
+        exp_absorb_cutoff: float = 1e100,
+        safe_for_exp: float = 100.0,
+        tol_sinkhorn: float = 1e-4,
+        tol_outerloop: float = 0.4,
+    ):
+        return self._ugw_armijo_pairwise_increasing(
+            ugw_dmat,
+            increasing_ratio,
+            rho1,
+            rho2,
+            eps,
+            dmats,
+            distrs,
+            exp_absorb_cutoff,
+            safe_for_exp,
+            tol_sinkhorn,
+            tol_outerloop,
+        )
+
+    ugw_armijo_pairwise_increasing.__doc__ = _ugw_armijo_pairwise_increasing_docstring
 
     def ugw_armijo_euclidean(
         self,
@@ -219,8 +257,8 @@ class UGW(Futhark):
         pt_clouds: npt.NDArray[np.float64],
         exp_absorb_cutoff: float = 1e100,
         safe_for_exp: float = 100.0,
-        tol_sinkhorn: float = 1e-5,
-        tol_outerloop: float = 1e-3,
+        tol_sinkhorn: float = 1e-4,
+        tol_outerloop: float = 0.4,
     ):
         return self._ugw_armijo_euclidean(
             rho1,
@@ -240,9 +278,12 @@ class UGW(Futhark):
         self._ugw_armijo = self.ugw_armijo
         self._ugw_armijo_pairwise = self.ugw_armijo_pairwise
         self._ugw_armijo_pairwise_unif = self.ugw_armijo_pairwise_unif
+        self._ugw_armijo_pairwise_increasing = self.ugw_armijo_pairwise_increasing
         self._ugw_armijo_euclidean = self.ugw_armijo_euclidean
 
         self.ugw_armijo = MethodType(UGW.ugw_armijo, self)
         self.ugw_armijo_pairwise = MethodType(UGW.ugw_armijo_pairwise, self)
         self.ugw_armijo_pairwise_unif = MethodType(UGW.ugw_armijo_pairwise_unif, self)
+        self.ugw_armijo_pairwise_increasing = MethodType(UGW.ugw_armijo_pairwise_increasing, self)
         self.ugw_armijo_euclidean = MethodType(UGW.ugw_armijo_euclidean, self)
+

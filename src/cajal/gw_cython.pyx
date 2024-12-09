@@ -176,6 +176,21 @@ cpdef gw_cython_core(
         max_iters_descent,
         max_iters_ot)
 
+def gw(
+    A: DistanceMatrix,
+    a: Distribution,
+    B: DistanceMatrix,
+    b: Distribution,
+    max_iters_descent: int = 1000,
+    max_iters_ot: int = 200000,
+) -> tuple[Matrix, float]:
+    """Compute the Gromov-Wasserstein distance between two metric measure spaces."""
+    Aa = A @ a
+    c_A = ((A * A) @ a) @ a
+    Bb = B @ b
+    c_B = ((B * B) @ b) @ b
+    return gw_cython_core(A, a, Aa, c_A, B, b, Bb, c_B, max_iters_descent, max_iters_ot)
+
 def gw_pairwise(
         list cell_dms           # A list of GW_cells.
 ):
