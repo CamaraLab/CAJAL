@@ -228,8 +228,10 @@ let ugw_armijo_pairwise_increasing ctx
     params =
   let original_ugw_dmat = Array_f64_2d.v ctx original_ugw_vform_dmat in
   let dmats = Array_f64_3d.v ctx arr in
-  let u = Bigarray.Genarray.(init Float64 c_layout [|nth_dim arr 0; nth_dim arr 1|]
-                               (fun _ -> 1./.(Float.of_int (nth_dim arr 1)) )) |> Array_f64_2d.v ctx
+  let u = Bigarray.Genarray.(
+      init Float64 c_layout [|nth_dim arr 0; nth_dim arr 1|]
+        (fun _ -> 1./.(Float.of_int (nth_dim arr 1)) ))
+          |> Array_f64_2d.v ctx
   in
     Unbalanced_gw.ugw_armijo_pairwise_increasing 
       ctx original_ugw_dmat increasing_ratio params.rho1 params.rho2 params.epsilon dmats u

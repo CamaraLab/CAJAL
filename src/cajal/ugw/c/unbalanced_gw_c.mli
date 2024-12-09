@@ -154,6 +154,9 @@ val ugw_armijo_euclidean: Context.t -> float -> float -> float -> Array_f64_3d.t
 (** Entry point: ugw_armijo_pairwise *)
 val ugw_armijo_pairwise: Context.t -> float -> float -> float -> Array_f64_3d.t -> Array_f64_2d.t -> float -> float -> float -> float -> (Array_f64_2d.t)
 
+(** Entry point: ugw_armijo_pairwise_increasing *)
+val ugw_armijo_pairwise_increasing: Context.t -> Array_f64_2d.t -> float -> float -> float -> float -> Array_f64_3d.t -> Array_f64_2d.t -> float -> float -> float -> float -> (Array_f64_2d.t)
+
 (** Entry point: ugw_armijo_pairwise_unif *)
 val ugw_armijo_pairwise_unif: Context.t -> float -> float -> float -> Array_f64_3d.t -> float -> float -> float -> float -> (Array_f64_2d.t)
 

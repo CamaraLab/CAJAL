@@ -46,6 +46,7 @@ module Bindings = struct
   let futhark_entry_ugw_armijo = fn "futhark_entry_ugw_armijo" (context @-> ptr array_f64_1d @-> double @-> double @-> double @-> array_f64_2d @-> array_f64_1d @-> array_f64_2d @-> array_f64_1d @-> double @-> double @-> double @-> double @-> returning (int))
   let futhark_entry_ugw_armijo_euclidean = fn "futhark_entry_ugw_armijo_euclidean" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_3d @-> double @-> double @-> double @-> double @-> returning (int))
   let futhark_entry_ugw_armijo_pairwise = fn "futhark_entry_ugw_armijo_pairwise" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_3d @-> array_f64_2d @-> double @-> double @-> double @-> double @-> returning (int))
+  let futhark_entry_ugw_armijo_pairwise_increasing = fn "futhark_entry_ugw_armijo_pairwise_increasing" (context @-> ptr array_f64_2d @-> array_f64_2d @-> double @-> double @-> double @-> double @-> array_f64_3d @-> array_f64_2d @-> double @-> double @-> double @-> double @-> returning (int))
   let futhark_entry_ugw_armijo_pairwise_unif = fn "futhark_entry_ugw_armijo_pairwise_unif" (context @-> ptr array_f64_2d @-> double @-> double @-> double @-> array_f64_3d @-> double @-> double @-> double @-> double @-> returning (int))
 end
 
@@ -421,6 +422,13 @@ let ugw_armijo_pairwise ctx input0 input1 input2 input3 input4 input5 input6 inp
   check_use_after_free `context ctx.Context.context_free;
   let out_ptr = allocate (ptr void) null in
   let rc = Bindings.futhark_entry_ugw_armijo_pairwise ctx.Context.handle out_ptr input0 input1 input2 (get_ptr input3) (get_ptr input4) input5 input6 input7 input8 in
+  if rc <> 0 then raise (Error (Code rc));
+  ((Array_f64_2d.of_ptr ctx !@out_ptr))
+
+let ugw_armijo_pairwise_increasing ctx input0 input1 input2 input3 input4 input5 input6 input7 input8 input9 input10 =
+  check_use_after_free `context ctx.Context.context_free;
+  let out_ptr = allocate (ptr void) null in
+  let rc = Bindings.futhark_entry_ugw_armijo_pairwise_increasing ctx.Context.handle out_ptr (get_ptr input0) input1 input2 input3 input4 (get_ptr input5) (get_ptr input6) input7 input8 input9 input10 in
   if rc <> 0 then raise (Error (Code rc));
   ((Array_f64_2d.of_ptr ctx !@out_ptr))
 
