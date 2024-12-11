@@ -45,7 +45,7 @@ psutil==6.0.0
 ptyprocess==0.7.0
 pure-eval==0.2.2
 Pygments==2.18.0
-pynndescent==0.5.8
+pynndescent>=0.5.13
 pyparsing==3.1.2
 python-dateutil==2.9.0.post0
 python-louvain==0.16
