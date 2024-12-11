@@ -23,9 +23,7 @@ from .gw_cython import gw
 
 
 def to_penalty_matrix(
-        penalty_dictionary: dict[tuple[int, int], float],
-        cell1_node_types,
-        cell2_node_types
+    penalty_dictionary: dict[tuple[int, int], float], cell1_node_types, cell2_node_types
 ):
     penalty_matrix = np.zeros(
         shape=(cell1_node_types.shape[0], cell2_node_types.shape[0])
@@ -102,11 +100,13 @@ def fused_gromov_wasserstein(
         **kwargs,
     )
 
+
 _CELLS: list[tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]]
 _NODE_TYPES: npt.NDArray[np.int32]
-_PENALTY_DICTIONARY: dict[tuple[int,int],float]
+_PENALTY_DICTIONARY: dict[tuple[int, int], float]
 _WORST_CASE_GW_INCREASE: Optional[float]
 _KWARGS: dict
+
 
 def _init_fgw_pool(
     cells: list[tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]],
@@ -242,7 +242,7 @@ def _load(
         n = int(math.ceil(math.sqrt(k * 2)))
         u = uniform(n)
         cells = [(squareform(cell, force="tosquareform"), u) for cell in cell_dmats]
-        node_types=a["structure_ids"]
+        node_types = a["structure_ids"]
         names = a["names"].tolist()
         a.close()
 
@@ -251,7 +251,7 @@ def _load(
 
 def fused_gromov_wasserstein_estimate_costs(
     cells,
-    swc_node_types : list[npt.NDArray[np.int64]],
+    swc_node_types: list[npt.NDArray[np.int64]],
     sample_size: int,
     penalty_dictionary: dict[tuple[int, int], float],
 ):
@@ -330,8 +330,7 @@ def fused_gromov_wasserstein_parallel(
         penalty_dictionary[(3, 4)] = basal_apical_penalty
     if (not dynamically_adjust) and (worst_case_gw_increase is not None):
         estimate = fused_gromov_wasserstein_estimate_costs(
-            cells, node_types, sample_size,
-            penalty_dictionary # type: ignore
+            cells, node_types, sample_size, penalty_dictionary  # type: ignore
         )
         if estimate == 0:
             raise Exception(

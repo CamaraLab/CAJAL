@@ -1,9 +1,76 @@
 from futhark_ffi import Futhark
 from types import MethodType
+from typing import Union, Optional
 from cajal.run_gw import DistanceMatrix
 from cajal.run_gw import Distribution
+from cajal.run_gw import cell_iterator_csv
+from cajal.utilities import n_c_2, uniform
 import numpy.typing as npt
+from math import exp, log
+import cajal.gw_cython.gw
 import numpy as np
+import itertools as it
+
+
+def ugw_bound(gw_cost: float, rho1: float, rho2: float):
+    """
+    :param gw_cost: A known GW transport cost between two cells or metric spaces.
+    Recall that we distinguish between GW cost and GW distance; the GW distance is
+    defined as 0.5 * math.sqrt(gw_cost).
+    :param rho1: The first marginal penalty
+    :param rho2: The second marginal penalty
+    :returns: An upper bound on the UGW cost that can be directly computed from
+        the known GW cost and rho1, rho2.
+    """
+    sum = rho1 + rho2
+    return sum * (1 - exp(-gw_cost / sum))
+
+
+def mass_lower_bound(gw_cost: float, rho1: float, rho2: float):
+    """
+    :param gw_cost: A known GW transport cost between two cells or metric spaces.
+        Recall that we distinguish between GW cost and GW distance;
+        the GW distance is defined as 0.5 * math.sqrt(gw_cost).
+    :param rho1: The first marginal penalty
+    :param rho2: The second marginal penalty
+    :returns: A lower bound on the mass preserved by the transport plan that can be
+        directlycomputed from the known GW cost and rho1, rho2.
+    """
+    sum = rho1 + rho2
+    return exp(-gw_cost / (2(*sum)))
+
+
+def estimate_distr(
+    dmats: npt.NDArray[np.float64], sample_size: int = 100, quantile=0.15
+):
+    num_dmats = dmats.shape[0]
+    n_pairs = n_c_2(num_dmats)
+    k = int(n_pairs / sample_size)
+    u = uniform(dmats.shape[1])
+    to_sample = it.islice(it.combinations(dmats, 2), 0, None, k)
+    observations = np.array(
+        [cajal.gw_cython.gw(cell1, u, cell2, u)[1] for cell1, cell2 in to_sample],
+        dtype=float,
+    )
+    observations *= 2
+    observations = observations * observations
+    return np.quantile(observations, quantile)
+
+
+def rho_of(gw_cost: float, mass_kept: float):
+    """
+    :param gw_cost: The GW cost of the optimal transport plan between two cells.
+    Recall that we distinguish between GW cost and GW distance; the GW distance is
+    defined as 0.5 * math.sqrt(gw_cost).
+    :param mass_kept: A real number between 0 and 1 indicating a desired lower bound on
+    the mass kept by the UGW transport plan.
+    :returns: A value for rho such that, if unbalanced GW is run with this parameter, at
+    least proportion `mass_kept` of the mass of the cells will be created. For simplicity
+    this formula is written for the case where the cells and the GW transport plan have
+    unit mass. This function is the inverse of mass_lower_bound.
+    """
+    return -gw_cost / log(mass_kept)
+
 
 _rho1_docstring = """:param rho1: The first marginal penalty coefficient, controls how much the
     first marginal for the transport plan (sum along rows) is allowed to deviate from mu.
@@ -45,6 +112,21 @@ _tol_sinkhorn_docstring = """:param tol_sinkhorn: An accuracy parameter, control
 _tol_outerloop_docstring = """:param tol_outerloop: An accuracy parameter, controls the
     tolerance at which the outer loop exits - when the ratio T_n+1/T_n is everywhere within
     1 +/- tol_outerloop. (T_n is the nth transport plan found in the main gradient descent)"""
+_increasing_ratio_docstring = """:param increasing_ratio: The UGW algorithm is not
+numerically stable
+and on large datasets, NaNs in the output are likely. If increasing_ratio is not None, this
+function makes a second pass through the input and retries the UGW algorithm, each time multiplying
+the regularization parameter epsilon by a factor of increasing_ratio until it converges.
+Higher values of epsilon may make the results less accurate in some cases, but it may be
+more useful than discarding the data for which the algorithm did not converge."""
+_mass_kept_docstring = """:param mass_kept: The user has the option to
+supply a real number between 0 and 1, "mass_kept", which takes precedence
+over the given rho1 and rho2 if it is not None. If this value is supplied,
+then the algorithm chooses rho1 and rho2 in such a way as to bound below the mass
+kept by the transport plan."""
+_gw_cost_docstring = """:param gw_cost: This must be supplied 
+if mass_kept is not None, as it is necessary to compute the
+appropriate values of rho1, rho2."""
 
 _ugw_armijo_docstring = "\n".join(
     [
@@ -66,6 +148,8 @@ _ugw_armijo_docstring = "\n".join(
         _safe_for_exp_docstring,
         _tol_sinkhorn_docstring,
         _tol_outerloop_docstring,
+        _mass_kept_docstring,
+        _gw_cost_docstring,
         """:return: A Numpy array ret of floats of shape (5,),
     where ret[0] is the GW cost of the transport plan found,
     ret[1] is the first marginal penalty (not including the rho1 scaling factor),
@@ -77,28 +161,70 @@ _ugw_armijo_docstring = "\n".join(
     ]
 )
 
-_ugw_pairwise_docstring = """Given an array of squareform distance matrices of shape (k,n,n),
+_ugw_pairwise_docstring = "\n".join(
+    [
+        """Given an array of squareform distance matrices of shape (k,n,n),
     and an array of measures of shape (k,n), compute the pairwise unbalanced Gromov-Wasserstein
     distance between all of them. Other than replacing two distance matrices with an array of
     distance matrices, and two distributions with an array of distributions, parameters are as
     in the function ugw_armijo. Returns an array of shape (k * (k-1)/2, 5) where the rows
     correspond to cell pairs and the columns are as in ugw_armijo. One can get the matrix of
     UGW_eps costs by accessing column 4 and applying the scipy.spatial.distance.squareform
-    function. The user should be aware that a few NaN's in the output matrix are likely, and they
-    should try evaluating the UGW for those specific cell pairs at higher values of epsilon. A
-    GW cost of zero in the first column is problematic and potentially indicates a numerical
-    stability problem."""
+    function.""",
+        """Because the coefficient rho is difficult to interpret and choose, the default
+    behavior of the algorithm is to estimate an appropriate value of rho based
+    on the following heuristic. The user selects a lower bound "mass_kept" for the
+    fraction of the mass that they want to keep between two cells, and the algorithm
+    randomly computes many GW distances between 
+    cells in the observed data to estimate the 15th percentile of observed distances.
+    Using this statistic, a value of rho is calculated which guarantees that
+    for cell pairs whose GW distance is below the 15th percentile, the optimal UGW
+    transport plan will keep at least fraction "mass_kept" of the mass. This will
+    add some overhead to the algorithm because of the time to
+    compute the GW values.""",
+        """:param mass_kept: A real number between 0 and 1, the minumum fraction of mass
+       to be preserved by UGW transport plans between two cells in the same neighborhood.
+       """,
+        _eps_docstring,
+        """:param dmats: An array of squareform distance matrices of shape (k,n,n),
+    where k is the number of cells and n is the number of points sampled from each cell.
+    """,
+        """:param distrs: An array of measures of shape (k,n), 
+    where k is the number of cells and n is the number of points per cell""",
+        """:param quantile: A real number between 0 and 1, the quantile in the 
+        distribution of distances which informs the notion of "same neighborhood"
+        referred to in the parameter mass_kept.""",
+        _increasing_ratio_docstring,
+        """:param sample_size: In order to estimate the appropriate value of rho,
+    before initiating the unbalanced GW computations, the function randomly 
+    computes sample_size many GW distances to estimate the quantile of the 
+    distribution specified by the parameter "quantile".""",
+        """:param rho: If this is specified, the sampling routine and estimation 
+    of the appropriate rho for the target mass_kept is ignored, and the 
+    given value of rho is used for all cell pairs.""",
+        """All other values are as in ugw_armijo.""",
+    ]
+)
 
 _ugw_armijo_pairwise_unif_docstring = """This is the same as ugw_armijo_pairwise,
 but with all distributions hardcoded to the uniform distribution.
 May reduce memory usage and cache usage relative to storing the entire constant array."""
 
-_ugw_armijo_pairwise_increasing_docstring = """This is a post-processing step for ugw_armijo_pairwise.
-It loops through the output and identifies all pairs of matrices where the algorithm failed to converge,
-and re-runs the computation for those inputs repeatedly at exponentially increasing values of the parameter
-epsilon until the algorithm stabilizes. This is step is useful for situations where you want a
-complete picture of the whole space of cells even if some of the UGW values are slightly off due to the increased
-regularization parameter.
+_ugw_armijo_pairwise_increasing_docstring = """This is a post-processing step for 
+ugw_armijo_pairwise. It loops through the output and identifies all pairs of matrices
+where the algorithm failed to converge, and re-runs the computation for those inputs
+repeatedly at exponentially increasing values of the parameter epsilon (scaled by 
+increasing_ratio) until the algorithm stabilizes. This is step is useful for situations 
+where you want a complete picture of the whole space of cells even if some of the
+UGW values are slightly off due to the increased regularization parameter.
+
+:param ugw_dmat: The output of the UGW algorithm, an array of shape
+(n * (n-1)/2, 5), where n is the number of cells in the data set;
+possibly containing NaN values.
+:param increasing_ratio: The multiple to increase epsilon by each time the 
+function fails to converge.
+
+Other parameters are as in ugw_armijo_pairwise.
 """
 
 _ugw_armijo_euclidean_docstring = """This is the same as ugw_armijo_pairwise_unif,
@@ -118,12 +244,6 @@ class UGW(Futhark):
     accessible as methods of this object. If the user wants to
     parallelize at the level of Python processes, then different Python processes
     should each instantiate the class separately,
-
-    At the moment the only documented functions are ugw_armijo, ugw_armijo_pairwise,
-    ugw_armijo_pairwise_unif, and ugw_armijo_euclidean.
-    The module defines other algorithms
-    which may be faster under some circumstances but we have counterexamples
-    where these other algorithms fail to converge and so we don't encourage their use.
     """
 
     # These boilerplate function definitions are the only solution I could come up with
@@ -148,8 +268,16 @@ class UGW(Futhark):
         safe_for_exp: float = 100.0,
         tol_sinkhorn: float = 1e-4,
         tol_outerloop: float = 0.4,
+        mass_kept: Optional[float] = None,
+        gw_cost: Optional[float] = None,
     ):
         _ugw_armijo_docstring
+
+        if mass_kept is not None:
+            if gw_cost is None:
+                raise Exception("If mass_kept is not None, you must supply a GW cost.")
+            rho1 = rho_of(gw_cost, mass_kept)
+            rho2 = rho1
 
         self._ugw_armijo(
             self,
@@ -168,76 +296,27 @@ class UGW(Futhark):
 
     ugw_armijo.__doc__ = _ugw_armijo_docstring
 
-    def ugw_armijo_pairwise(
-        self,
-        rho1: float,
-        rho2: float,
-        eps: float,
-        dmats: npt.NDArray[np.float64],
-        distrs: npt.NDArray[np.float64],
-        exp_absorb_cutoff: float = 1e100,
-        safe_for_exp: float = 100.0,
-        tol_sinkhorn: float = 1e-4,
-        tol_outerloop: float = 0.4,
-    ):
-        return self._ugw_armijo_pairwise(
-            self,
-            rho1,
-            rho2,
-            eps,
-            dmats,
-            distrs,
-            exp_absorb_cutoff,
-            safe_for_exp,
-            tol_sinkhorn,
-            tol_outerloop,
-        )
-
-    ugw_armijo_pairwise.__doc__ = _ugw_pairwise_docstring
-
-    def ugw_armijo_pairwise_unif(
-        self,
-        rho1: float,
-        rho2: float,
-        eps: float,
-        dmats: npt.NDArray[np.float64],
-        exp_absorb_cutoff: float = 1e100,
-        safe_for_exp: float = 100.0,
-        tol_sinkhorn: float = 1e-4,
-        tol_outerloop: float = 0.4,
-    ):
-        return self._ugw_armijo_pairwise_unif(
-            rho1,
-            rho2,
-            eps,
-            dmats,
-            exp_absorb_cutoff,
-            safe_for_exp,
-            tol_sinkhorn,
-            tol_outerloop,
-        )
-
-    ugw_armijo_pairwise_unif.__doc__ = _ugw_armijo_pairwise_unif_docstring
-    
     def ugw_armijo_pairwise_increasing(
         self,
         ugw_dmat: npt.NDArray[np.float64],
         increasing_ratio: float,
-        rho1: float,
-        rho2: float,
+        rho: float,
         eps: float,
-        dmats: npt.NDArray[np.float64],
+        dmats: Union[str, npt.NDArray[np.float64]],
         distrs: npt.NDArray[np.float64],
         exp_absorb_cutoff: float = 1e100,
         safe_for_exp: float = 100.0,
         tol_sinkhorn: float = 1e-4,
         tol_outerloop: float = 0.4,
     ):
+        if isinstance(dmats, str):
+            _, icdms = zip(*cell_iterator_csv(dmats))
+            dmats = np.stack(icdms, axis=0)
         return self._ugw_armijo_pairwise_increasing(
             ugw_dmat,
             increasing_ratio,
-            rho1,
-            rho2,
+            rho,
+            rho,
             eps,
             dmats,
             distrs,
@@ -249,10 +328,110 @@ class UGW(Futhark):
 
     ugw_armijo_pairwise_increasing.__doc__ = _ugw_armijo_pairwise_increasing_docstring
 
+    def ugw_armijo_pairwise(
+        self,
+        mass_kept: float,
+        eps: float,
+        dmats: npt.NDArray[np.float64],
+        distrs: npt.NDArray[np.float64],
+        quantile: float = 0.15,
+        increasing_ratio: Optional[float] = 1.1,
+        sample_size: int = 100,
+        exp_absorb_cutoff: float = 1e100,
+        safe_for_exp: float = 100.0,
+        tol_sinkhorn: float = 1e-4,
+        tol_outerloop: float = 0.4,
+        rho: Optional[float] = None,
+    ):
+        if rho is None:
+            gw_cost = estimate_distr(dmats, sample_size, quantile)
+            rho = rho_of(gw_cost, mass_kept)
+
+        ugw_dmat = self._ugw_armijo_pairwise(
+            self,
+            rho,
+            rho,
+            eps,
+            dmats,
+            distrs,
+            exp_absorb_cutoff,
+            safe_for_exp,
+            tol_sinkhorn,
+            tol_outerloop,
+        )
+
+        if increasing_ratio is not None:
+            return self.ugw_armijo_pairwise_increasing(
+                ugw_dmat,
+                increasing_ratio,
+                rho,
+                rho,
+                eps,
+                dmats,
+                distrs,
+                exp_absorb_cutoff,
+                safe_for_exp,
+                tol_sinkhorn,
+                tol_outerloop,
+            )
+        else:
+            return ugw_dmat
+
+    ugw_armijo_pairwise.__doc__ = _ugw_pairwise_docstring
+
+    def ugw_armijo_pairwise_unif(
+        self,
+        mass_kept: float,
+        quantile: float,
+        eps: float,
+        dmats: Union[str, npt.NDArray[np.float64]],
+        increasing_ratio: Optional[float] = 1.1,
+        sample_size=100,
+        exp_absorb_cutoff: float = 1e100,
+        safe_for_exp: float = 100.0,
+        tol_sinkhorn: float = 1e-4,
+        tol_outerloop: float = 0.4,
+        rho: Optional[float] = None,
+    ):
+
+        if isinstance(dmats, str):
+            _, icdms = zip(*cell_iterator_csv(dmats))
+            dmats = np.stack(icdms, axis=0)
+        if rho is None:
+            gw_cost = estimate_distr(dmats, sample_size, quantile)
+            rho = rho_of(gw_cost, mass_kept)
+
+        ugw_dmat = self._ugw_armijo_pairwise_unif(
+            rho,
+            rho,
+            eps,
+            dmats,
+            exp_absorb_cutoff,
+            safe_for_exp,
+            tol_sinkhorn,
+            tol_outerloop,
+        )
+        if increasing_ratio is not None:
+            return self.ugw_armijo_pairwise_increasing(
+                ugw_dmat,
+                increasing_ratio,
+                rho,
+                rho,
+                eps,
+                dmats,
+                exp_absorb_cutoff,
+                safe_for_exp,
+                tol_sinkhorn,
+                tol_outerloop,
+            )
+        else:
+            return ugw_dmat
+
+    ugw_armijo_pairwise_unif.__doc__ = _ugw_armijo_pairwise_unif_docstring
+
     def ugw_armijo_euclidean(
         self,
-        rho1: float,
-        rho2: float,
+        rho: float,
         eps: float,
         pt_clouds: npt.NDArray[np.float64],
         exp_absorb_cutoff: float = 1e100,
@@ -261,8 +440,8 @@ class UGW(Futhark):
         tol_outerloop: float = 0.4,
     ):
         return self._ugw_armijo_euclidean(
-            rho1,
-            rho2,
+            rho,
+            rho,
             eps,
             pt_clouds,
             exp_absorb_cutoff,
@@ -284,6 +463,7 @@ class UGW(Futhark):
         self.ugw_armijo = MethodType(UGW.ugw_armijo, self)
         self.ugw_armijo_pairwise = MethodType(UGW.ugw_armijo_pairwise, self)
         self.ugw_armijo_pairwise_unif = MethodType(UGW.ugw_armijo_pairwise_unif, self)
-        self.ugw_armijo_pairwise_increasing = MethodType(UGW.ugw_armijo_pairwise_increasing, self)
+        self.ugw_armijo_pairwise_increasing = MethodType(
+            UGW.ugw_armijo_pairwise_increasing, self
+        )
         self.ugw_armijo_euclidean = MethodType(UGW.ugw_armijo_euclidean, self)
-

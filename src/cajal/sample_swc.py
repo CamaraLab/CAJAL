@@ -33,6 +33,7 @@ from .weighted_tree import (
 # fail. For this reason we have tried to write our functions in an
 # iterative style when possible.
 
+
 def _count_nodes_helper(
     node_a: NeuronNode, node_b: NeuronNode, stepsize: float, offset: float
 ) -> tuple[int, float]:
