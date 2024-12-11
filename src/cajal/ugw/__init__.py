@@ -7,9 +7,10 @@ from cajal.run_gw import cell_iterator_csv
 from cajal.utilities import n_c_2, uniform
 import numpy.typing as npt
 from math import exp, log
-import cajal.gw_cython.gw
+import cajal.gw_cython
 import numpy as np
 import itertools as it
+from scipy.spatial.distance import squareform
 
 
 def ugw_bound(gw_cost: float, rho1: float, rho2: float):
@@ -37,7 +38,7 @@ def mass_lower_bound(gw_cost: float, rho1: float, rho2: float):
         directlycomputed from the known GW cost and rho1, rho2.
     """
     sum = rho1 + rho2
-    return exp(-gw_cost / (2(*sum)))
+    return exp(-gw_cost / (2*sum))
 
 
 def estimate_distr(
@@ -167,10 +168,7 @@ _ugw_pairwise_docstring = "\n".join(
     and an array of measures of shape (k,n), compute the pairwise unbalanced Gromov-Wasserstein
     distance between all of them. Other than replacing two distance matrices with an array of
     distance matrices, and two distributions with an array of distributions, parameters are as
-    in the function ugw_armijo. Returns an array of shape (k * (k-1)/2, 5) where the rows
-    correspond to cell pairs and the columns are as in ugw_armijo. One can get the matrix of
-    UGW_eps costs by accessing column 4 and applying the scipy.spatial.distance.squareform
-    function.""",
+    in the function ugw_armijo.""",
         """Because the coefficient rho is difficult to interpret and choose, the default
     behavior of the algorithm is to estimate an appropriate value of rho based
     on the following heuristic. The user selects a lower bound "mass_kept" for the
@@ -190,7 +188,9 @@ _ugw_pairwise_docstring = "\n".join(
     where k is the number of cells and n is the number of points sampled from each cell.
     """,
         """:param distrs: An array of measures of shape (k,n), 
-    where k is the number of cells and n is the number of points per cell""",
+    where k is the number of cells and n is the number of points per cell. If distrs is None,
+    then the uniform distribution on all cells will be taken.
+    """,
         """:param quantile: A real number between 0 and 1, the quantile in the 
         distribution of distances which informs the notion of "same neighborhood"
         referred to in the parameter mass_kept.""",
@@ -202,13 +202,19 @@ _ugw_pairwise_docstring = "\n".join(
         """:param rho: If this is specified, the sampling routine and estimation 
     of the appropriate rho for the target mass_kept is ignored, and the 
     given value of rho is used for all cell pairs.""",
+        """:param as_matrix: Return only the final distance matrix, as opposed to the full account of intermediary values.
+        If as_matrix is False, return a pair (distances, rho) where rho was the value
+        found for the given mass, and distances is an array of shape (k * (k-1)/2,5) where
+        the rows correspond to pairs (i,j) of cells with i < j, and the columns are as in
+        ugw_armijo.
+        """,
         """All other values are as in ugw_armijo.""",
     ]
 )
 
-_ugw_armijo_pairwise_unif_docstring = """This is the same as ugw_armijo_pairwise,
-but with all distributions hardcoded to the uniform distribution.
-May reduce memory usage and cache usage relative to storing the entire constant array."""
+# _ugw_armijo_pairwise_unif_docstring = """This is the same as ugw_armijo_pairwise,
+# but with all distributions hardcoded to the uniform distribution.
+# May reduce memory usage and cache usage relative to storing the entire constant array."""
 
 _ugw_armijo_pairwise_increasing_docstring = """This is a post-processing step for 
 ugw_armijo_pairwise. It loops through the output and identifies all pairs of matrices
@@ -332,8 +338,8 @@ class UGW(Futhark):
         self,
         mass_kept: float,
         eps: float,
-        dmats: npt.NDArray[np.float64],
-        distrs: npt.NDArray[np.float64],
+        dmats: Union[str, npt.NDArray[np.float64]],
+        distrs: Optional[npt.NDArray[np.float64]] = None,
         quantile: float = 0.15,
         increasing_ratio: Optional[float] = 1.1,
         sample_size: int = 100,
@@ -342,26 +348,46 @@ class UGW(Futhark):
         tol_sinkhorn: float = 1e-4,
         tol_outerloop: float = 0.4,
         rho: Optional[float] = None,
+        as_matrix = True
     ):
+
+        if isinstance(dmats, str):
+            _, icdms = zip(*cell_iterator_csv(dmats))
+            dmats = np.stack(icdms, axis=0)
+
         if rho is None:
             gw_cost = estimate_distr(dmats, sample_size, quantile)
             rho = rho_of(gw_cost, mass_kept)
 
-        ugw_dmat = self._ugw_armijo_pairwise(
-            self,
-            rho,
-            rho,
-            eps,
-            dmats,
-            distrs,
-            exp_absorb_cutoff,
-            safe_for_exp,
-            tol_sinkhorn,
-            tol_outerloop,
-        )
+        if distrs is None:
+            ugw_dmat = self._ugw_armijo_pairwise_unif(
+                rho,
+                rho,
+                eps,
+                dmats,
+                exp_absorb_cutoff,
+                safe_for_exp,
+                tol_sinkhorn,
+                tol_outerloop,
+            )
+        else:
+            ugw_dmat = self._ugw_armijo_pairwise(
+                rho,
+                rho,
+                eps,
+                dmats,
+                distrs,
+                exp_absorb_cutoff,
+                safe_for_exp,
+                tol_sinkhorn,
+                tol_outerloop,
+            )
 
-        if increasing_ratio is not None:
-            return self.ugw_armijo_pairwise_increasing(
+        if (increasing_ratio is not None):
+            if distrs is None:
+                u = uniform(dmats.shape[1])
+                distrs = np.stack([u for _ in range(dmats.shape[0])])
+            ugw_dmat = self._ugw_armijo_pairwise_increasing(
                 ugw_dmat,
                 increasing_ratio,
                 rho,
@@ -374,60 +400,14 @@ class UGW(Futhark):
                 tol_sinkhorn,
                 tol_outerloop,
             )
+        
+        if as_matrix:
+            ugw_dmat = self.from_futhark(ugw_dmat)
+            return squareform(ugw_dmat[:,0] + rho * (ugw_dmat[:,1]+ ugw_dmat[:,2]))
         else:
-            return ugw_dmat
+            return (ugw_dmat, rho)
 
     ugw_armijo_pairwise.__doc__ = _ugw_pairwise_docstring
-
-    def ugw_armijo_pairwise_unif(
-        self,
-        mass_kept: float,
-        quantile: float,
-        eps: float,
-        dmats: Union[str, npt.NDArray[np.float64]],
-        increasing_ratio: Optional[float] = 1.1,
-        sample_size=100,
-        exp_absorb_cutoff: float = 1e100,
-        safe_for_exp: float = 100.0,
-        tol_sinkhorn: float = 1e-4,
-        tol_outerloop: float = 0.4,
-        rho: Optional[float] = None,
-    ):
-
-        if isinstance(dmats, str):
-            _, icdms = zip(*cell_iterator_csv(dmats))
-            dmats = np.stack(icdms, axis=0)
-        if rho is None:
-            gw_cost = estimate_distr(dmats, sample_size, quantile)
-            rho = rho_of(gw_cost, mass_kept)
-
-        ugw_dmat = self._ugw_armijo_pairwise_unif(
-            rho,
-            rho,
-            eps,
-            dmats,
-            exp_absorb_cutoff,
-            safe_for_exp,
-            tol_sinkhorn,
-            tol_outerloop,
-        )
-        if increasing_ratio is not None:
-            return self.ugw_armijo_pairwise_increasing(
-                ugw_dmat,
-                increasing_ratio,
-                rho,
-                rho,
-                eps,
-                dmats,
-                exp_absorb_cutoff,
-                safe_for_exp,
-                tol_sinkhorn,
-                tol_outerloop,
-            )
-        else:
-            return ugw_dmat
-
-    ugw_armijo_pairwise_unif.__doc__ = _ugw_armijo_pairwise_unif_docstring
 
     def ugw_armijo_euclidean(
         self,
@@ -462,7 +442,7 @@ class UGW(Futhark):
 
         self.ugw_armijo = MethodType(UGW.ugw_armijo, self)
         self.ugw_armijo_pairwise = MethodType(UGW.ugw_armijo_pairwise, self)
-        self.ugw_armijo_pairwise_unif = MethodType(UGW.ugw_armijo_pairwise_unif, self)
+        # self.ugw_armijo_pairwise_unif = MethodType(UGW.ugw_armijo_pairwise_unif, self)
         self.ugw_armijo_pairwise_increasing = MethodType(
             UGW.ugw_armijo_pairwise_increasing, self
         )
