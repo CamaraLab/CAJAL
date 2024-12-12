@@ -76,9 +76,20 @@ doc = [
 vis = [
     "matplotlib >= 3.7.0",
     "networkx",
+    "ipywidgets",
+    "navis",
+    "mpltern",
+    "plotly"
+]
+
+notebooks = [
+    "matplotlib >= 3.7.0",
+    "networkx",
+    "ipywidgets",
     "navis",
     "numba",
-    "mpltern"
+    "mpltern",
+    "plotly"
 ]
 
 [project.license]
