@@ -17,7 +17,7 @@ import ot
 from tqdm import tqdm
 from multiprocessing import Pool
 
-from .types import DistanceMatrix, Distribution, MetricMeasureSpace
+from .cajal_types import DistanceMatrix, Distribution, MetricMeasureSpace
 from .utilities import uniform, cell_iterator_csv, n_c_2
 from .gw_cython import gw
 
@@ -121,29 +121,29 @@ def _init_fgw_pool(
     This is a private function.
     """
     global _CELLS
-    _CELLS = cells
+    _CELLS = cells  # type: ignore[name-defined]
     global _NODE_TYPES
-    _NODE_TYPES = node_types
+    _NODE_TYPES = node_types  # type: ignore[name-defined]
     global _WORST_CASE_GW_INCREASE
-    _WORST_CASE_GW_INCREASE = worst_case_gw_increase
+    _WORST_CASE_GW_INCREASE = worst_case_gw_increase   # type: ignore[name-defined]
     global _KWARGS
-    _KWARGS = kwargs
+    _KWARGS = kwargs  # type: ignore[name-defined]
     global _PENALTY_DICTIONARY
-    _PENALTY_DICTIONARY = penalty_dictionary
+    _PENALTY_DICTIONARY = penalty_dictionary  # type: ignore[name-defined]
 
 
 def _fgw_index(p: tuple[int, int]):
     """Compute the Fused GW distance between cells i and j in the master cell list."""
     i, j = p
     (_, log) = fused_gromov_wasserstein(
-        _CELLS[i][0],
-        _CELLS[i][1],
-        _NODE_TYPES[i],
-        _CELLS[j][0],
-        _CELLS[j][1],
-        _NODE_TYPES[j],
-        _PENALTY_DICTIONARY,
-        _WORST_CASE_GW_INCREASE,
+        _CELLS[i][0],  # type: ignore[name-defined]
+        _CELLS[i][1],  # type: ignore[name-defined]
+        _NODE_TYPES[i],  # type: ignore[name-defined]
+        _CELLS[j][0],  # type: ignore[name-defined]
+        _CELLS[j][1],  # type: ignore[name-defined]
+        _NODE_TYPES[j],  # type: ignore[name-defined]
+        _PENALTY_DICTIONARY,  # type: ignore[name-defined]
+        _WORST_CASE_GW_INCREASE,  # type: ignore[name-defined]
         **_KWARGS,  # type: ignore
     )
     return (i, j, log["fgw_dist"])

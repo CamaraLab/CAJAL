@@ -18,7 +18,6 @@ from typing import Callable, Iterator, Literal, Container, Optional
 import numpy as np
 from scipy.spatial.distance import euclidean
 from pathos.pools import ProcessPool
-import dill
 
 from .utilities import Err, T
 

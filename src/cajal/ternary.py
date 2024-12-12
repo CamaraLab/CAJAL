@@ -3,7 +3,6 @@ import mpltern  # noqa : F401
 from math import sqrt
 import numpy as np
 import numpy.typing as npt
-from numpy.linalg import norm
 from typing import Literal, Optional
 
 from scipy.spatial.distance import squareform

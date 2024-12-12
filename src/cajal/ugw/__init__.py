@@ -12,15 +12,16 @@ import numpy as np
 import itertools as it
 from scipy.spatial.distance import squareform, pdist
 
+
 def ugw_bound(gw_cost: float, rho1: float, rho2: float):
     """
-:param gw_cost: A known GW transport cost between two cells or metric spaces.
-    Recall that we distinguish between GW cost and GW distance; the GW distance is
-    defined as 0.5 * math.sqrt(gw_cost).
-:param rho1: The first marginal penalty
-:param rho2: The second marginal penalty
-:returns: An upper bound on the UGW cost that can be directly computed from
-    the known GW cost and rho1, rho2.
+    :param gw_cost: A known GW transport cost between two cells or metric spaces.
+        Recall that we distinguish between GW cost and GW distance; the GW distance is
+        defined as 0.5 * math.sqrt(gw_cost).
+    :param rho1: The first marginal penalty
+    :param rho2: The second marginal penalty
+    :returns: An upper bound on the UGW cost that can be directly computed from
+        the known GW cost and rho1, rho2.
     """
     sum = rho1 + rho2
     return sum * (1 - exp(-gw_cost / sum))
@@ -28,30 +29,30 @@ def ugw_bound(gw_cost: float, rho1: float, rho2: float):
 
 def mass_lower_bound(gw_cost: float, rho1: float, rho2: float):
     """
-:param gw_cost: A known GW transport cost between two cells or metric spaces.
-    Recall that we distinguish between GW cost and GW distance;
-    the GW distance is defined as 0.5 * math.sqrt(gw_cost).
-:param rho1: The first marginal penalty
-:param rho2: The second marginal penalty
-:returns: A lower bound on the mass preserved by the transport plan that can be
-    directly computed from the known GW cost and rho1, rho2.
+    :param gw_cost: A known GW transport cost between two cells or metric spaces.
+        Recall that we distinguish between GW cost and GW distance;
+        the GW distance is defined as 0.5 * math.sqrt(gw_cost).
+    :param rho1: The first marginal penalty
+    :param rho2: The second marginal penalty
+    :returns: A lower bound on the mass preserved by the transport plan that can be
+        directly computed from the known GW cost and rho1, rho2.
     """
     sum = rho1 + rho2
-    return exp(-gw_cost / (2*sum))
+    return exp(-gw_cost / (2 * sum))
 
 
 def estimate_distr(
     dmats: npt.NDArray[np.float64], sample_size: int = 100, quantile=0.15
 ):
     """
-Select `sample_size` many pairs of distance matrices from the given set
-of distance matrices, compute the Gromov-Wasserstein costs for each pair,
-and return the specified quantile of the observed distribution of GW costs.
+    Select `sample_size` many pairs of distance matrices from the given set
+    of distance matrices, compute the Gromov-Wasserstein costs for each pair,
+    and return the specified quantile of the observed distribution of GW costs.
 
-:param dmats: An array of shape (k, n, n) where `k` is the number of cells,
-    and `n` is the number of points sampled from each cell.
-:param sample_size: How many cell pairs to sample.
-:param quantile: The quantile of the observed distribution to return. 
+    :param dmats: An array of shape (k, n, n) where `k` is the number of cells,
+        and `n` is the number of points sampled from each cell.
+    :param sample_size: How many cell pairs to sample.
+    :param quantile: The quantile of the observed distribution to return.
     """
     num_dmats = dmats.shape[0]
     n_pairs = n_c_2(num_dmats)
@@ -69,21 +70,20 @@ and return the specified quantile of the observed distribution of GW costs.
 
 def rho_of(gw_cost: float, mass_kept: float):
     """
-:param gw_cost: The GW cost of the optimal transport plan between two cells.
-    Recall that we distinguish between GW cost and GW distance; the GW distance is
-    defined as 0.5 * math.sqrt(gw_cost).
-:param mass_kept: A real number between 0 and 1 indicating a desired lower bound on
-    the mass kept by the UGW transport plan.
-:returns: A value for rho such that, if unbalanced GW is run with this parameter, at
-    least proportion `mass_kept` of the mass of the cells will be created. For simplicity
-    this formula is written for the case where the cells and the GW transport plan have
-    unit mass. This function is the inverse of mass_lower_bound.
+    :param gw_cost: The GW cost of the optimal transport plan between two cells.
+        Recall that we distinguish between GW cost and GW distance; the GW distance is
+        defined as 0.5 * math.sqrt(gw_cost).
+    :param mass_kept: A real number between 0 and 1 indicating a desired lower bound on
+        the mass kept by the UGW transport plan.
+    :returns: A value for rho such that, if unbalanced GW is run with this parameter, at
+        least proportion `mass_kept` of the mass of the cells will be created. For simplicity
+        this formula is written for the case where the cells and the GW transport plan have
+        unit mass. This function is the inverse of mass_lower_bound.
     """
     return -gw_cost / log(mass_kept)
 
 
-_rho1_docstring =\
-    """:param rho1: The first marginal penalty coefficient, controls how much the
+_rho1_docstring = """:param rho1: The first marginal penalty coefficient, controls how much the
     first marginal for the transport plan (sum along rows) is allowed to deviate from mu.
     Higher is more strict and should give closer marginals."""
 _rho2_docstring = """:param rho2: The second marginal penalty coefficient,
@@ -126,16 +126,17 @@ _tol_outerloop_docstring = """:param tol_outerloop: An accuracy parameter, contr
 _increasing_ratio_docstring = """:param increasing_ratio: The UGW algorithm is not
     numerically stable
     and on large datasets, NaNs in the output are likely. If increasing_ratio is not None, this
-    function makes a second pass through the input and retries the UGW algorithm, each time multiplying
-    the regularization parameter epsilon by a factor of increasing_ratio until it converges.
-    Higher values of epsilon may make the results less accurate in some cases, but it may be
-    more useful than discarding the data for which the algorithm did not converge."""
+    function makes a second pass through the input and retries the UGW algorithm,
+    each time multiplying the regularization parameter epsilon by a factor of
+    increasing_ratio until it converges. Higher values of epsilon may make the results
+    less accurate in some cases, but it may be more useful than discarding the data for which the
+    algorithm did not converge."""
 _mass_kept_docstring = """:param mass_kept: The user has the option to
     supply a real number between 0 and 1, "mass_kept", which takes precedence
     over the given rho1 and rho2 if it is not None. If this value is supplied,
     then the algorithm chooses rho1 and rho2 in such a way as to bound below the mass
     kept by the transport plan."""
-_gw_cost_docstring = """:param gw_cost: This must be supplied 
+_gw_cost_docstring = """:param gw_cost: This must be supplied
     if mass_kept is not None, as it is necessary to compute the
     appropriate values of rho1, rho2."""
 
@@ -174,58 +175,60 @@ with some modifications for numerical stability and convergence.""",
 
 _ugw_pairwise_docstring = "\n".join(
     [
-    """Given an array of squareform distance matrices of shape (k,n,n),
+        """Given an array of squareform distance matrices of shape (k,n,n),
 and an array of measures of shape (k,n), compute the pairwise unbalanced Gromov-Wasserstein
 distance between all of them. Other than replacing two distance matrices with an array of
 distance matrices, and two distributions with an array of distributions, parameters are as
 in the function ugw_armijo.""",
-    "",
-    """Because the coefficient rho is difficult to interpret and choose, the default
+        "",
+        """Because the coefficient rho is difficult to interpret and choose, the default
 behavior of the algorithm is to estimate an appropriate value of rho based
 on the following heuristic. The user selects a lower bound "mass_kept" for the
 fraction of the mass that they want to keep between two cells, and the algorithm
-randomly computes many GW distances between 
-cells in the observed data to estimate the quantile of observed distances specified by 
+randomly computes many GW distances between
+cells in the observed data to estimate the quantile of observed distances specified by
 the `quantile` parameter.
 Using this statistic, a value of rho is calculated which guarantees that
 for cell pairs whose GW cost is below that threshold, the optimal UGW
 transport plan will keep at least fraction "mass_kept" of the mass. This will
 add some overhead to the algorithm because of the time to
 compute the GW values.""",
-    "",
-    """:param mass_kept: A real number between 0 and 1, the minumum fraction of mass
+        "",
+        """:param mass_kept: A real number between 0 and 1, the minumum fraction of mass
     to be preserved by UGW transport plans between two cells in the same neighborhood.""",
-    _eps_docstring,
-    """:param dmats: An array of squareform distance matrices of shape (k,n,n),
+        _eps_docstring,
+        """:param dmats: An array of squareform distance matrices of shape (k,n,n),
     where k is the number of cells and n is the number of points sampled from each cell.
     Alternatively, dmats can be a string coding a filepath to a csv file containing
     icdms, in the file format established in cajal.sample_swc, cajal.sample_seg, etc.""",
-    """:param distrs: An array of measures of shape (k,n), 
+        """:param distrs: An array of measures of shape (k,n),
     where k is the number of cells and n is the number of points per cell. If distrs is None,
     then the uniform distribution on all cells will be taken.""",
-    """:param quantile: A real number between 0 and 1, the quantile in the 
+        """:param quantile: A real number between 0 and 1, the quantile in the
     distribution of distances which informs the notion of "same neighborhood"
     referred to in the parameter mass_kept.""",
-    _increasing_ratio_docstring,
-    """:param sample_size: In order to estimate the appropriate value of rho,
-    before initiating the unbalanced GW computations, the function randomly 
-    computes sample_size many GW distances to estimate the quantile of the 
+        _increasing_ratio_docstring,
+        """:param sample_size: In order to estimate the appropriate value of rho,
+    before initiating the unbalanced GW computations, the function randomly
+    computes sample_size many GW distances to estimate the quantile of the
     distribution specified by the parameter "quantile".""",
-    """:param rho: If this is specified, the sampling routine and estimation 
-    of the appropriate rho for the target mass_kept is ignored, and the 
+        """:param rho: If this is specified, the sampling routine and estimation
+    of the appropriate rho for the target mass_kept is ignored, and the
     given value of rho is used for all cell pairs.""",
-    """:param as_matrix: Return only the final distance matrix, as opposed to the full account of intermediary values.
+        """:param as_matrix: Return only the final distance matrix, as opposed to
+    the full account of intermediary values.
     If as_matrix is False, return a pair (distances, rho) where rho was the value
     found for the given mass, and distances is an array of shape (k * (k-1)/2,5) where
     the rows correspond to pairs (i,j) of cells with i < j, and the columns are as in
     ugw_armijo.""",
-    """:param pt_cloud: If `pt_cloud` is `True` then `dmats` will be interpreted, not as an array of
-    distance matrices, but as an array of point clouds, of shape `(k, n, d)` where `d` is
-    the dimension of the ambient Euclidean space the points are sampled from. This may
-    may improve performance for the core portion of the computation as computing distances between points
-    may be faster than looking up the precomputed distances in memory.""",
-    "",
-    """All other values are as in ugw_armijo.""",
+        """:param pt_cloud: If `pt_cloud` is `True` then `dmats` will be interpreted,
+    not as an array of distance matrices, but as an array of point clouds,
+    of shape `(k, n, d)` where `d` is the dimension of the ambient Euclidean space
+    the points are sampled from. This may improve performance for the core portion of
+    the computation as computing distances between points may be faster than looking up the
+    precomputed distances in memory.""",
+        "",
+        """All other values are as in ugw_armijo.""",
     ]
 )
 
@@ -233,18 +236,18 @@ compute the GW values.""",
 # but with all distributions hardcoded to the uniform distribution.
 # May reduce memory usage and cache usage relative to storing the entire constant array."""
 
-_ugw_armijo_pairwise_increasing_docstring = """This is a post-processing step for 
+_ugw_armijo_pairwise_increasing_docstring = """This is a post-processing step for
 ugw_armijo_pairwise. It loops through the output and identifies all pairs of matrices
 where the algorithm failed to converge, and re-runs the computation for those inputs
-repeatedly at exponentially increasing values of the parameter epsilon (scaled by 
-increasing_ratio) until the algorithm stabilizes. This is step is useful for situations 
+repeatedly at exponentially increasing values of the parameter epsilon (scaled by
+increasing_ratio) until the algorithm stabilizes. This is step is useful for situations
 where you want a complete picture of the whole space of cells even if some of the
 UGW values are slightly off due to the increased regularization parameter.
 
 :param ugw_dmat: The output of the UGW algorithm, an array of shape
     (n * (n-1)/2, 5), where n is the number of cells in the data set;
     possibly containing NaN values.
-:param increasing_ratio: The multiple to increase epsilon by each time the 
+:param increasing_ratio: The multiple to increase epsilon by each time the
     function fails to converge.
 
 Other parameters are as in ugw_armijo_pairwise.
@@ -255,7 +258,7 @@ is similar to ugw_armijo_pairwise_unif,
 but the user passes in the array of point clouds rather than distance matrices,
 and the backend computes the distance matrices dynamically at the moment they
 are needed. This may reduce memory consumption and cache usage. pt
-(of shape `(k,n,d)`, where `k` is the 
+(of shape `(k,n,d)`, where `k` is the
 number of cells, `n` is the number of points per cell, and `d` is the dimension of the
 ambient Euclidean space that the points live in).
 
@@ -263,6 +266,7 @@ Note that the `ugw_armijo_pairwise` function wraps this one while
 also providing some additional preprocessing and postprocessing,
 so that function may be more convenient.
 """
+
 
 class UGW(Futhark):
     """The UGW class provides a wrapper around a C library with methods for
@@ -373,13 +377,15 @@ class UGW(Futhark):
         tol_sinkhorn: float = 1e-4,
         tol_outerloop: float = 0.4,
         rho: Optional[float] = None,
-        as_matrix = True,
-        pt_cloud = False,
+        as_matrix=True,
+        pt_cloud=False,
     ):
 
         if not pt_cloud:
             pt_clouds = dmats
-            dmats = np.stack([ squareform(pdist(a),force='tomatrix') for a in pt_clouds], axis=0)
+            dmats = np.stack(
+                [squareform(pdist(a), force="tomatrix") for a in pt_clouds], axis=0
+            )
         if isinstance(dmats, str):
             _, icdms = zip(*cell_iterator_csv(dmats))
             dmats = np.stack(icdms, axis=0)
@@ -389,7 +395,7 @@ class UGW(Futhark):
             rho = rho_of(gw_cost, mass_kept)
 
         if distrs is None:
-            if not pt_cloud: # dmats is distance matrices
+            if not pt_cloud:  # dmats is distance matrices
                 ugw_dmat = self._ugw_armijo_pairwise_unif(
                     rho,
                     rho,
@@ -400,7 +406,7 @@ class UGW(Futhark):
                     tol_sinkhorn,
                     tol_outerloop,
                 )
-            else: # dmats is pt_clouds
+            else:  # dmats is pt_clouds
                 ugw_dmat = self._ugw_armijo_euclidean(
                     rho,
                     rho,
@@ -413,10 +419,12 @@ class UGW(Futhark):
                 )
         else:
             if pt_cloud:
-                raise NotImplemented("Currently, pt_cloud can only be true if distrs is None.\
+                raise NotImplementedError(
+                    "Currently, pt_cloud can only be true if distrs is None.\
                                      The only reason this feature is omitted is to avoid some\
                                      code bloat; this is easily fixable so contact us if you\
-                                     need this feature.")
+                                     need this feature."
+                )
             ugw_dmat = self._ugw_armijo_pairwise(
                 rho,
                 rho,
@@ -429,7 +437,7 @@ class UGW(Futhark):
                 tol_outerloop,
             )
 
-        if (increasing_ratio is not None):
+        if increasing_ratio is not None:
             if distrs is None:
                 u = uniform(dmats.shape[1])
                 distrs = np.stack([u for _ in range(dmats.shape[0])])
@@ -446,10 +454,10 @@ class UGW(Futhark):
                 tol_sinkhorn,
                 tol_outerloop,
             )
-        
+
         if as_matrix:
             ugw_dmat = self.from_futhark(ugw_dmat)
-            return squareform(ugw_dmat[:,0] + rho * (ugw_dmat[:,1]+ ugw_dmat[:,2]))
+            return squareform(ugw_dmat[:, 0] + rho * (ugw_dmat[:, 1] + ugw_dmat[:, 2]))
         else:
             return (ugw_dmat, rho)
 
