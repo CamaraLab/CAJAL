@@ -14,7 +14,7 @@ import community as community_louvain
 import igraph as ig
 import networkx as nx
 from math import ceil, sqrt
-from .types import DistanceMatrix
+from .cajal_types import DistanceMatrix
 
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import dijkstra
