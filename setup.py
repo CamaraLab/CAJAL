@@ -12,7 +12,7 @@ setup(
     include_dirs=include_path,
     cffi_modules=["src/cajal/ugw/build_backends.py:build_single_core",
                   "src/cajal/ugw/build_backends.py:build_multicore",
-                  #"src/cajal/ugw/build_backends.py:build_opencl",
-                  #"src/cajal/ugw/build_backends.py:build_cuda",                  
+                  # "src/cajal/ugw/build_backends.py:build_opencl",
+                  # "src/cajal/ugw/build_backends.py:build_cuda",
                   ]
 )
