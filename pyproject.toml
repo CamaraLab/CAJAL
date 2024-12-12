@@ -45,6 +45,7 @@ dependencies = [
         "tifffile",
         "trimesh",
         "umap-learn>=0.5.3",
+        "numba>=0.57",
 	"mpltern>=1.0.0",
 	"scikit-dimension"
 	]
