@@ -17,7 +17,7 @@ copyright = "2022, Pablo Cámara"
 author = "Cámara Lab"
 
 # This release should be updated manually.
-release = "0.30"
+release = "1.04"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -61,7 +61,7 @@ html_static_path = ["_static"]
 html_logo = "images/logo.png"
 html_theme_options = {
     "logo_only": False,
-    "display_version": True,
+    # "display_version": True,
 }
 
 html_css_files = [
