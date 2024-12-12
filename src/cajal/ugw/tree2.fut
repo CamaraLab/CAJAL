@@ -9,7 +9,7 @@ module type tree = {
   -- Given a tree index, we can access the node at that point.
   type index
 
-  -- | The data for a tree contains a stored value for each node.
+  -- | Data for a tree contains a stored value for each node.
   type data [n] 'a
 
   -- | A structure is represented as an array of pointers from each node to its parent.
@@ -118,11 +118,17 @@ module tree : tree = tree_impl
 module type WeightedDiGraph = {
   module N : numeric
   type node
-  -- This type signature implies that each arc either knows its cost
-  -- directly or contains sufficient information to compute the cost.
-  type arc
-  val cost: arc -> N.t
-  type t
+  -- This signature allows us some flexibility.
+  -- graph_data[k] might be, for example, the type of
+  -- k x k matrices, where there is an edge weight coded
+  -- in the matrix at each entry.
+  -- Or, graph_data could be vacuous,
+  -- in the case where the node type is something concrete
+  -- (like triples in Euclidean space)
+  -- and the cost function can be directly computed from
+  -- this information (i.e., Euclidean distance)
+  type graph_data [k]
+  val cost[k]: graph_data[k] -> node -> node -> N.t
 }
 
 -- module WeightedDiGraph_impl = {

@@ -2,12 +2,13 @@ import "tree2"
 
 module type network_simplex_context = {
   module tree : tree
-  include WeightedDiGraph with node = tree.index
+  include WeightedDiGraph -- with node = tree.index
+
   val num_bits : i32
   val get_bit : i32 -> N.t -> i32
-  type direction = #up | #down
-  val parent_arc : node -> (arc , direction)
-  type node_potentials[k] = tree.data [k] N.t
+  -- type direction = #up | #down
+  -- val parent_arc : node -> (arc , direction)
+  -- type node_potentials[k] = tree.data [k] N.t
 }
 
 -- module network_simplex_impl (N : numeric) : network_simplex_context = {
@@ -27,9 +28,16 @@ module type network_simplex_context = {
 -- }
 
 module network_simplex(M : network_simplex_context) = {
-  module N = M.N
-  type index = M.tree.index
+  module N = M.N -- numeric type
+  type index = M.tree.index -- our index type will be the same as the given implementation of the tree
   type t = N.t
+  type direction = #up | #down
+  type ns_tree [n] =		-- The full state of a tree consists of
+    (M.tree.structure[n], -- the isomorphism type of the graph
+     M.tree.data [n] direction, -- the orientation of the arc relative to its parent
+     M.tree.data [n] N.t, -- the computed node potentials at each node
+     M.tree.data [n] N.t -- the flow through the edge above each point (oriented from root downward)
+    )
 
   import "lib/github.com/diku-dk/sorts/radix_sort"
   import "lib/github.com/diku-dk/segmented/segmented"
@@ -144,7 +152,7 @@ module network_simplex(M : network_simplex_context) = {
 	nu_cum[(i-n)-1]
     in
     let Y = 
-      let X = radix_sort_by_key f (M.num_bits) (M.get_bit) (0..<(n+m)) in
+      let X = radix_sort_by_key f (M.num_bits) (M.get_bit) (0..<(n+m)) in -- It's important that radix sort is stable.
       begin_streak (map (\i -> i < n) X) |> map (\i -> i64.max 0 (i-1))
     in
     M.tree.construct Y 0
@@ -155,8 +163,8 @@ module network_simplex(M : network_simplex_context) = {
     let cost = M.tree.map
 	       (\(arc, orientation) ->
 		  (match orientation
-		   case #up -> N.neg (M.cost arc)
-		   case #down -> M.cost arc)) parents in
+		   case #up -> M.cost arc
+		   case #down -> M.N.neg (M.cost arc))) parents in
     M.tree.top_down_scan (N.+) ts cost
 
   def compute_flows [n] (ts: M.tree.structure[n]) (node_potentials: M.tree.data[n] N.t) =
