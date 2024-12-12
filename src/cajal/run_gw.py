@@ -15,12 +15,12 @@ if "ipykernel" in sys.modules:
 else:
     from tqdm import tqdm  # type: ignore[assignment]
 
-from .cajal_types import Distribution, DistanceMatrix, Matrix
+from .cajal_types import Distribution, DistanceMatrix, Matrix, Array
 from .utilities import cell_iterator_csv, icdm_csv_validate, uniform
 from multiprocessing import Pool
 
 import numpy as np
-import numpy.typing as npt
+# import numpy.typing as npt
 from scipy.sparse import coo_matrix
 from scipy.spatial.distance import squareform
 
@@ -166,22 +166,24 @@ def _gw_index(p: tuple[int, int]) -> tuple[int, int, Matrix, float]:
     return (i, j, coupling_mat, gw_dist)
 
 
-def stringify_coupling_mat(A: npt.NDArray[np.float64]) -> list[str]:
-    """Convert a coupling matrix into a string."""
-    a = coo_matrix(A)
-    return (
-        [str(a.nnz)]
-        + list(map(str, a.data))
-        + list(map(str, a.row))
-        + list(map(str, a.col))
-    )
+# def stringify_coupling_mat(A: npt.NDArray[np.float64]) -> list[str]:
+#     """Convert a coupling matrix into a string."""
+#     a = A.as_type(np.float32)
+#     a = coo_matrix(A)
+#     return (
+#         [str(a.nnz)]
+#         + list(map(str, a.data))
+#         + list(map(str, a.row))
+#         + list(map(str, a.col))
+#     )
 
 
 def csv_output_writer(
     names: list[str],
     gw_dist_csv: Optional[str],
-    gw_coupling_mat_csv: Optional[str],
+    gw_coupling_mat_npz: Optional[str],
     results_iterator: Iterator[tuple[int, int, Matrix, float]],
+    sep="&",
 ) -> Iterator[tuple[int, int, Matrix, float]]:
     """Write the input to file, and return the output unchanged.
 
@@ -191,45 +193,37 @@ def csv_output_writer(
     If gw_coupling_mat_file is not None, then it will be created,
     and the given GW coupling matrices will be written to that file.
     """
-    write_gw_distances = gw_dist_csv is not None
+
+    write_gw_distances: bool = gw_dist_csv is not None
     if write_gw_distances:
         gw_dist_file = open(gw_dist_csv, "w", newline="")  # type: ignore[arg-type]
         gw_dist_writer = csv.writer(gw_dist_file)
         gw_dist_writer.writerow(["first_object", "second_object", "gw_distance"])
-    write_gw_coupling_mats = gw_coupling_mat_csv is not None
+
+    write_gw_coupling_mats: bool = gw_coupling_mat_npz is not None
+
     if write_gw_coupling_mats:
-        gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")  # type: ignore[arg-type]
-        gw_coupling_mat_writer = csv.writer(gw_coupling_mat_file)
-        gw_coupling_mat_writer.writerow(
-            [
-                "first_object",
-                "first_object_sidelength",
-                "second_object",
-                "second_object_sidelength",
-                "num_nonzero",
-                "data",
-                "row_indices",
-                "col_indices",
-            ]
-        )
+        coo_data = list()
+        coo_row = list()
+        coo_col = list()
+        # all_gw_coupling_mats = dict()
+
     for i, j, coupling_mat, gw_dist in results_iterator:
         if write_gw_distances:
             gw_dist_writer.writerow([names[i], names[j], str(gw_dist)])
         if write_gw_coupling_mats:
-            gw_coupling_mat_writer.writerow(
-                [
-                    names[i],
-                    str(coupling_mat.shape[0]),
-                    names[j],
-                    str(coupling_mat.shape[1]),
-                ]
-                + stringify_coupling_mat(coupling_mat)
-            )
+            coo = coo_matrix(coupling_mat.astype(np.float32))
+            coo_data.append(coo.data)
+            coo_row.append(coo.row)
+            coo_col.append(coo.col)
         yield (i, j, coupling_mat, gw_dist)
     if write_gw_distances:
         gw_dist_file.close()
     if write_gw_coupling_mats:
-        gw_coupling_mat_file.close()
+        np.savez(gw_coupling_mat_npz,
+                 coo_data=np.stack(coo_data),
+                 coo_row = np.stack(coo_row),
+                 coo_col=np.stack(coo_col))
 
 
 def gw_pairwise_parallel(
@@ -339,7 +333,7 @@ def compute_gw_distance_matrix(
     intracell_csv_loc: str,
     gw_dist_csv_loc: str,
     num_processes: int,
-    gw_coupling_mat_csv_loc: Optional[str] = None,
+    gw_coupling_mat_npz_loc: Optional[str] = None,
     return_coupling_mats: bool = False,
     verbose: Optional[bool] = False,
 ) -> tuple[
@@ -370,6 +364,6 @@ def compute_gw_distance_matrix(
         num_processes,
         names,
         gw_dist_csv_loc,
-        gw_coupling_mat_csv_loc,
+        gw_coupling_mat_npz_loc,
         return_coupling_mats,
     )

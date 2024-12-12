@@ -22,15 +22,14 @@ from scipy import cluster, sparse
 from scipy.spatial.distance import pdist, squareform
 
 from .gw_cython import qgw_init_cost, quantized_gw_cython
-from .run_gw import (
+from .cajal_types import (
     Array,
     DistanceMatrix,
     Distribution,  # MetricMeasureSpace
     Matrix,
-    _batched,
-    cell_iterator_csv,
-    uniform,
 )
+from .run_gw import _batched, cell_iterator_csv, uniform
+
 from .slb import l2
 
 
