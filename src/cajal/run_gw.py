@@ -20,6 +20,7 @@ from .utilities import cell_iterator_csv, icdm_csv_validate, uniform
 from multiprocessing import Pool
 
 import numpy as np
+
 # import numpy.typing as npt
 from scipy.sparse import coo_matrix
 from scipy.spatial.distance import squareform
@@ -165,11 +166,12 @@ def _gw_index(p: tuple[int, int]) -> tuple[int, int, Matrix, float]:
     )
     return (i, j, coupling_mat, gw_dist)
 
+
 def csv_output_writer(
     names: list[str],
     gw_dist_csv: Optional[str],
     gw_coupling_mat_npz: Optional[str],
-    results_iterator: Iterator[tuple[int, int, Matrix, float]]
+    results_iterator: Iterator[tuple[int, int, Matrix, float]],
 ) -> Iterator[tuple[int, int, Matrix, float]]:
     """Write the input to file, and return the output unchanged.
 
@@ -209,12 +211,15 @@ def csv_output_writer(
     if write_gw_distances:
         gw_dist_file.close()
     if write_gw_coupling_mats:
-        np.savez(gw_coupling_mat_npz,
-                 first_names=np.array(first_names),
-                 second_names=np.array(second_names),
-                 coo_data=np.stack(coo_data),
-                 coo_row = np.stack(coo_row),
-                 coo_col=np.stack(coo_col))
+        np.savez(
+            gw_coupling_mat_npz,
+            first_names=np.array(first_names),
+            second_names=np.array(second_names),
+            coo_data=np.stack(coo_data),
+            coo_row=np.stack(coo_row),
+            coo_col=np.stack(coo_col),
+        )
+
 
 #
 def gw_pairwise_parallel(
