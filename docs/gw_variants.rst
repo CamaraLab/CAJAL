@@ -9,7 +9,7 @@ Gromov-Wasserstein
 
 Before we treat the variants, we will formally define Gromov-Wasserstein distance.
 
-The Gromov-Wasserstein distance deals with cell models of the form :math:`(X,\mu)`, where :math:`X` is a metric space (a set of points throughout the body of the cell, together with a measure of distance between them, which we represent as a square pairwise distance matrix) and :math:`\mu` is a probability measure, a weight function which associates to each point in :math:`X` a non-negative weight such that all weights sum to one. 
+The Gromov-Wasserstein distance deals with cell models of the form :math:`(X,\mu)`, where :math:`X` is a metric space (a set of points throughout the body of the cell, together with a measure of distance between them, which we represent as a square pairwise distance matrix) and :math:`\mu` is a probability measure, a weight function which associates to each point in :math:`X` a non-negative weight such that all weights sum to one.
 For neurons, one could set this value proportional to the measured radius of the dendrite at the observed point; for cells with image data, we could set this mass proportional to the pixel intensity of a certain image channel at the given point, measuring the concentration of a protein. In what follows, we will use the uniform probability measure for simplicity.
 
 Given :math:`(X,\mu)` a cell with :math:`n` points and :math:`(Y,\nu)` a cell with :math:`m` points, an :math:`n\times m` matrix :math:`T` with non-negative real entries is a *strict coupling* between :math:`X` and :math:`Y` if :math:`\sum_j T_{ij} = X_i` and :math:`\sum_i T_{ij} = Y_j` for all :math:`i,j`.
@@ -17,7 +17,7 @@ Given :math:`(X,\mu)` a cell with :math:`n` points and :math:`(Y,\nu)` a cell wi
 For a strict coupling :math:`T`, define
 
 .. math::
-   
+
    \mathcal{G}(T) = \sum_{ijk\ell}(d^X(x_i,x_j)-d^Y(y_k,y_\ell))^2T_{ik}T_{j\ell}
 
 and
@@ -28,7 +28,7 @@ and
 
 as :math:`T` ranges over strict couplings.
 
-We call :math:`\mathcal{G}(T)` the Gromov-Wasserstein *cost* of the coupling :math:`T`; the Gromov-Wasserstein *distance* is 
+We call :math:`\mathcal{G}(T)` the Gromov-Wasserstein *cost* of the coupling :math:`T`; the Gromov-Wasserstein *distance* is
 
 .. math::
 
@@ -43,7 +43,7 @@ The big-picture idea behind unbalanced Gromov-Wasserstein is that it is less sen
 
 The definition of Gromov-Wasserstein distance involves searching through all possible "couplings" between two cells. The notion of "coupling" employed here is rather rigid and inflexible - cells are regarded as having unit mass, and the couplings are required to satisfy a "conservation of mass" law, that is, all mass in the first cell must be paired with corresponding mass in the second cell. If two neurons are modelled as point clouds with 100 points, then each point will be modelled as having mass 0.01 units, and a valid coupling must satisfy the property that each point in one cell should have 0.01 units worth of mass associated to it from the other cell.
 
-Suppose we have two neurons, which are absolutely identical except that an additional dendrite is present in one which is not present in the other. This would be biologically interesting, and it is plausible that considering such embeddings of one neuron into another would help us to capture important biological similarities. But Gromov-Wasserstein does not recognize such embeddings as valid cell couplings, because it violates "conservation of mass" - all the mass from the first neuron is paired with a fraction of the mass of the second neuron, and the extra dendrite of the other neuron is not paired with anything. The optimal GW transport plan would likely bear no trace of the structural equivalence between the first neuron and a fragment of the second. 
+Suppose we have two neurons, which are absolutely identical except that an additional dendrite is present in one which is not present in the other. This would be biologically interesting, and it is plausible that considering such embeddings of one neuron into another would help us to capture important biological similarities. But Gromov-Wasserstein does not recognize such embeddings as valid cell couplings, because it violates "conservation of mass" - all the mass from the first neuron is paired with a fraction of the mass of the second neuron, and the extra dendrite of the other neuron is not paired with anything. The optimal GW transport plan would likely bear no trace of the structural equivalence between the first neuron and a fragment of the second.
 
 The Unbalanced Gromov-Wasserstein distance allows for such embeddings - transport plans which are permitted to create or destroy mass, at the expense of paying a sharp additional penalty cost. The `Unbalanced Gromov-Wasserstein paper <https://arxiv.org/abs/2009.04266>`_ by Séjourné, Vialard, and Peyré provides some useful examples of situations where the extra flexibility of unbalanced Gromov-Wasserstein makes it more tolerant of small differences between objects.
 
@@ -95,7 +95,7 @@ Choosing :math:`\rho_1,\rho_2`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 To choose :math:`\rho_1,\rho_2` appropriately, some amount of experimentation is necessary, but one can compute the ordinary GW distances between cells beforehand to get an idea of the appropriate coefficients.
 
-The following analysis may help to choose :math:`\rho_1,\rho_2`. Let :math:`\mu,\nu` be measures, and :math:`T` any coupling. Then some elementary calculus shows that the optimal rescaling of :math:`T` (the overall fraction of mass that should be kept by the transport plan :math:`T` to minimize the UGW cost) is 
+The following analysis may help to choose :math:`\rho_1,\rho_2`. Let :math:`\mu,\nu` be measures, and :math:`T` any coupling. Then some elementary calculus shows that the optimal rescaling of :math:`T` (the overall fraction of mass that should be kept by the transport plan :math:`T` to minimize the UGW cost) is
 
 .. math::
 
@@ -109,7 +109,7 @@ This shows that for any equilibrium solution to the UGW problem,
 
 and that the ratio :math:`\frac{\mathcal{L}(T)}{\rho_1+\rho_2}` must be controlled in order to bound the mass lost by the transport plan. It also shows that the lower the cost of the transport plan :math:`\mathcal{L}(T)`, the less mass will be lost overall.
 
-In particular, if :math:`T` is any strict coupling between probability distributions :math:`\mu` and :math:`\nu` (the solution to the GW transport problem) then :math:`\alpha = \exp{\frac{-\mathcal{G}(T)}{2(\rho_1+\rho_2)}}` is 
+In particular, if :math:`T` is any strict coupling between probability distributions :math:`\mu` and :math:`\nu` (the solution to the GW transport problem) then :math:`\alpha = \exp{\frac{-\mathcal{G}(T)}{2(\rho_1+\rho_2)}}` is
 the optimal rescaling of :math:`T` for the unbalanced GW problem, which gives an upper bound of :math:`(\rho_1+\rho_2)(1-\exp{\frac{-\mathcal{G}(T)}{\rho_1+\rho_2}})` for UGW. (This approaches :math:`\mathcal{G}(T)` asymptotically from below as :math:`\rho_1+\rho_2\to\infty`, as can be seen by L'Hospital's rule.)
 
 ..
@@ -169,11 +169,11 @@ and we define
 
 where $C_{ij}$ is a user-supplied penalty matrix, and the value $C_{ij}$ indicates the intrinsic penalty for aligning $X_i$ to $Y_j$.
 
-In our implementation, the user supplies the penalty for aligning nodes of distinct SWC structure id labels. It is easiest to choose these on relative grounds: for example, if the user wants to impose the constraint that aligning a soma node to a dendrite node is ten times worse than 
+In our implementation, the user supplies the penalty for aligning nodes of distinct SWC structure id labels. It is easiest to choose these on relative grounds: for example, if the user wants to impose the constraint that aligning a soma node to a dendrite node is ten times worse than
 aligning a basal dendrite node to an apical node, they can choose the soma-to-dendrite penalty to be 10 and the basal-to-apical penalty to be 1. Once this is done, it remains to choose the coefficient $\alpha$ appropriately.
 
 Note that if $T^{GW}$ is the optimal transport plan for classical Gromov-Wasserstein and $C$ is a proposed cost matrix, then an upper bound for $FGW_C(X,Y)$ is $\mathcal{F}(T^{GW})$.
-It follows that, if $T^{FGW}$ is the optimal transport plan for fused GW, then 
+It follows that, if $T^{FGW}$ is the optimal transport plan for fused GW, then
 
 .. math::
    \mathcal{G}(T^{FGW}) \leq \mathcal{G}(T^{GW}) + (\frac{1-\alpha}{\alpha})(\sum_{ij}C_{ij}T^{GW}_{ij})
@@ -181,3 +181,5 @@ It follows that, if $T^{FGW}$ is the optimal transport plan for fused GW, then
 One can interpret this inequality as follows: by increasing the term $(\frac{1-\alpha}{\alpha})$, the algorithm will be willing to accept higher distortion in order to better align nodes of similar types. If the user chooses, say, $(\frac{1-\alpha}{\alpha}) = 0.3$,
 then the GW cost of the transport plan $T^{FGW}$ will be at most 30% more than the GW cost of the original transport plan. Thus, our approach to giving an interpretable interface is to allow the user to control how much additional distortion they are willing to accept in the transport plan
 in order to align nodes of the same type.
+
+
