@@ -16,7 +16,6 @@ import networkx as nx
 from math import ceil, sqrt
 from .cajal_types import DistanceMatrix
 
-from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import dijkstra
 
 import numpy as np
@@ -130,54 +129,79 @@ def read_gw_dists_pd(gw_dist_file_loc: str, header: bool):
     )
 
 
-def read_gw_couplings(
-    gw_couplings_file_loc: str, header: bool
-) -> dict[tuple[str, str], npt.NDArray[np.float64]]:
+def read_gw_couplings(gw_coupling_mat_npz_loc: str):
+    """Read Gromov-Wasserstein coupling matrices into memory.
+    :param gw_coupling_mat_npz_loc: A filepath to an npz file
+        with fields "first_names", "second_names", "coo_data", "coo_row",
+        "coo_col". The names are not expected to be in any kind of sorted order.
+    :returns: A dictionary whose keys are pairs (name1, name2) and whose values
+        are scipy coo arrays.
     """
-    Read a list of Gromov-Wasserstein coupling matrices into memory.
-    :param header: If True, the first line of the file will be ignored.
-    :param gw_couplings_file_loc: name of a file holding a list of GW coupling matrices in \
-    COO form. The files should be in csv format. Each line should be of the form
-    `cellA_name, cellA_sidelength, cellB_name, cellB_sidelength, num_nonzero, (data), (row), (col)`
-    where `data` is a sequence of `num_nonzero` many floating point real numbers,
-    `row` is a sequence of `num_nonzero` many integers (row indices), and
-    `col` is a sequence of `num_nonzero` many integers (column indices).
-    :return: A dictionary mapping pairs of names (firstcell, secondcell) to the GW \
-    matrix of the coupling. `firstcell` and `secondcell` are in alphabetical order.
-    """
+    with np.load(gw_coupling_mat_npz_loc) as npz:
+        first_names = npz["first_names"]
+        second_names = npz["second_names"]
+        coo_data = npz["coo_data"]
+        coo_row = npz["coo_row"]
+        coo_col = npz["coo_col"]
 
-    gw_coupling_mat_dict: dict[tuple[str, str], npt.NDArray[np.float64]] = {}
-    with open(gw_couplings_file_loc, "r", newline="") as gw_file:
-        csvreader = csv.reader(gw_file, delimiter=",")
-        linenum = 1
-        if header:
-            _ = next(csvreader)
-            linenum += 1
-        for line in csvreader:
-            cellA_name = line[0]
-            cellA_sidelength = int(line[1])
-            cellB_name = line[2]
-            cellB_sidelength = int(line[3])
-            num_non_zero = int(line[4])
-            rest = line[5:]
-            if 3 * num_non_zero != len(rest):
-                raise Exception(
-                    "On line " + str(linenum) + " data not in COO matrix form."
-                )
-            data = [float(x) for x in rest[:num_non_zero]]
-            rows = [int(x) for x in rest[num_non_zero : (2 * num_non_zero)]]
-            cols = [int(x) for x in rest[(2 * num_non_zero) :]]
-            coo = coo_array(
-                (data, (rows, cols)), shape=(cellA_sidelength, cellB_sidelength)
-            )
-            linenum += 1
-            if cellA_name < cellB_name:
-                gw_coupling_mat_dict[(cellA_name, cellB_name)] = coo
-            else:
-                gw_coupling_mat_dict[(cellB_name, cellA_name)] = coo_array.transpose(
-                    coo
-                )
-    return gw_coupling_mat_dict
+    gw_coupling_mats = dict()
+    iterator = zip(first_names, second_names, coo_data, coo_row, coo_col)
+    for first_name, second_name, data, row, col in iterator:
+        coo = coo_array((data, (row, col)))
+        first_name, second_name = sorted([first_name, second_name])
+        gw_coupling_mats[(first_name, second_name)] = coo
+    return gw_coupling_mats
+
+
+# def read_gw_couplings(
+#     gw_couplings_file_loc: str, header: bool
+# ) -> dict[tuple[str, str], npt.NDArray[np.float64]]:
+#     """
+#     Read a list of Gromov-Wasserstein coupling matrices into memory.
+#     :param header: If True, the first line of the file will be ignored.
+#     :param gw_couplings_file_loc: name of a file holding a list of GW coupling matrices in \
+#     COO form. The files should be in csv format. Each line should be of the form
+#     `cellA_name, cellA_sidelength, cellB_name, cellB_sidelength, num_nonzero,
+#     (data), (row), (col)`
+#     where `data` is a sequence of `num_nonzero` many floating point real numbers,
+#     `row` is a sequence of `num_nonzero` many integers (row indices), and
+#     `col` is a sequence of `num_nonzero` many integers (column indices).
+#     :return: A dictionary mapping pairs of names (firstcell, secondcell) to the GW \
+#     matrix of the coupling. `firstcell` and `secondcell` are in alphabetical order.
+#     """
+
+#     gw_coupling_mat_dict: dict[tuple[str, str], npt.NDArray[np.float64]] = {}
+#     with open(gw_couplings_file_loc, "r", newline="") as gw_file:
+#         csvreader = csv.reader(gw_file, delimiter=",")
+#         linenum = 1
+#         if header:
+#             _ = next(csvreader)
+#             linenum += 1
+#         for line in csvreader:
+#             cellA_name = line[0]
+#             cellA_sidelength = int(line[1])
+#             cellB_name = line[2]
+#             cellB_sidelength = int(line[3])
+#             num_non_zero = int(line[4])
+#             rest = line[5:]
+#             if 3 * num_non_zero != len(rest):
+#                 raise Exception(
+#                     "On line " + str(linenum) + " data not in COO matrix form."
+#                 )
+#             data = [float(x) for x in rest[:num_non_zero]]
+#             rows = [int(x) for x in rest[num_non_zero : (2 * num_non_zero)]]
+#             cols = [int(x) for x in rest[(2 * num_non_zero) :]]
+#             coo = coo_array(
+#                 (data, (rows, cols)), shape=(cellA_sidelength, cellB_sidelength)
+#             )
+#             linenum += 1
+#             if cellA_name < cellB_name:
+#                 gw_coupling_mat_dict[(cellA_name, cellB_name)] = coo
+#             else:
+#                 gw_coupling_mat_dict[(cellB_name, cellA_name)] = coo_array.transpose(
+#                     coo
+#                 )
+#     return gw_coupling_mat_dict
 
 
 T = TypeVar("T")
@@ -388,14 +412,14 @@ def step_size(icdm: npt.NDArray[np.float64]) -> float:
     Heuristic to estimate the step size a neuron was sampled at.
     :param icdm: Vectorform distance matrix.
     """
-    return np.min(icdm)
+    return float(np.min(icdm))
 
 
 def orient(
     medoid: str,
     obj_name: str,
     iodm: npt.NDArray[np.float64],
-    gw_coupling_mat_dict: dict[tuple[str, str], coo_matrix],
+    gw_coupling_mat_dict: dict[tuple[str, str], coo_array],
 ) -> npt.NDArray[np.float64]:
     """
     :param medoid: String naming the medoid object, its key in iodm
@@ -407,7 +431,7 @@ def orient(
     if obj_name < medoid:
         gw_coupling_mat = gw_coupling_mat_dict[(obj_name, medoid)]
     else:
-        gw_coupling_mat = coo_matrix.transpose(gw_coupling_mat_dict[(medoid, obj_name)])
+        gw_coupling_mat = gw_coupling_mat_dict[(medoid, obj_name)].transpose()
 
     i_reorder = np.argmax(gw_coupling_mat.todense(), axis=0)
     return iodm[i_reorder][:, i_reorder]
@@ -417,7 +441,7 @@ def avg_shape(
     obj_names: list[str],
     gw_dist_dict: dict[tuple[str, str], float],
     iodms: dict[str, npt.NDArray[np.float64]],
-    gw_coupling_mat_dict: dict[tuple[str, str], coo_matrix],
+    gw_coupling_mat_dict: dict[tuple[str, str], coo_array],
 ):
     """
     Compute capped and uncapped average distance matrices. \
@@ -471,35 +495,52 @@ def avg_shape(
 
 
 def avg_shape_spt(
-    obj_names: list[str],
+    cell_names: list[str],
     gw_dist_dict: dict[tuple[str, str], float],
-    iodms: dict[str, npt.NDArray[np.float64]],
-    gw_coupling_mat_dict: dict[tuple[str, str], coo_matrix],
+    icdms: dict[str, npt.NDArray[np.float64]],
+    gw_coupling_mat_dict: dict[tuple[str, str], coo_array],
     k: int,
-):
-    """
-    Given a set of cells together with their intracell distance matrices and
-    the (precomputed) pairwise GW coupling matrices between cells, construct a
-    morphological "average" of cells in the cluster. This function:
+)-> tuple[npt.NDArray[np.float64],npt.NDArray[np.float64]]:
+    """Given a set of cells together with their intracell distance matrices and
+the (precomputed) pairwise GW coupling matrices between cells, construct a
+morphological "average" of cells in the cluster. This function:
 
-    * aligns all cells in the cluster with each other using the coupling matrices
-    * takes a "local average" of all intracell distance matrices, forming a
-      distance matrix which models the average local connectivity structure of the neurons
-    * draws a minimum spanning tree through the intracell distance graph,
-      allowing us to visualize this average morphology
+* aligns all cells in the cluster with each other using the coupling matrices
+* takes a "local average" of all intracell distance matrices, forming a
+  distance matrix which models the average local connectivity structure of the neurons
+* draw a neighborh
+* draws a minimum spanning tree through the intracell distance graph,
+  allowing us to visualize this average morphology
 
-    :param obj_names: Keys for the gw_dist_dict and iodms; unique identifiers for the cells.
-    :param gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) \
-        to Gromov-Wasserstein distances between them.
-    :param iodms: (intra-object distance matrices) - \
-        Maps object names to intra-object distance matrices. Matrices are assumed to be given \
-        in vector form rather than squareform.
-    :gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to \
-        Gromov-Wasserstein coupling matrices from cellA to cellB.
-    :param k: how many neighbors in the nearest-neighbors graph.
+:param cell_names: The cluster you want to take the average of,
+    expressed as a list of names of cells in the cluster. These should be
+    names that occur in the keys for the other dictionary arguments.
+:param gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name)
+    to Gromov-Wasserstein distances between them, as returned by
+    cajal.utilities.dist_mat_of_dict.
+:param icdms: (intra-cell distance matrices) -
+    Maps cell names to intra-cell distance matrices. Matrices are assumed to be given
+    in vector form rather than squareform. Intracell distances are
+    computed by any of the sampling functions in sample_swc, sample_seg, etc.
+    and are read from file by cell_iterator_csv.
+:param gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to
+    Gromov-Wasserstein coupling matrices from cellA to cellB, with
+    cellA_name < cellB_name lexicographically
+:param k: how many neighbors in the nearest-neighbors graph in step 3
+:returns: A pair (adjacency_matrix, confidence) where adjacency_matrix
+    is a Numpy matrix of shape (n, n)  (where n is the number of points in each sampled cell)
+    and confidence is an array of shape (n)  adjacency_matrix has values between 0 and 2.
+    When "confidence" at a node in the average graph is high, the node is not
+    very close to its nearest neighbor.  We can think of this as saying that
+    this node in the averaged graph is a kind of poorly amalgamated blend of
+    different features in different graphs.  Conversely, when confidence is
+    low, and the node is close to its nearest neighbor, we interpret this as
+    meaning that this node and its nearest neighbor appear together in many
+    of the graphs being averaged, so this is potentially a good
+    representation of some edge that really appears in many of the graphs.
     """
     dmat_avg_capped, dmat_avg_uncapped = avg_shape(
-        obj_names, gw_dist_dict, iodms, gw_coupling_mat_dict
+        cell_names, gw_dist_dict, icdms, gw_coupling_mat_dict
     )
     dmat_avg_uncapped = squareform(dmat_avg_uncapped)
     # So that 0s along diagonal don't get caught in min
@@ -534,12 +575,15 @@ def avg_shape_spt(
 
 def cell_iterator_csv(
     intracell_csv_loc: str,
+    as_squareform=True,
 ) -> Iterator[tuple[str, DistanceMatrix]]:
     """
     :param intracell_csv_loc: A full file path to a csv file.
+    :param as_squareform: If True, return a square distance matrix.
+        If False, return a vectorform distance matrix.
 
     :return: an iterator over cells in the csv file, given as tuples of the form
-        (name, dmat). Intracell distance matrices are in squareform.
+        (name, dmat).
     """
     icdm_csv_validate(intracell_csv_loc)
     with open(intracell_csv_loc, "r", newline="") as icdm_csvfile:
@@ -548,10 +592,9 @@ def cell_iterator_csv(
         next(csv_reader)
         while ell := next(csv_reader, None):
             cell_name = ell[0]
-            arr = squareform(
-                np.array([float(x) for x in ell[1:]], dtype=np.float64),
-                force="tomatrix",
-            )
+            arr = np.array([float(x) for x in ell[1:]], dtype=np.float64)
+            if as_squareform:
+                arr = squareform(arr, force="tomatrix")
             yield cell_name, arr
 
 

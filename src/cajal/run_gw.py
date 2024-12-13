@@ -165,25 +165,11 @@ def _gw_index(p: tuple[int, int]) -> tuple[int, int, Matrix, float]:
     )
     return (i, j, coupling_mat, gw_dist)
 
-
-# def stringify_coupling_mat(A: npt.NDArray[np.float64]) -> list[str]:
-#     """Convert a coupling matrix into a string."""
-#     a = A.as_type(np.float32)
-#     a = coo_matrix(A)
-#     return (
-#         [str(a.nnz)]
-#         + list(map(str, a.data))
-#         + list(map(str, a.row))
-#         + list(map(str, a.col))
-#     )
-
-
 def csv_output_writer(
     names: list[str],
     gw_dist_csv: Optional[str],
     gw_coupling_mat_npz: Optional[str],
-    results_iterator: Iterator[tuple[int, int, Matrix, float]],
-    sep="&",
+    results_iterator: Iterator[tuple[int, int, Matrix, float]]
 ) -> Iterator[tuple[int, int, Matrix, float]]:
     """Write the input to file, and return the output unchanged.
 
@@ -203,15 +189,18 @@ def csv_output_writer(
     write_gw_coupling_mats: bool = gw_coupling_mat_npz is not None
 
     if write_gw_coupling_mats:
+        first_names = list()
+        second_names = list()
         coo_data = list()
         coo_row = list()
         coo_col = list()
-        # all_gw_coupling_mats = dict()
 
     for i, j, coupling_mat, gw_dist in results_iterator:
         if write_gw_distances:
             gw_dist_writer.writerow([names[i], names[j], str(gw_dist)])
         if write_gw_coupling_mats:
+            first_names.append(names[i])
+            second_names.append(names[j])
             coo = coo_matrix(coupling_mat.astype(np.float32))
             coo_data.append(coo.data)
             coo_row.append(coo.row)
@@ -221,11 +210,13 @@ def csv_output_writer(
         gw_dist_file.close()
     if write_gw_coupling_mats:
         np.savez(gw_coupling_mat_npz,
+                 first_names=np.array(first_names),
+                 second_names=np.array(second_names),
                  coo_data=np.stack(coo_data),
                  coo_row = np.stack(coo_row),
                  coo_col=np.stack(coo_col))
 
-
+#
 def gw_pairwise_parallel(
     cells: list[
         tuple[
