@@ -286,21 +286,21 @@ def fused_gromov_wasserstein_parallel(
     **kwargs,
 ):
     """
-    Compute the fused GW distance pairwise in parallel between many neurons.
+Compute the fused GW distance pairwise in parallel between many neurons.
 
-    :param intracell_csv_loc: The path to the file where the sampled points are stored.
-    :param swc_node_types: The path to the swc node type file.
-    :param fgw_dist_csv_loc: Where you want the fused GW distances to be written.
-    :param num_processes: How many parallel processes you want this to run on.
-    :param soma_dendrite_penalty: This represents the penalty paid by the transport plan
+:param intracell_csv_loc: The path to the file where the sampled points are stored.
+:param swc_node_types: The path to the swc node type file.
+:param fgw_dist_csv_loc: Where you want the fused GW distances to be written.
+:param num_processes: How many parallel processes you want this to run on.
+:param soma_dendrite_penalty: This represents the penalty paid by the transport plan
     for aligning a soma node with a dendrite node. By choosing this coefficient
     sufficiently large, the algorithm favors transport plans which align soma nodes
     to soma nodes and dendrite nodes to dendrite nodes. Choosing the coefficient
     to be too large may be counterproductive.
-    :param basal_apical_penalty: The penalty paid by the transport plan for aligning
+:param basal_apical_penalty: The penalty paid by the transport plan for aligning
     a basal dendrite node with an apical dendrite node, if this distinction is
     indeed captured in the morphological reconstructions.
-    :param penalty_dictionary: The user can choose the penalty
+:param penalty_dictionary: The user can choose the penalty
     to align nodes of any two different types. For example, if their
     data contains nodes with structure id's 3,4 and 5, the user
     can impose a penalty for joining a node of type 3 to a node of type 4,
@@ -308,7 +308,7 @@ def fused_gromov_wasserstein_parallel(
     the previous two parameters are ignored as this parameter overrides them;
     the user can reproduce the behavior by adding penalty keys for (1,3), (1,4)
     and (3,4) appropriately.
-    :param chunksize: A parallelization parameter, the
+:param chunksize: A parallelization parameter, the
     number of jobs fed to each process at a time.
     """
     cells: list[tuple[DistanceMatrix, Distribution]]

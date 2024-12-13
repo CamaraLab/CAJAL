@@ -60,6 +60,7 @@ and with other single-cell data modalities, among other analyses.
    average_cell_shapes
    utilities
    unbalanced_gw
+   fused_gw
    ternary_plot
    wnn
 
