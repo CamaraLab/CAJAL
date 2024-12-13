@@ -33,6 +33,8 @@ from .run_gw import (
     cell_iterator_csv,
     uniform,
 )
+from .run_gw import _batched, cell_iterator_csv, uniform
+
 from .slb import l2
 
 
