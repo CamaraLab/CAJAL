@@ -6,7 +6,7 @@ name: Build and Test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "ugw" ]
     tags:
     - "*"
   pull_request:
