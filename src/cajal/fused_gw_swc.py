@@ -123,9 +123,9 @@ def _init_fgw_pool(
     global _CELLS
     _CELLS = cells  # type: ignore[name-defined]
     global _NODE_TYPES
-    _NODE_TYPES: npt.NDArray[np.int32] = node_types  # type: ignore[name-defined]
+    _NODE_TYPES = node_types  # type: ignore[name-defined]
     global _WORST_CASE_GW_INCREASE
-    _WORST_CASE_GW_INCREASE: Optional[float] = worst_case_gw_increase  # type: ignore[name-defined]
+    _WORST_CASE_GW_INCREASE = worst_case_gw_increase  # type: ignore[name-defined]
     global _KWARGS
     _KWARGS = kwargs  # type: ignore[name-defined]
     global _PENALTY_DICTIONARY
