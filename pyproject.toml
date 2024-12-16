@@ -30,7 +30,6 @@ classifiers=[
 dependencies = [
 	"igraph",
         "leidenalg",
-        "networkx>=2.8.8",
         "numpy",
 	"cython >= 3",
         "pathos >= 0.3.2",
@@ -44,8 +43,6 @@ dependencies = [
         "scikit-image",
         "tifffile",
         "trimesh",
-        "umap-learn>=0.5.3",
-        "numba>=0.57",
 	"mpltern>=1.0.0",
 	"scikit-dimension"
 	]
@@ -75,7 +72,6 @@ doc = [
 ]
 
 vis = [
-    "matplotlib >= 3.7.0",
     "networkx",
     "ipywidgets",
     "navis",
@@ -84,7 +80,6 @@ vis = [
 ]
 
 notebooks = [
-    "matplotlib >= 3.7.0",
     "networkx",
     "ipywidgets",
     "navis",

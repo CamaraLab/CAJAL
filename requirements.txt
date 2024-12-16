@@ -28,7 +28,6 @@ mpltern==1.0.4
 multiprocess==0.70.16
 nest-asyncio==1.6.0
 networkx==2.8.8
-numba==0.60.0
 numpy==2.0.0
 packaging==24.1
 pandas==2.2.2
@@ -45,7 +44,6 @@ psutil==6.0.0
 ptyprocess==0.7.0
 pure-eval==0.2.2
 Pygments==2.18.0
-pynndescent>=0.5.13
 pyparsing==3.1.2
 python-dateutil==2.9.0.post0
 python-louvain==0.16
@@ -65,6 +63,5 @@ tqdm==4.66.4
 traitlets==5.14.3
 trimesh==3.16.1
 tzdata==2024.1
-umap-learn==0.5.3
 wcwidth==0.2.13
 widgetsnbextension==4.0.3
