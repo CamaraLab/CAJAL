@@ -15,7 +15,7 @@ if "ipykernel" in sys.modules:
 else:
     from tqdm import tqdm  # type: ignore[assignment]
 
-from .cajal_types import Distribution, DistanceMatrix, Matrix, Array
+from .cajal_types import Distribution, DistanceMatrix, Matrix
 from .utilities import cell_iterator_csv, icdm_csv_validate, uniform
 from multiprocessing import Pool
 
