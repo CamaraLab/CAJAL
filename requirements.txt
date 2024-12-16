@@ -34,7 +34,7 @@ pandas==2.2.2
 parso==0.8.4
 pathos==0.3.2
 pexpect==4.9.0
-pillow==10.3.0
+pillow==11.0
 platformdirs==4.2.2
 potpourri3d==1.1.0
 pox==0.3.4
