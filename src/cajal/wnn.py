@@ -15,19 +15,19 @@ from .run_gw import DistanceMatrix
 
 class Modality:
     """
-    A Modality is a dataset profiling a collection of cells from one perspective or using one
-    technology. It can be constructed using either a set of observations in n-dimensional space (a
-    `k` by `n`) matrix, where `k` is the number of cells and `n` is the dimensionality of the
-    ambient space; or it can be constructed using a distance matrix (a `k` by `k`). If only a
-    distance matrix is supplied, then the constructor chooses an embedding of the points in the
-    distance matrix into n-dimensional space using Isomap, so a set of observations in a vector
-    space is preferable when it is available.
+A Modality is a dataset profiling a collection of cells from one perspective or using
+one technology. It can be constructed using either a set of observations in
+n-dimensional space (a `k` by `n`) matrix, where `k` is the number of cells and `n` is
+the dimensionality of the ambient space; or it can be constructed using a distance
+matrix (a `k` by `k`). If only a distance matrix is supplied, then the constructor
+chooses an embedding of the points in the distance matrix into n-dimensional space
+using Isomap, so a set of observations in a vector space is preferable when it
+is available.
 
-    If using a distance matrix, a Modality object must be constructed together with a given number
-    of neighbors to consider when constructing the nearest neighbors graphs for the Isomap
-    embedding. This number should be as least as high as the number of neighbors you care about when
-    analyzing the output of the WNN embedding.
-    """
+If using a distance matrix, a Modality object must be constructed together with a given
+number of neighbors to consider when constructing the nearest neighbors
+graphs for the Isomap embedding. This number should be as least as high as the
+number of neighbors you care about when analyzing the output of the WNN embedding."""
 
     def local_bandwidth(self, margin_count: int = 20):
         n_obsv = self.nn_index_arr.shape[0]
@@ -56,7 +56,8 @@ class Modality:
 
     def __init__(self, obsv: npt.NDArray[np.float64]):
         """
-        The primary constructor for the Modality class is used when the user has direct access to
+        Construct the Modality class. The primary constructor is used
+        when the user has direct access to
         a sequence of observations in n dimensional space.
 
         :param obsv: A `k` row by `n` column matrix, where `k` is the number of observations,
