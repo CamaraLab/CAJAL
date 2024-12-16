@@ -121,15 +121,15 @@ def _init_fgw_pool(
     This is a private function.
     """
     global _CELLS
-    _CELLS: list[tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]] = cells  # type: ignore[name-defined]
+    _CELLS = cells  # type: ignore[name-defined]
     global _NODE_TYPES
     _NODE_TYPES: npt.NDArray[np.int32] = node_types  # type: ignore[name-defined]
     global _WORST_CASE_GW_INCREASE
     _WORST_CASE_GW_INCREASE: Optional[float] = worst_case_gw_increase  # type: ignore[name-defined]
     global _KWARGS
-    _KWARGS: dict[str, Any] = kwargs  # type: ignore[name-defined]
+    _KWARGS = kwargs  # type: ignore[name-defined]
     global _PENALTY_DICTIONARY
-    _PENALTY_DICTIONARY: dict[tuple[int, int], float] = penalty_dictionary  # type: ignore[name-defined]
+    _PENALTY_DICTIONARY = penalty_dictionary  # type: ignore[name-defined]
 
 
 def _fgw_index(p: tuple[int, int]):
