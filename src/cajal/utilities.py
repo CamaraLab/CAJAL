@@ -500,44 +500,44 @@ def avg_shape_spt(
     icdms: dict[str, npt.NDArray[np.float64]],
     gw_coupling_mat_dict: dict[tuple[str, str], coo_array],
     k: int,
-)-> tuple[npt.NDArray[np.float64],npt.NDArray[np.float64]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Given a set of cells together with their intracell distance matrices and
-the (precomputed) pairwise GW coupling matrices between cells, construct a
-morphological "average" of cells in the cluster. This function:
+    the (precomputed) pairwise GW coupling matrices between cells, construct a
+    morphological "average" of cells in the cluster. This function:
 
-* aligns all cells in the cluster with each other using the coupling matrices
-* takes a "local average" of all intracell distance matrices, forming a
-  distance matrix which models the average local connectivity structure of the neurons
-* draw a neighborh
-* draws a minimum spanning tree through the intracell distance graph,
-  allowing us to visualize this average morphology
+    * aligns all cells in the cluster with each other using the coupling matrices
+    * takes a "local average" of all intracell distance matrices, forming a
+      distance matrix which models the average local connectivity structure of the neurons
+    * draw a neighborh
+    * draws a minimum spanning tree through the intracell distance graph,
+      allowing us to visualize this average morphology
 
-:param cell_names: The cluster you want to take the average of,
-    expressed as a list of names of cells in the cluster. These should be
-    names that occur in the keys for the other dictionary arguments.
-:param gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name)
-    to Gromov-Wasserstein distances between them, as returned by
-    cajal.utilities.dist_mat_of_dict.
-:param icdms: (intra-cell distance matrices) -
-    Maps cell names to intra-cell distance matrices. Matrices are assumed to be given
-    in vector form rather than squareform. Intracell distances are
-    computed by any of the sampling functions in sample_swc, sample_seg, etc.
-    and are read from file by cell_iterator_csv.
-:param gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to
-    Gromov-Wasserstein coupling matrices from cellA to cellB, with
-    cellA_name < cellB_name lexicographically
-:param k: how many neighbors in the nearest-neighbors graph in step 3
-:returns: A pair (adjacency_matrix, confidence) where adjacency_matrix
-    is a Numpy matrix of shape (n, n)  (where n is the number of points in each sampled cell)
-    and confidence is an array of shape (n)  adjacency_matrix has values between 0 and 2.
-    When "confidence" at a node in the average graph is high, the node is not
-    very close to its nearest neighbor.  We can think of this as saying that
-    this node in the averaged graph is a kind of poorly amalgamated blend of
-    different features in different graphs.  Conversely, when confidence is
-    low, and the node is close to its nearest neighbor, we interpret this as
-    meaning that this node and its nearest neighbor appear together in many
-    of the graphs being averaged, so this is potentially a good
-    representation of some edge that really appears in many of the graphs.
+    :param cell_names: The cluster you want to take the average of,
+        expressed as a list of names of cells in the cluster. These should be
+        names that occur in the keys for the other dictionary arguments.
+    :param gw_dist_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name)
+        to Gromov-Wasserstein distances between them, as returned by
+        cajal.utilities.dist_mat_of_dict.
+    :param icdms: (intra-cell distance matrices) -
+        Maps cell names to intra-cell distance matrices. Matrices are assumed to be given
+        in vector form rather than squareform. Intracell distances are
+        computed by any of the sampling functions in sample_swc, sample_seg, etc.
+        and are read from file by cell_iterator_csv.
+    :param gw_coupling_mat_dict: Dictionary mapping ordered pairs (cellA_name, cellB_name) to
+        Gromov-Wasserstein coupling matrices from cellA to cellB, with
+        cellA_name < cellB_name lexicographically
+    :param k: how many neighbors in the nearest-neighbors graph in step 3
+    :returns: A pair (adjacency_matrix, confidence) where adjacency_matrix
+        is a Numpy matrix of shape (n, n)  (where n is the number of points in each sampled cell)
+        and confidence is an array of shape (n)  adjacency_matrix has values between 0 and 2.
+        When "confidence" at a node in the average graph is high, the node is not
+        very close to its nearest neighbor.  We can think of this as saying that
+        this node in the averaged graph is a kind of poorly amalgamated blend of
+        different features in different graphs.  Conversely, when confidence is
+        low, and the node is close to its nearest neighbor, we interpret this as
+        meaning that this node and its nearest neighbor appear together in many
+        of the graphs being averaged, so this is potentially a good
+        representation of some edge that really appears in many of the graphs.
     """
     dmat_avg_capped, dmat_avg_uncapped = avg_shape(
         cell_names, gw_dist_dict, icdms, gw_coupling_mat_dict

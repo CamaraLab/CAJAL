@@ -98,6 +98,54 @@ class Modality:
         return m
 
 
+def cross_modality_affinities(m: Modality, prediction_vectors: npt.NDArray[np.float64]):
+    """
+    :param m: "target" modality (to be predicted)
+    :param prediction_vectors: `n_obsvs` rows, `k_n` columns,
+        where `k_n` is the dimension of Euclidean space for the target modality `m`.
+        The vectors for feature `m` predicted using the nearest neighbors in `n`.
+    """
+    prediction_distance = np.linalg.norm(prediction_vectors - m.obsv, axis=1)
+    assert prediction_distance.shape == (m.obsv.shape[0],)
+    return np.exp(
+        -np.maximum(prediction_distance - m.nn_distance, 0)
+        / (m.bandwidth - m.nn_distance)
+    )
+
+
+def pairwise_predictions(m: Modality, n: Modality, k: int):
+    """
+    We measure the ability of modality m to predict modality n.
+    """
+    prediction_vectors = n.obsv[m.nn_index_arr[:, 1 : (k + 1)], :].sum(axis=1) / k
+    assert prediction_vectors.shape == n.obsv.shape
+    return prediction_vectors
+
+
+def theta_m_i_j(m: Modality):
+    return np.exp(
+        -np.maximum(m.dmat - m.nn_distance[:, np.newaxis], 0)
+        / (m.bandwidth[:, np.newaxis] - m.nn_distance[:, np.newaxis])
+    )
+
+
+def all_pairwise_affinities(
+    modalities: list[Modality], n_obsvs: int, k: int  # number of observations
+):
+    M = len(modalities)
+    pairwise_affinities = np.zeros(shape=(M, M, n_obsvs), dtype=float)
+    for i in range(M):
+        m = modalities[i]
+        for j in range(M):
+            n = modalities[j]
+            # theta_m,n = pairwise_affinities[i,j]
+            # ability of j to predict i, ability of n to predict m
+            pairwise_affinities[i, j, :] = cross_modality_affinities(
+                m, pairwise_predictions(n, m, k)
+            )
+    return pairwise_affinities
+
+
 def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
     """
     Compute the weighted nearest neighbors pairing, following
@@ -128,53 +176,9 @@ def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
             )
 
     # Notation follows the paper when appropriate.
-    #
     M = len(modalities)
 
-    def pairwise_predictions(m: Modality, n: Modality):
-        """
-        We measure the ability of modality m to predict modality n.
-        """
-        prediction_vectors = n.obsv[m.nn_index_arr[:, 1 : (k + 1)], :].sum(axis=1) / k
-        assert prediction_vectors.shape == n.obsv.shape
-        return prediction_vectors
-
-    def cross_modality_affinities(
-        m: Modality, prediction_vectors: npt.NDArray[np.float64]
-    ):
-        """
-        :param m: "target" modality (to be predicted)
-        :param prediction_vectors: `n_obsvs` rows, `k_n` columns,
-            where `k_n` is the dimension of Euclidean space for the target modality `m`.
-            The vectors for feature `m` predicted using the nearest neighbors in `n`.
-        """
-        prediction_distance = np.linalg.norm(prediction_vectors - m.obsv, axis=1)
-        assert prediction_distance.shape == (m.obsv.shape[0],)
-        return np.exp(
-            -np.maximum(prediction_distance - m.nn_distance, 0)
-            / (m.bandwidth - m.nn_distance)
-        )
-
-    def theta_m_i_j(m: Modality):
-        return np.exp(
-            -np.maximum(m.dmat - m.nn_distance[:, np.newaxis], 0)
-            / (m.bandwidth[:, np.newaxis] - m.nn_distance[:, np.newaxis])
-        )
-
-    def all_pairwise_affinities(modalities: list[Modality]):
-        pairwise_affinities = np.zeros(shape=(M, M, n_obsvs), dtype=float)
-        for i in range(M):
-            m = modalities[i]
-            for j in range(M):
-                n = modalities[j]
-                # theta_m,n = pairwise_affinities[i,j]
-                # ability of j to predict i, ability of n to predict m
-                pairwise_affinities[i, j, :] = cross_modality_affinities(
-                    m, pairwise_predictions(n, m)
-                )
-        return pairwise_affinities
-
-    pairwise_affinities = all_pairwise_affinities(modalities)
+    pairwise_affinities = all_pairwise_affinities(modalities, n_obsvs, k)
     theta = np.stack([theta_m_i_j(m) for m in modalities], axis=0)
     pairwise_affinity_ratios = np.zeros(shape=(M, M - 1, n_obsvs), dtype=float)
     for i in range(M):

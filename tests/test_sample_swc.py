@@ -3,11 +3,8 @@ from src.cajal.swc import get_filenames, default_name_validate
 from src.cajal.sample_swc import (
     read_preprocess_compute_geodesic,
     read_preprocess_compute_euclidean,
-    compute_icdm_all_euclidean,
-    compute_icdm_all_geodesic,
 )
 from src.cajal.utilities import Err
-import os
 
 
 def test_rpcg():

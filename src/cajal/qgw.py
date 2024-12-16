@@ -26,7 +26,7 @@ from .cajal_types import (
     Array,
     DistanceMatrix,
     Distribution,  # MetricMeasureSpace
-    Matrix
+    Matrix,
 )
 from .run_gw import (
     _batched,

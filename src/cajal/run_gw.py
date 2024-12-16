@@ -330,7 +330,7 @@ def compute_gw_distance_matrix(
     gw_dist_csv_loc: str,
     num_processes: int,
     gw_coupling_mat_npz_loc: Optional[str] = None,
-    return_coupling_mats: bool = False
+    return_coupling_mats: bool = False,
 ) -> tuple[
     DistanceMatrix,  # Pairwise GW distance matrix (Squareform)
     Optional[list[tuple[int, int, Matrix]]],
