@@ -61,6 +61,7 @@ and with other single-cell data modalities, among other analyses.
    utilities
    unbalanced_gw
    fused_gw
+   fused_gw_seg
    ternary_plot
    wnn
 
