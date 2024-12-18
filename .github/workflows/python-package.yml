@@ -27,8 +27,6 @@ jobs:
           python-version: "3.12"
     - name: Install dependencies
       run: |
-        python -m venv venv
-
         python -m pip install wheel
         python -m pip install --upgrade pip
         python -m pip install flake8 pytest pytest-cov
@@ -40,6 +38,7 @@ jobs:
        CIBW_SKIP:
         pp*
         cp*-manylinux_i686
+        cp*-musllinux_i686
         cp313-*
     - uses: actions/upload-artifact@v4
       with:
