@@ -1,10 +1,10 @@
 # from src.cajal.sample_swc import compute_icdm_all_euclidean, compute_icdm_all_geodesic
-from src.cajal.swc import get_filenames, default_name_validate
-from src.cajal.sample_swc import (
+from cajal.swc import get_filenames, default_name_validate
+from cajal.sample_swc import (
     read_preprocess_compute_geodesic,
     read_preprocess_compute_euclidean,
 )
-from src.cajal.utilities import Err
+from cajal.utilities import Err
 
 
 def test_rpcg():

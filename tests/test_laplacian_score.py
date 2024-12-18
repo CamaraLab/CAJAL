@@ -1,4 +1,4 @@
-from src.cajal.laplacian_score import laplacian_score_no_covariates, laplacian_scores
+from cajal.laplacian_score import laplacian_score_no_covariates, laplacian_scores
 from scipy.spatial.distance import squareform
 import numpy as np
 import statistics

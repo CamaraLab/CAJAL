@@ -1,4 +1,4 @@
-from src.cajal.sample_mesh import (
+from cajal.sample_mesh import (
     compute_icdm_all,
     _connect_helper,
     cell_generator,

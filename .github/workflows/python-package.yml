@@ -32,7 +32,6 @@ jobs:
         python -m pip install flake8 pytest pytest-cov
         python -m pip install cibuildwheel==2.20.0
         pip install -r requirements.txt
-        python -m setup.py build_ext --inplace
     - name: Build wheels
       run: python -m cibuildwheel --output-dir wheelhouse
       env:

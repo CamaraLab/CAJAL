@@ -3,8 +3,8 @@ import math
 from shutil import rmtree
 from typing import Union
 
-from src.cajal.utilities import Err
-from src.cajal.swc import (
+from cajal.utilities import Err
+from cajal.swc import (
     batch_filter_and_preprocess,
     cell_iterator,
     default_name_validate,
