@@ -22,9 +22,12 @@ from .utilities import uniform, cell_iterator_csv, n_c_2
 from .gw_cython import gw
 
 
-def to_penalty_matrix(
+def _to_penalty_matrix(
     penalty_dictionary: dict[tuple[int, int], float], cell1_node_types, cell2_node_types
 ):
+    """
+    Convert the given penalty dictionary into a cost matrix for fused Gromov-Wasserstein.
+    """
     penalty_matrix = np.zeros(
         shape=(cell1_node_types.shape[0], cell2_node_types.shape[0])
     )
@@ -65,9 +68,57 @@ def fused_gromov_wasserstein(
     Compute the fused Gromov-Wasserstein distance between cells.
 
     Penalties for mismatched node types should be supplied by the user.
+
+    :param cell1_dmat: A squareform distance matrix of shape (n,n).
+    :param cell1_distribution: A probability distribution of shape (n).
+    :param cell1_node_types: A vector of integer structure id's (type labels) of shape (n)
+    :param cell2_dmat: A squareform distance matrix of shape (m,m).
+    :param cell2_distribution: A probability distribution of shape (m).
+    :param cell2_node_types: A vector of integer structure id's (type labels) of shape (m)
+    :param penalty_dictionary: A dictionary whose keys are pairs (i,j) of distinct
+        structure ids
+        for points occurring in the sample data (with i < j) and whose values are non-negative
+        floating point
+        numbers, representing the "fused" penalty for aligning a node of type i with a node of
+        type j. Pairs (i,j) which aren't in the penalty dictionary have penalty weight 0.
+    :param worst_case_gw_increase: This parameter is meant to give a more interpretable and
+        intuitively accessible way to control the fused GW penalty in situations where it is
+        difficult to assess the appropriate order of magnitude for the values in the penalty matrix
+        _a priori_. The notion of fused GW involves a compromise between minimizing distortion
+        (GW cost) and minimizing label misalignment (conflicts in node type labels).
+        Adding a penalty for label misalignment will tend to increase the distortion of the
+        transport plan, because the algorithm now has to balance both of these considerations,
+        and the higher the penalty for label misalignment, the higher the distortion of the
+        associated transport plan will be, because the algorithm will focus primarily on aligning
+        node types. Therefore, we offer a way to control the maximum increase in distortion
+        (above and beyond the distortion associated to the ordinary, classical GW transport plan)
+        due to the additional constraint of ensuring label alignment.
+
+        If worst_case_gw_increase is None (the default)
+        then the values in penalty_dictionary are taken as *absolute* penalties, and the fused GW
+        cost matrix is directly computed from the weights supplied. If worst_case_gw_increase is a
+        non-negative floating point number then the values in penalty_dictionary are interpreted in
+        a *relative* way, so that only the ratios of one value to another become meaningful - for
+        example, if penalty_dictionary[(1,3)] = 10.0 and penalty_dictionary[(3,4)] = 2.0, then the
+        resulting fused GW cost matrix will have the property that aligning
+        a soma node with a basal dendrite is 5 times more costly than aligning a basal dendrite node
+          with an apical dendrite node.
+        The *absolute* values of the fused GW cost matrix are determined by the following heuristic,
+        which guarantees that
+        the GW cost of the final matrix for the fused GW cost is at most a factor of
+        `worst_case_gw_increase` greater than
+        that of the ordinary GW distance. For instance, if the user supplies
+        `worst_case_gw_increase = 0.50`, then the transport plan found by the fused GW algorithm is
+        guaranteed to have a GW cost at most 50% higher than the
+        transport plan found by ordinary GW.
+    :param kwargs: This function wraps the implementation of Fused GW provided by the
+        Python Optimal Transport library and all additional keyword arguments supplied by the user
+        are passed to that function. See the documentation
+        `here <https://pythonot.github.io/all.html#ot.fused_gromov_wasserstein>`_ for keyword
+        arguments which can be used to customize the behavior of the algorithm.
     """
 
-    penalty_matrix = to_penalty_matrix(
+    penalty_matrix = _to_penalty_matrix(
         penalty_dictionary, cell1_node_types, cell2_node_types
     )
 
@@ -82,11 +133,8 @@ def fused_gromov_wasserstein(
         )
         G0 = plan
         denom = (penalty_matrix * plan).sum()
-        if denom <= 0:
-            penalty_matrix = penalty_matrix
-        else:
-            scalar = worst_case_gw_increase * log["gw_dist"] / denom
-            penalty_matrix *= scalar
+        if denom > 0:
+            penalty_matrix *= (worst_case_gw_increase * log["gw_dist"] / denom)
     else:
         G0 = cell1_distribution[:, np.newaxis] * cell2_distribution[np.newaxis, :]
 
@@ -167,63 +215,6 @@ def _sort_distances(dmat, node_types):
         return (dmat, node_types)
 
 
-def gw_cost(A, a, B, b, P):
-    """
-    Compute the GW cost of the given transport plan.
-
-    (A,a) and (B, b) are metric measure spaces. P is a transport plan.
-    """
-    c_A = ((A * A) @ a) @ a
-    c_B = ((B * B) @ b) @ b
-    return c_A + c_B - 2 * ((A @ P @ B) * P).sum()
-
-
-def gw_dist(A, a, B, b, P):
-    """
-    Compute the GW distance of the given transport plan.
-
-    We distinguish between GW distance and GW cost. GW distance is a metric,
-    and GW cost is simpler to work with.
-    """
-    return math.sqrt(gw_cost(A, a, B, b, P)) / 2
-
-
-def gw_cost_unif(A, a, B, b):
-    """Compute the GW cost of the uniform transport plan."""
-    c_A = ((A * A) @ a) @ a
-    c_B = ((B * B) @ b) @ b
-    Aa = A @ a
-    Bb = B @ b
-    return (
-        c_A
-        + c_B
-        - 2
-        * (
-            np.multiply(Aa[:, np.newaxis], Bb[np.newaxis, :], order="C")
-            * (a[:, np.newaxis] * b[np.newaxis, :])
-        ).sum()
-    )
-
-
-def gw_cost_upper_bound(A_dmat, a_distr, A_node_types, B_dmat, b_distr, B_node_types):
-    """
-    Compute a simple upper bound to the GW cost between spaces.
-
-    This function was written for the simple case where (A_dmat, a_distr) and
-    (B_dmat, b_distr) are metric measure spaces of the same dimensions. It
-    will fail if A_dmat is the wrong size.
-    """
-    A_dmat_sorted, a_distr_sorted = _sort_distances(A_dmat, a_distr)
-    B_dmat_sorted, b_distr_sorted = _sort_distances(B_dmat, b_distr)
-    gw_cost(
-        A_dmat_sorted,
-        a_distr_sorted,
-        B_dmat_sorted,
-        b_distr_sorted,
-        np.eye(N=A_dmat.shape[0]),
-    )
-
-
 def _load(
     intracell_csv_loc: str, swc_node_types: str, sample_points_npz: Optional[str]
 ) -> tuple[list[MetricMeasureSpace], npt.NDArray[np.int32], list[str]]:
@@ -249,11 +240,12 @@ def _load(
     return (cells, node_types, names)
 
 
-def fused_gromov_wasserstein_estimate_costs(
+def _fused_gromov_wasserstein_estimate_costs(
     cells,
     swc_node_types: list[npt.NDArray[np.int64]],
     sample_size: int,
     penalty_dictionary: dict[tuple[int, int], float],
+    quantile: float
 ):
     n = len(cells)
     n_pairs = n_c_2(n)
@@ -265,9 +257,12 @@ def fused_gromov_wasserstein_estimate_costs(
         coupling_mat, gw_dist = gw(dmat1, distr1, dmat2, distr2)
         penalty_matrix = to_penalty_matrix(penalty_dictionary, nt1, nt2)
         ell.append(
-            float((penalty_matrix * coupling_mat).sum()) / (4 * gw_dist * gw_dist)
+            (gw_dist, float((penalty_matrix * coupling_mat).sum()) / (4 * gw_dist * gw_dist))
         )
-    return np.median(np.array(ell))
+    a, b = zip(*ell)
+    a = np.array(a)
+    b = np.array(b)
+    return np.max(b[a <= np.quantile(a, quantile)])
 
 
 def fused_gromov_wasserstein_parallel(
@@ -283,13 +278,15 @@ def fused_gromov_wasserstein_parallel(
     worst_case_gw_increase: Optional[float] = None,
     dynamically_adjust: bool = False,
     sample_size: int = 100,
+    quantile: float = 0.15,
     **kwargs,
 ):
     """
     Compute the fused GW distance pairwise in parallel between many neurons.
 
     :param intracell_csv_loc: The path to the file where the sampled points are stored.
-    :param swc_node_types: The path to the swc node type file.
+    :param swc_node_types: The path to the swc node type file, expected to be in npy format;
+        consistent with the files written by functions in the sample_swc module.
     :param fgw_dist_csv_loc: Where you want the fused GW distances to be written.
     :param num_processes: How many parallel processes you want this to run on.
     :param soma_dendrite_penalty: This represents the penalty paid by the transport plan
@@ -300,16 +297,40 @@ def fused_gromov_wasserstein_parallel(
     :param basal_apical_penalty: The penalty paid by the transport plan for aligning
         a basal dendrite node with an apical dendrite node, if this distinction is
         indeed captured in the morphological reconstructions.
-    :param penalty_dictionary: The user can choose the penalty
-        to align nodes of any two different types. For example, if their
-        data contains nodes with structure id's 3,4 and 5, the user
-        can impose a penalty for joining a node of type 3 to a node of type 4,
-        4 to 5, and 3 to 5. If this parameter is supplied then
+    :param penalty_dictionary: For the meaning of this parameter, see
+        the documentation for :ref:`cajal.fused_gw_swc.fused_gromov_wasserstein`.
+        If penalty_dictionary is None, it is automatically
+        constructed as a function of the arguments `soma_dendrite_penalty` and
+        `apical_dendrite_penalty`. If this parameter is supplied then
         the previous two parameters are ignored as this parameter overrides them;
         the user can reproduce the behavior by adding penalty keys for (1,3), (1,4)
-        and (3,4) appropriately.
+        and (3,4) appropriately. The
     :param chunksize: A parallelization parameter, the
         number of jobs fed to each process at a time.
+    :param worst_case_gw_increase: The meaning of this parameter is closely
+        related to the parameter documented in
+        :ref:`cajal.fused_gw_swc.fused_gromov_wasserstein`, but see
+        the documentation for `dynamically_adjust`.
+    :param dynamically_adjust: If `dynamically_adjust` is True, then
+        the argument `worst_case_gw_increase` is passed directly to
+        the function :ref:`cajal.fused_gw_swc.fused_gromov_wasserstein` for
+        each pair of arguments. However, this would mean that a different
+        cost matrix will be computed for each pair of cells, so one is not
+        computing the same notion of fused GW throughout the data. We regard it
+        as more statistically appropriate to use the same fixed parameters
+        for fused GW throughout all cell pairs in the data. If `dynamically_adjust` is False
+        (the default) then the effect of `worst_case_gw_increase` is to set a global
+        cost matrix for all cell pairs, chosen such that for a pair of cells
+        in the same neighborhood of the GW space, the increase in distortion will be at most
+        a factor of `worst_case_gw_increase`. (This is a statistical heuristic,
+        this is not guaranteed.)
+    :param sample_size: Only relevant if `dynamically_adjust` is True. Indicates
+        the number of cell pairs to sample in order to estimate the distribution of GW costs.
+    :param quantile: Only relevant if `dynamically_adjust` is True.
+        This informs the notion of "in the same neighborhood" described in `dynamically_adjust`.
+        The cost matrix is constructed by looking at cells whose GW cost is less than the
+        given quantile in the sample distribution.
+    :param kwargs: See documentation for :ref:`cajal.fused_gw_swc.fused_gromov_wasserstein`
     """
     cells: list[tuple[DistanceMatrix, Distribution]]
     node_types: list[npt.NDArray[np.int32]]
@@ -329,8 +350,8 @@ def fused_gromov_wasserstein_parallel(
         penalty_dictionary[(1, 4)] = soma_dendrite_penalty
         penalty_dictionary[(3, 4)] = basal_apical_penalty
     if (not dynamically_adjust) and (worst_case_gw_increase is not None):
-        estimate = fused_gromov_wasserstein_estimate_costs(
-            cells, node_types, sample_size, penalty_dictionary  # type: ignore
+        estimate = _fused_gromov_wasserstein_estimate_costs(
+            cells, node_types, sample_size, penalty_dictionary, quantile  # type: ignore
         )
         if estimate == 0:
             raise Exception(
