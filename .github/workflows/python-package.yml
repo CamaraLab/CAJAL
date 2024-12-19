@@ -36,7 +36,11 @@ jobs:
           python -m pip install --upgrade pip
       - name: Build wheels
         run:
-          CC=gcc;CXX=gcc; python -m pip wheel .
+          python -m pip wheel .
+        env:
+          CC: "gcc"
+
+
       # - uses: actions/upload-artifact@v4
       #   with:
       #     name: cibw-wheels-${{ matrix.platform }}-${{ strategy.job-index }}
