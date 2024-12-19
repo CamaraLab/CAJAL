@@ -36,7 +36,7 @@ jobs:
           python -m pip install --upgrade pip
       - name: Build wheels
         run:
-          python -m pip --wheel-dir=wheelhouse wheel .
+          python -m pip wheel --wheel-dir=wheelhouse wheel .
         env:
           CC: "gcc"
 
