@@ -33,6 +33,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          Add-Content $env:GITHUB_PATH "C:\MSYS2"
           python -m pip install wheel
           python -m pip install --upgrade pip
       - name: Build wheels
