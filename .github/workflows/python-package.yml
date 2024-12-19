@@ -26,6 +26,7 @@ jobs:
             python-version: "3.12"
       - name: Set up MinGW
         uses: egor-tensin/setup-mingw@v2
+        if: matrix.os == 'windows-latest'
         with:
           platform: x64
           version: 12.2.0
@@ -65,9 +66,16 @@ jobs:
   #       python -m pip install flake8 pytest pytest-cov
   #       python -m pip install cibuildwheel==2.20.0
   #       pip install -r requirements.txt
+  #   - name: Set up MinGW
+  #     uses: egor-tensin/setup-mingw@v2
+  #     if: matrix.os == 'windows-latest'
+  #     with:
+  #       platform: x64
+  #       version: 12.2.0
   #   - name: Build wheels
   #     run: python -m cibuildwheel --output-dir wheelhouse
   #     env:
+  #      CC: "gcc"
   #      CIBW_SKIP:
   #       pp*
   #       cp*-manylinux_i686
