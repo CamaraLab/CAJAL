@@ -84,7 +84,7 @@ def fused_gromov_wasserstein(
     :param worst_case_gw_increase: This parameter is meant to give a more interpretable and
         intuitively accessible way to control the fused GW penalty in situations where it is
         difficult to assess the appropriate order of magnitude for the values in the penalty matrix
-        _a priori_. The notion of fused GW involves a compromise between minimizing distortion
+        *a priori*. The notion of fused GW involves a compromise between minimizing distortion
         (GW cost) and minimizing label misalignment (conflicts in node type labels).
         Adding a penalty for label misalignment will tend to increase the distortion of the
         transport plan, because the algorithm now has to balance both of these considerations,
@@ -102,7 +102,7 @@ def fused_gromov_wasserstein(
         example, if penalty_dictionary[(1,3)] = 10.0 and penalty_dictionary[(3,4)] = 2.0, then the
         resulting fused GW cost matrix will have the property that aligning
         a soma node with a basal dendrite is 5 times more costly than aligning a basal dendrite node
-          with an apical dendrite node.
+        with an apical dendrite node.
         The *absolute* values of the fused GW cost matrix are determined by the following heuristic,
         which guarantees that
         the GW cost of the final matrix for the fused GW cost is at most a factor of
@@ -255,7 +255,7 @@ def _fused_gromov_wasserstein_estimate_costs(
     # u = uniform(node_types.shape[1])
     for ((dmat1, distr1), nt1), ((dmat2, distr2), nt2) in to_sample:
         coupling_mat, gw_dist = gw(dmat1, distr1, dmat2, distr2)
-        penalty_matrix = to_penalty_matrix(penalty_dictionary, nt1, nt2)
+        penalty_matrix = _to_penalty_matrix(penalty_dictionary, nt1, nt2)
         ell.append(
             (gw_dist, float((penalty_matrix * coupling_mat).sum()) / (4 * gw_dist * gw_dist))
         )
@@ -298,7 +298,7 @@ def fused_gromov_wasserstein_parallel(
         a basal dendrite node with an apical dendrite node, if this distinction is
         indeed captured in the morphological reconstructions.
     :param penalty_dictionary: For the meaning of this parameter, see
-        the documentation for :ref:`cajal.fused_gw_swc.fused_gromov_wasserstein`.
+        the documentation for :func:`cajal.fused_gw_swc.fused_gromov_wasserstein`.
         If penalty_dictionary is None, it is automatically
         constructed as a function of the arguments `soma_dendrite_penalty` and
         `apical_dendrite_penalty`. If this parameter is supplied then
@@ -309,11 +309,11 @@ def fused_gromov_wasserstein_parallel(
         number of jobs fed to each process at a time.
     :param worst_case_gw_increase: The meaning of this parameter is closely
         related to the parameter documented in
-        :ref:`cajal.fused_gw_swc.fused_gromov_wasserstein`, but see
+        :func:`cajal.fused_gw_swc.fused_gromov_wasserstein`, but see
         the documentation for `dynamically_adjust`.
     :param dynamically_adjust: If `dynamically_adjust` is True, then
         the argument `worst_case_gw_increase` is passed directly to
-        the function :ref:`cajal.fused_gw_swc.fused_gromov_wasserstein` for
+        the function :func:`cajal.fused_gw_swc.fused_gromov_wasserstein` for
         each pair of arguments. However, this would mean that a different
         cost matrix will be computed for each pair of cells, so one is not
         computing the same notion of fused GW throughout the data. We regard it
@@ -330,7 +330,7 @@ def fused_gromov_wasserstein_parallel(
         This informs the notion of "in the same neighborhood" described in `dynamically_adjust`.
         The cost matrix is constructed by looking at cells whose GW cost is less than the
         given quantile in the sample distribution.
-    :param kwargs: See documentation for :ref:`cajal.fused_gw_swc.fused_gromov_wasserstein`
+    :param kwargs: See documentation for :func:`cajal.fused_gw_swc.fused_gromov_wasserstein`
     """
     cells: list[tuple[DistanceMatrix, Distribution]]
     node_types: list[npt.NDArray[np.int32]]
