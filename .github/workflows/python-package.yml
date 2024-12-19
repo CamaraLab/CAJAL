@@ -13,115 +13,142 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build_wheels:
-    runs-on: ${{ matrix.platform }}
+  build_wheels_windows:
+    runs-on: windows-latest
     strategy:
-      fail-fast: false
-      matrix:
-        platform: [macos-latest, macos-13, macos-14, ubuntu-latest]
+      fail-fast: true
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-          python-version: "3.12"
-    - name: Install dependencies
-      run: |
-        python -m pip install wheel
-        python -m pip install --upgrade pip
-        python -m pip install flake8 pytest pytest-cov
-        python -m pip install cibuildwheel==2.20.0
-        pip install -r requirements.txt
-    - name: Build wheels
-      run: python -m cibuildwheel --output-dir wheelhouse
-      env:
-       CIBW_SKIP:
-        pp*
-        cp*-manylinux_i686
-        cp*-musllinux_i686
-        cp313-*
-    - uses: actions/upload-artifact@v4
-      with:
-        name: cibw-wheels-${{ matrix.platform }}-${{ strategy.job-index }}
-        path: ./wheelhouse/*.whl
+      - name: Check out git repo on windows.
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+            python-version: "3.12"
+      - name: Set up MinGW
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
 
-  make_sdist:
-    name: Make SDist
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Optional, use if you use setuptools_scm
-        submodules: true  # Optional, use if you have submodules
+      - name: Install dependencies
+        run: |
+          python -m pip install wheel
+          python -m pip install --upgrade pip
+      - name: Build wheels
+        run: python -m pip wheel .
+      # - uses: actions/upload-artifact@v4
+      #   with:
+      #     name: cibw-wheels-${{ matrix.platform }}-${{ strategy.job-index }}
+      #     path: ./wheelhouse/*.whl
 
-    - name: Build SDist
-      run: pipx run build --sdist
+  # build_wheels:
+  #   runs-on: ${{ matrix.platform }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       platform: [macos-latest, macos-13, macos-14, ubuntu-latest]
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   - name: Set up Python
+  #     uses: actions/setup-python@v5
+  #     with:
+  #         python-version: "3.12"
+  #   - name: Install dependencies
+  #     run: |
+  #       python -m pip install wheel
+  #       python -m pip install --upgrade pip
+  #       python -m pip install flake8 pytest pytest-cov
+  #       python -m pip install cibuildwheel==2.20.0
+  #       pip install -r requirements.txt
+  #   - name: Build wheels
+  #     run: python -m cibuildwheel --output-dir wheelhouse
+  #     env:
+  #      CIBW_SKIP:
+  #       pp*
+  #       cp*-manylinux_i686
+  #       cp*-musllinux_i686
+  #       cp313-*
+  #   - uses: actions/upload-artifact@v4
+  #     with:
+  #       name: cibw-wheels-${{ matrix.platform }}-${{ strategy.job-index }}
+  #       path: ./wheelhouse/*.whl
 
-    - uses: actions/upload-artifact@v4
-      with:
-        name: cibw-sdist
-        path: dist/*.tar.gz
+  # make_sdist:
+  #   name: Make SDist
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #     with:
+  #       fetch-depth: 0  # Optional, use if you use setuptools_scm
+  #       submodules: true  # Optional, use if you have submodules
 
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10"]
+  #   - name: Build SDist
+  #     run: pipx run build --sdist
 
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        python -m pip install wheel
-        python -m pip install --upgrade pip
-        python -m pip install flake8 pytest pytest-cov
-        pip install -r requirements.txt
-    - name: Install CAJAL
-      run: |
-        python -m pip install .[vis]
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        pytest --cov src/ tests/
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
+  #   - uses: actions/upload-artifact@v4
+  #     with:
+  #       name: cibw-sdist
+  #       path: dist/*.tar.gz
 
-  release:
-    needs: build_wheels
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'release' && github.event.action == 'published')
-    steps:
-    - name: Upload Release Asset
-      uses: softprops/action-gh-release@v2.0.8
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        files: |
-          ./wheelhouse/*.whl
-          dist/*.tar.gz
+  # test:
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       python-version: ["3.10"]
 
-  upload_all:
-    needs: [build_wheels, make_sdist]
-    environment: pypi
-    permissions:
-      id-token: write
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'release' && github.event.action == 'published')
-    steps:
-    - uses: actions/download-artifact@v4
-      with:
-        pattern: cibw-*
-        path: dist
-        merge-multiple: true
+  #   steps:
+  #   - uses: actions/checkout@v3
+  #   - name: Set up Python ${{ matrix.python-version }}
+  #     uses: actions/setup-python@v3
+  #     with:
+  #       python-version: ${{ matrix.python-version }}
+  #   - name: Install dependencies
+  #     run: |
+  #       python -m pip install wheel
+  #       python -m pip install --upgrade pip
+  #       python -m pip install flake8 pytest pytest-cov
+  #       pip install -r requirements.txt
+  #   - name: Install CAJAL
+  #     run: |
+  #       python -m pip install .[vis]
+  #   - name: Lint with flake8
+  #     run: |
+  #       # stop the build if there are Python syntax errors or undefined names
+  #       flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+  #       # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+  #       flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+  #   - name: Test with pytest
+  #     run: |
+  #       pytest --cov src/ tests/
+  #   - name: Upload coverage reports to Codecov
+  #     uses: codecov/codecov-action@v3
 
-    - uses: pypa/gh-action-pypi-publish@release/v1
+  # release:
+  #   needs: build_wheels
+  #   runs-on: ubuntu-latest
+  #   if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'release' && github.event.action == 'published')
+  #   steps:
+  #   - name: Upload Release Asset
+  #     uses: softprops/action-gh-release@v2.0.8
+  #     env:
+  #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     with:
+  #       files: |
+  #         ./wheelhouse/*.whl
+  #         dist/*.tar.gz
+
+  # upload_all:
+  #   needs: [build_wheels, make_sdist]
+  #   environment: pypi
+  #   permissions:
+  #     id-token: write
+  #   runs-on: ubuntu-latest
+  #   if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'release' && github.event.action == 'published')
+  #   steps:
+  #   - uses: actions/download-artifact@v4
+  #     with:
+  #       pattern: cibw-*
+  #       path: dist
+  #       merge-multiple: true
+
+  #   - uses: pypa/gh-action-pypi-publish@release/v1
