@@ -35,7 +35,8 @@ jobs:
           python -m pip install wheel
           python -m pip install --upgrade pip
       - name: Build wheels
-        run: python -m pip wheel .
+        run:
+          CC=gcc;CXX=gcc; python -m pip wheel .
       # - uses: actions/upload-artifact@v4
       #   with:
       #     name: cibw-wheels-${{ matrix.platform }}-${{ strategy.job-index }}
