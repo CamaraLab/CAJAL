@@ -22,6 +22,6 @@ setup(
                   "src/cajal/ugw/build_backends.py:build_multicore",
                   # "src/cajal/ugw/build_backends.py:build_opencl",
                   # "src/cajal/ugw/build_backends.py:build_cuda",
-                  ]
+                  ],
     cmdclass={"build": build},
 )
