@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <float.h>
-
+#include <pthread.h>
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -381,14 +381,14 @@ class UGW(Futhark):
         pt_cloud=False,
     ):
 
-        if not pt_cloud:
+        if pt_cloud:
             pt_clouds = dmats
             dmats = np.stack(
                 [squareform(pdist(a), force="tomatrix") for a in pt_clouds], axis=0
             )
         if isinstance(dmats, str):
             _, icdms = zip(*cell_iterator_csv(dmats))
-            dmats = np.stack(icdms, axis=0)
+            dmats = np.stack(list(icdms), axis=0)
 
         if rho is None:
             gw_cost = estimate_distr(dmats, sample_size, quantile)
@@ -406,6 +406,7 @@ class UGW(Futhark):
                     tol_sinkhorn,
                     tol_outerloop,
                 )
+                print("Done first pass, cleaning up errors.")
             else:  # dmats is pt_clouds
                 ugw_dmat = self._ugw_armijo_euclidean(
                     rho,
