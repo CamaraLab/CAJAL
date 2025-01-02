@@ -73,7 +73,7 @@ doc = [
 ]
 
 vis = [
-    "networkx",
+    "networkx>=3",
     "ipywidgets",
     "navis",
     "mpltern",
@@ -81,12 +81,13 @@ vis = [
 ]
 
 notebooks = [
-    "networkx",
+    "networkx>=3",
     "ipywidgets",
     "navis",
     "numba",
     "mpltern",
-    "plotly"
+    "plotly",
+    "umap-learn"
 ]
 
 [project.license]

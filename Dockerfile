@@ -55,4 +55,4 @@ RUN --mount=type=bind,target=/home/cajal_repo,source=CAJAL`
     mkdir /home/jovyan/CAJAL ; `
     cp -r /home/cajal_repo/* /home/jovyan/CAJAL/ ;`
     python3 -m pip install -r /home/jovyan/CAJAL/requirements.txt ;`
-    python3 -m pip install /home/jovyan/CAJAL
+    python3 -m pip install /home/jovyan/CAJAL[notebooks]
