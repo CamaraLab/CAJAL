@@ -80,7 +80,7 @@ def rho_of(gw_cost: float, mass_kept: float):
         this formula is written for the case where the cells and the GW transport plan have
         unit mass. This function is the inverse of mass_lower_bound.
     """
-    return -gw_cost / log(mass_kept)
+    return -gw_cost / (4*log(mass_kept))
 
 
 _rho1_docstring = """:param rho1: The first marginal penalty coefficient, controls how much the
