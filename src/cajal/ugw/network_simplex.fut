@@ -170,20 +170,46 @@ module network_simplex(M : network_simplex_context) = {
   def compute_flows [n] (ts: M.tree.structure[n]) (node_potentials: M.tree.data[n] N.t) =
     M.tree.bottom_up_scan (N.+) (N.i32 0) ts node_potentials
 
-  -- def update (current_tree
+  type with_neutral 'a = #neutral | #val a
+
+  def f_with_neutral 't (f : t -> t -> t) (x : with_neutral t) (y : with_neutral t) : with_neutral t =
+    match (x, y)
+    case (#val x, #val y) -> #val (f x y)
+    case (#neutral, _) -> #neutral
+    case (_,#neutral) -> #neutral
+
+  def reduce1 't (f : t-> t->t) (ts :[t]) : with_neutral t =
+    reduce (f_with_neutral f) #neutral (map (\t -> #val t)) ts
+
+  def argmin 'a : (f : a -> t) = reduce1 (\x y -> if (f x) N.<= (f y) then x else y)
+
+  def dantzig_elimination_rule [n][k][l] (edges : (M.node, M.node)[n]) (G : M.graph[k] )
+       -- (current_tree : M.tree.structure[l] )
+       (node_potentials : M.tree.data[l]) =
+    let c_pi i j = N.(M.cost G i j - M.tree.get i + M.tree.get j)
+    let x = argmin (uncurry (M.cost G)) node_potentials in
+    match x
+    case #val (i, j) -> if N.(M.cost G i j < 0) then #val (i, j) else #neutral
+    case #neutral -> #neutral
+
+  -- def minor_iteration [n][k][l] (edges : (M.node, M.node)[n]) (G : M.graph[k] ) (current_tree : M.tree.structure[l] ) =
+  -- Scan the array of edges and delete or filter all edges which are ineligible
+
+  -- Of the remaining edges, find the one with the lowest violation
+  -- Return the new array and the distinguished edge.
+
   ----------------------------------------------
   -- Algorithm is unfinished below this point.
 
-
-  -- def update[n] (G : M.graph) (current_tree : M.tree.structure[n])
-  --   (select_arc : M.graph -> M.arc)  
-  --   =
-  --   let node_potentials = compute_node_potentials G current_tree in
-  --   let flows = compute_flows G current_tree node_potentials in
-  --   let entering_arc = select_entering_arc G node_potentials flows in
-  --   INCOMPLETE
-  --   let leaving_arc = INCOMPLETE in
-  --   leaving_arc
+  def update[n] (G : M.graph) (current_tree : M.tree.structure[n])
+    (select_arc : M.graph -> M.arc)
+    =
+    let node_potentials = compute_node_potentials G current_tree in
+    let flows = compute_flows G current_tree node_potentials in
+    let entering_arc = select_entering_arc G node_potentials flows in
+    INCOMPLETE
+    let leaving_arc = INCOMPLETE in
+    leaving_arc
 
 
   -- def network_simplex[n]
@@ -194,8 +220,8 @@ module network_simplex(M : network_simplex_context) = {
 
     
     -- def network_simplex (tree_structure : M.tree)
-  -- def network_simplex (G : M.graph) (init : M.spanning_tree) =
-  -- We assume we are given a graph, and a spanning tree init through the graph.
+  def network_simplex (G : M.graph) (init : M.spanning_tree) =
+   -- We assume we are given a graph, and a spanning tree init through the graph.
   -- update G init
 
 
