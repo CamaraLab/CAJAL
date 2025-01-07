@@ -88,7 +88,8 @@ notebooks = [
     "numba",
     "mpltern",
     "plotly",
-    "umap-learn"
+    "umap-learn",
+    "scanpy"
 ]
 
 [project.license]
