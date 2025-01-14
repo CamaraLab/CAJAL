@@ -4,7 +4,7 @@
 
 -- | The `opt`@term type
 --
--- A `opt`@term type is a sum type. It is either `#some` containg a
+-- A `opt`@term type is a sum type. It is either `#some` containing a
 -- value `a`@term or `#none`.
 type opt 'a = #some a | #none
 

@@ -41,7 +41,7 @@
 --
 -- Since both `dist` and `norm_dist` have been initialised with the
 -- same underlying `rng_engine`@mtype (`minstd_rand`@term), we can
--- re-use the same RNG state.  This is often convenient when a program
+-- reuse the same RNG state.  This is often convenient when a program
 -- needs to generate random numbers from several different
 -- distributions, as we still only have to manage a single RNG state.
 --

@@ -57,7 +57,7 @@ def segmented_iota [n] (flags:[n]bool) : [n]i64 =
   in map (\x -> x-1) iotas
 
 -- | Replicated and segmented iota generated together
--- in a slighly more efficient way.
+-- in a slightly more efficient way.
 -- each segment in the segmented iota corresponds to a segment
 -- in the replicated iota. As an example repl_segm_iota [2,3,1]
 -- returns the arrays [0,0,1,1,1,2] and [0,1,0,1,2,0].

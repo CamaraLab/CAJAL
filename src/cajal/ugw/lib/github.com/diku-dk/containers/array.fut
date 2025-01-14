@@ -11,7 +11,7 @@ import "../sorts/merge_sort"
 
 module engine = xorshift128plus
 type rng = xorshift128plus.rng
-                            
+
 local def estimate_distinct' [n] 't
                              (r: rng)
                              (hash: i64 -> t -> i64)
@@ -26,7 +26,7 @@ local def estimate_distinct' [n] 't
   -- Multiply by two for a better estimate in cases of collisions.
   -- Since roughly half of the keys are expected to result in a collision.
   in (new_rng, 2 * count)
-     
+
 local def create_sample [n] 't
                         (arr: [n]t)
                         (rng: rng)
@@ -52,7 +52,7 @@ local def estimate_distinct [n] 't
                             (arr: [n]t):
                             (rng, i64) =
   let (new_rng, count) =
-    loop (rng, acc) = (rng, 0) for _i < times do 
+    loop (rng, acc) = (rng, 0) for _i < times do
     let (rng, sample) = create_sample arr rng sample_size
     let (rng, c) = estimate_distinct' rng hash sample
     in (rng, acc + c / times)
@@ -61,7 +61,7 @@ local def estimate_distinct [n] 't
   in (new_rng, estimate)
 
 -- | `reduce_by_key`@term, but paramatized. Here an initial `seed`@term
--- for a random number generater needed. And a `sample_fraction`@term
+-- for a random number generator needed. And a `sample_fraction`@term
 -- will be needed to determine the amount that will be sampled in each
 -- iteration. This is used to estimate the number of distinct
 -- elements. A `sample_fraction`@term of 2 will sample half of the pairs in that iteration
@@ -76,7 +76,7 @@ def reduce_by_key_param [n] 'k 'v
                         (eq: k -> k -> bool)
                         (ne: v)
                         (op: v -> v -> v)
-                        (arr: [n](k, v)): [](k, v) = 
+                        (arr: [n](k, v)): [](k, v) =
   let r = engine.rng_from_seed [seed]
   let (reduction, _, _) =
     -- Expected number of iterations is O(log n).
@@ -117,7 +117,7 @@ def dedup_param [n] 't
                 (times: i64)
                 (hash: i64 -> t -> i64)
                 (eq: t -> t -> bool)
-                (arr: [n]t): []t = 
+                (arr: [n]t): []t =
   let r = engine.rng_from_seed [seed]
   let (uniques, _, _) =
     loop (uniques, elems, old_rng) = ([], arr, r) while length elems != 0 do
@@ -158,7 +158,7 @@ def hash_i64 (a: i64) (x: i64): i64 =
 -- some array it can instead correspond to a key. Here an array of `n`@term
 -- key `k`@term and value `v`@term pairs are given as an array. And
 -- every value with the same key will be reduced with an associative
--- and commutative operator `op`@term, futhermore an neutral element `ne`@term
+-- and commutative operator `op`@term, furthermore an neutral element `ne`@term
 -- must be given. To perform this reduction a definition of key
 -- equality must be given `eq`@term, this is done as to figure out which
 -- elements will be reduced. And a good hash function `hash`@term must be
@@ -189,14 +189,14 @@ def dedup [n] 't
           (eq: t -> t -> bool)
           (arr: [n]t): []t =
   dedup_param 1 1024 5 hash eq arr
-    
+
 local def hash_i32 a x = hash_i64 a (i64.i32 x)
 
 local entry replicate_i32 (n: i64) (m: i32): [n]i32 =
-  replicate n m 
+  replicate n m
 
 local entry replicate_i64 (n: i64) (m: i64): [n]i64 =
-  replicate n m 
+  replicate n m
 
 -- ==
 -- entry: bench_dedup
@@ -220,7 +220,7 @@ local entry bench_dedup [n] (arr: [n]i32) =
 local entry bench_dedup_mod [n] (arr: [n]i32) =
   dedup hash_i32 (==) (map (% 40000) arr)
 
-  
+
 -- ==
 -- entry: bench_count_occourences_i32
 -- compiled random input { [100000]i32 }
@@ -244,7 +244,7 @@ local entry bench_count_occourences_i32 [n] (arr: [n]i32) =
 local entry bench_count_occourences_mod_i32 [n] (arr: [n]i32) =
   reduce_by_key hash_i32 (==) 0i32 (+) <| map (\a -> (a % 40000, 1)) arr
   |> map (.0)
-  
+
 
 -- Contains code from the segmented library.
 -- https://github.com/diku-dk/segmented
@@ -293,7 +293,7 @@ local entry bench_count_occourences_i64 [n] (arr: [n]i64) =
 local entry bench_count_occourences_mod_i64 [n] (arr: [n]i64) =
   reduce_by_key hash_i64 (==) 0i64 (+) <| map (\a -> (a % 40000, 1)) arr
   |> map (.0)
-  
+
 -- Contains code from the segmented library.
 -- https://github.com/diku-dk/segmented
 -- ==
@@ -317,4 +317,4 @@ local entry bench_count_occourences_radix_sort_and_segscan_i64 [n] (arr: [n]i64)
   let index i f = if f then i-1 else -1
   in scatter scratch (map2 index segment_end_offsets segment_ends) as
      |> map (.0)
-  
+

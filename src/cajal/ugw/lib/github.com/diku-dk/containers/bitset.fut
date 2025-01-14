@@ -3,7 +3,7 @@
 -- A bitset data structure is an array of bits where a bit
 -- can be set or not set. If the bit is set then it is a
 -- member of the set otherwise it is not. The indexes of
--- these bits can then be related to the indexes of 
+-- these bits can then be related to the indexes of
 -- another array.
 --
 -- `nbs`@term is assumed to be constant in the time
@@ -122,7 +122,7 @@ module type bitset = {
   val to_array [n] : bitset[(n - 1) / nbs + 1] -> []i64
 }
 
--- | Creates a bitset module depending on a intergral type.
+-- | Creates a bitset module depending on a integral type.
 module mk_bitset (I: integral) : bitset = {
   def nbs = i64.i32 I.num_bits
 
@@ -131,10 +131,10 @@ module mk_bitset (I: integral) : bitset = {
   type bitset [n] = [n]t
 
   def zero : t = I.u64 0
-  
+
   def empty (n : i64) : bitset[(n - 1) / nbs + 1] =
     replicate ((n - 1) / nbs + 1) zero
-  
+
   def find_bitset_index (i : i64) (n : i64) : (i64, i32) =
     if i < 0 || n <= i
     then (-1, -1)
@@ -158,7 +158,7 @@ module mk_bitset (I: integral) : bitset = {
 
   def is_empty [n] (s : bitset[(n - 1) / nbs + 1]) : bool =
     all (I.==zero) s
-  
+
   def delete [n] (i : i64) (s : bitset[(n - 1) / nbs + 1]) : bitset[(n - 1) / nbs + 1] =
     let index = find_bitset_index i n
     in if index.0 < 0 || index.1 < 0
@@ -173,7 +173,7 @@ module mk_bitset (I: integral) : bitset = {
 
   def union [n] (a : bitset[(n - 1) / nbs + 1]) (b : bitset[(n - 1) / nbs + 1]) : bitset[(n - 1) / nbs + 1] =
     map2 (I.|) a b
-  
+
   def intersection [n] (a : bitset[(n - 1) / nbs + 1]) (b : bitset[(n - 1) / nbs + 1]) : bitset[(n - 1) / nbs + 1] =
     map2 (I.&) a b
 
@@ -184,11 +184,11 @@ module mk_bitset (I: integral) : bitset = {
     in if l == 0
        then s
        else copy s with [l - 1] = s[l - 1] I.& to_keep
-  
+
   def complement [n] (s : bitset[(n - 1) / nbs + 1]) : bitset[(n - 1) / nbs + 1] =
     map I.not s
     |> set_leading_bits_zero
-  
+
   def size [n] (s : bitset[(n - 1) / nbs + 1]) : i64 =
     map (i64.i32 <-< I.popc) s
     |> i64.sum
@@ -199,10 +199,10 @@ module mk_bitset (I: integral) : bitset = {
 
   def is_subset [n] (a : bitset[(n - 1) / nbs + 1]) (b : bitset[(n - 1) / nbs + 1]) : bool =
     (a `union` b) == b
-  
+
   def difference [n] (a : bitset[(n - 1) / nbs + 1]) (b : bitset[(n - 1) / nbs + 1]) : bitset[(n - 1) / nbs + 1] =
     a `intersection` complement b
-  
+
   def set_capacity [m] (n : i64) (s : bitset[(m - 1) / nbs + 1]) : bitset[(n - 1) / nbs + 1] =
     let s' = empty n
     let len = length s
@@ -221,7 +221,7 @@ module mk_bitset (I: integral) : bitset = {
     let empty' = empty n
     in map (singleton n) arr
        |> reduce_comm union empty'
-  
+
   def to_array [n] (s : bitset[(n - 1) / nbs + 1]) : []i64 =
     map2 (\i v ->
       let m = i * i64.i32 I.num_bits
