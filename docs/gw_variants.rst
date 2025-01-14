@@ -150,7 +150,7 @@ To choose :math:`\varepsilon` appropriately, we advise that you experiment with 
 Fused Gromov-Wasserstein
 ------------------------
 
-We let $(X,\mu)$, $(Y,\nu)$ and $\mathcal{G}$ be as before.
+We let :math:`(X,\mu)`, :math:`(Y,\nu)` and :math:`\mathcal{G}`` be as before.
 
 Classical Gromov-Wasserstein treats cells purely geometrically, as shapes. In searching for good alignments between two neurons, it doesn't consider some important information present in cell morphology reconstructions, such as the labels for the soma and dendrite nodes.
 On biological grounds, it is reasonable to argue that a "good alignment" between two neurons should align the soma node to the soma node, align axon to axon, basal dendrites to basal dendrites, and apical dendrites to apical dendrites. Fused Gromov-Wasserstein is a construct
@@ -167,19 +167,17 @@ and we define
 .. math::
    FGW_C((X,\mu),(Y,\nu)) = \inf_T \mathcal{F}(T)
 
-where $C_{ij}$ is a user-supplied penalty matrix, and the value $C_{ij}$ indicates the intrinsic penalty for aligning $X_i$ to $Y_j$.
+where :math:`C_{ij}`` is a user-supplied penalty matrix, and the value :math:`C_{ij}` indicates the intrinsic penalty for aligning :math:`X_i` to :math:`Y_j`.
 
 In our implementation, the user supplies the penalty for aligning nodes of distinct SWC structure id labels. It is easiest to choose these on relative grounds: for example, if the user wants to impose the constraint that aligning a soma node to a dendrite node is ten times worse than
 aligning a basal dendrite node to an apical node, they can choose the soma-to-dendrite penalty to be 10 and the basal-to-apical penalty to be 1. Once this is done, it remains to choose the coefficient $\alpha$ appropriately.
 
-Note that if $T^{GW}$ is the optimal transport plan for classical Gromov-Wasserstein and $C$ is a proposed cost matrix, then an upper bound for $FGW_C(X,Y)$ is $\mathcal{F}(T^{GW})$.
+Note that if :math:`T^{GW}` is the optimal transport plan for classical Gromov-Wasserstein and :math:`C` is a proposed cost matrix, then an upper bound for :math:`FGW_C(X,Y)` is :math:`\mathcal{F}(T^{GW})`.
 It follows that, if $T^{FGW}$ is the optimal transport plan for fused GW, then
 
 .. math::
    \mathcal{G}(T^{FGW}) \leq \mathcal{G}(T^{GW}) + (\frac{1-\alpha}{\alpha})(\sum_{ij}C_{ij}T^{GW}_{ij})
 
-One can interpret this inequality as follows: by increasing the term $(\frac{1-\alpha}{\alpha})$, the algorithm will be willing to accept higher distortion in order to better align nodes of similar types. If the user chooses, say, $(\frac{1-\alpha}{\alpha}) = 0.3$,
-then the GW cost of the transport plan $T^{FGW}$ will be at most 30% more than the GW cost of the original transport plan. Thus, our approach to giving an interpretable interface is to allow the user to control how much additional distortion they are willing to accept in the transport plan
+One can interpret this inequality as follows: by increasing the term :math:`(\frac{1-\alpha}{\alpha})`, the algorithm will be willing to accept higher distortion in order to better align nodes of similar types. If the user chooses, say, :math:`(\frac{1-\alpha}{\alpha}) = 0.3`,
+then the GW cost of the transport plan :math:`T^{FGW}` will be at most 30% more than the GW cost of the original transport plan. Thus, our approach to giving an interpretable interface is to allow the user to control how much additional distortion they are willing to accept in the transport plan
 in order to align nodes of the same type.
-
-
