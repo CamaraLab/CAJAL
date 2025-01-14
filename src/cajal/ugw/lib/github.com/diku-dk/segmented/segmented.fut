@@ -44,7 +44,7 @@ def segmented_reduce [n] 't (op: t -> t -> t) (ne: t)
 def replicated_iota [n] (reps:[n]i64) : []i64 =
   let offsets = scan (+) 0 reps
   in hist (+) 0 (i64.sum reps) offsets (replicate n 1)
-  |> scan (+) 0 
+  |> scan (+) 0
 
 -- | Segmented iota. Given a flags array, the function returns an
 -- array of index sequences, each of which is reset according to the
@@ -56,7 +56,7 @@ def segmented_iota [n] (flags:[n]bool) : [n]i64 =
   let iotas = segmented_scan (+) 0 flags (replicate n 1)
   in map (\x -> x-1) iotas
 
--- | Replicated and segemented iota generated together
+-- | Replicated and segmented iota generated together
 -- in a slighly more efficient way.
 -- each segment in the segmented iota corresponds to a segment
 -- in the replicated iota. As an example repl_segm_iota [2,3,1]

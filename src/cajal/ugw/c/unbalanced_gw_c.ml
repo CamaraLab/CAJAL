@@ -66,10 +66,10 @@ let check_use_after_free t b = if b then raise (Error (UseAfterFree t))
 let () = Printexc.register_printer (function
   | Error (InvalidShape (a, b)) -> Some (Printf.sprintf "futhark error: invalid shape, expected %d but got %d" a b)
   | Error NullPtr -> Some "futhark error: null pointer"
-  | Error (Code c) -> Some (Printf.sprintf "futhark error: code %d" c) 
-  | Error (UseAfterFree `context) -> Some "futhark: context used after beeing freed"
-  | Error (UseAfterFree `array) -> Some "futhark: array used after beeing freed"
-  | Error (UseAfterFree `opaque) -> Some "futhark: opaque value used after beeing freed"
+  | Error (Code c) -> Some (Printf.sprintf "futhark error: code %d" c)
+  | Error (UseAfterFree `context) -> Some "futhark: context used after being freed"
+  | Error (UseAfterFree `array) -> Some "futhark: array used after being freed"
+  | Error (UseAfterFree `opaque) -> Some "futhark: opaque value used after being freed"
   | _ -> None)
 
 
@@ -94,15 +94,15 @@ module Context = struct
     Bindings.futhark_context_config_set_debugging config (if debug then 1 else 0);
     Bindings.futhark_context_config_set_profiling config (if profile then 1 else 0);
     Bindings.futhark_context_config_set_logging config (if log then 1 else 0);
-    
+
     Option.iter (Bindings.futhark_context_config_set_cache_file config) cache_file;
     let handle = Bindings.futhark_context_new config in
-    if is_null handle then 
+    if is_null handle then
       let () = ignore @@ Bindings.futhark_context_config_free config in
       raise (Error NullPtr)
     else
       let t = { handle; config; cache_file; auto_sync; context_free = false } in
-      set_managed handle t; 
+      set_managed handle t;
       let () = Gc.finalise free t in
       t
 
@@ -113,28 +113,28 @@ module Context = struct
 
   let auto_sync t =
     if t.auto_sync then sync t
-  
+
   let clear_caches t =
     check_use_after_free `context t.context_free;
     let rc = Bindings.futhark_context_clear_caches t.handle in
     if rc <> 0 then raise (Error (Code rc))
 
-  let string_opt_of_ptr ptr = 
+  let string_opt_of_ptr ptr =
     if is_null ptr then None
     else
       let len = Bindings.strlen ptr |> Unsigned.Size_t.to_int in
       let s = String.init len (fun i -> !@(ptr +@ i)) in
       let () = Bindings.free (coerce (Ctypes.ptr Ctypes.char) (Ctypes.ptr void) ptr) in Some s
 
-  let get_error t = 
+  let get_error t =
     check_use_after_free `context t.context_free;
     let ptr = Bindings.futhark_context_get_error t.handle in string_opt_of_ptr ptr
 
-  let report t = 
+  let report t =
     check_use_after_free `context t.context_free;
     let ptr = Bindings.futhark_context_report t.handle in string_opt_of_ptr ptr
 
-  let pause_profiling t = 
+  let pause_profiling t =
     check_use_after_free `context t.context_free;
     Bindings.futhark_context_pause_profiling t.handle
 
@@ -167,7 +167,7 @@ module Array_f64_3d = struct
   type t = futhark_array
 
   type kind = (float, Bigarray.float64_elt) Bigarray.kind
-  
+
   let kind = Bigarray.float64
 
   let free ctx ptr =
@@ -178,7 +178,7 @@ module Array_f64_3d = struct
 
   let cast x =
     coerce (ptr void) (ptr double) (to_voidp x)
-  
+
   let v ctx ba =
     check_use_after_free `context ctx.Context.context_free;
     let dims = Genarray.dims ba in
@@ -238,7 +238,7 @@ module Array_f64_3d = struct
     { ptr = Ctypes.allocate ~finalise:(free ctx) (Ctypes.ptr Ctypes.void) ptr; ctx; shape }
 
   let free t = free t.ctx t.ptr
-    
+
   let _ = of_ptr
 end
 
@@ -247,7 +247,7 @@ module Array_f64_2d = struct
   type t = futhark_array
 
   type kind = (float, Bigarray.float64_elt) Bigarray.kind
-  
+
   let kind = Bigarray.float64
 
   let free ctx ptr =
@@ -258,7 +258,7 @@ module Array_f64_2d = struct
 
   let cast x =
     coerce (ptr void) (ptr double) (to_voidp x)
-  
+
   let v ctx ba =
     check_use_after_free `context ctx.Context.context_free;
     let dims = Genarray.dims ba in
@@ -318,7 +318,7 @@ module Array_f64_2d = struct
     { ptr = Ctypes.allocate ~finalise:(free ctx) (Ctypes.ptr Ctypes.void) ptr; ctx; shape }
 
   let free t = free t.ctx t.ptr
-    
+
   let _ = of_ptr
 end
 
@@ -327,7 +327,7 @@ module Array_f64_1d = struct
   type t = futhark_array
 
   type kind = (float, Bigarray.float64_elt) Bigarray.kind
-  
+
   let kind = Bigarray.float64
 
   let free ctx ptr =
@@ -338,7 +338,7 @@ module Array_f64_1d = struct
 
   let cast x =
     coerce (ptr void) (ptr double) (to_voidp x)
-  
+
   let v ctx ba =
     check_use_after_free `context ctx.Context.context_free;
     let dims = Genarray.dims ba in
@@ -398,7 +398,7 @@ module Array_f64_1d = struct
     { ptr = Ctypes.allocate ~finalise:(free ctx) (Ctypes.ptr Ctypes.void) ptr; ctx; shape }
 
   let free t = free t.ctx t.ptr
-    
+
   let _ = of_ptr
 end
 
