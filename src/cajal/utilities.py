@@ -264,7 +264,7 @@ def write_npz(
 ) -> list[tuple[str, Err[T]]]:
     """
     Write the stream to an npz file. This writing method keeps all data in memory
-    at one time so it may be inappropriate for situtations where the point clouds are
+    at one time so it may be inappropriate for situations where the point clouds are
     large or there are many cells.
 
     :param sidelength: The side length of all matrices in dist_mats.

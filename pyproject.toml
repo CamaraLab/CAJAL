@@ -120,4 +120,4 @@ skip = '.git*,*.css,pyproject.toml,data,swc,*.swc,obj,*.obj,*.pyi,*.c'
 check-hidden = true
 # embedded images into jupyter notebooks, acronyms and names starting with capital letter
 ignore-regex = '(^\s*"image/\S+": ".*|\b([A-Z][a-zA-Z]+|scl/fo/|ser: Series|ot\.lp|networkx\.algorithms\.mis)\b)'
-ignore-words-list = 'coo'
+ignore-words-list = 'coo,ot'

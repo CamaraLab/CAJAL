@@ -194,7 +194,7 @@ transport plan will keep at least fraction "mass_kept" of the mass. This will
 add some overhead to the algorithm because of the time to
 compute the GW values.""",
         "",
-        """:param mass_kept: A real number between 0 and 1, the minumum fraction of mass
+        """:param mass_kept: A real number between 0 and 1, the minimum fraction of mass
     to be preserved by UGW transport plans between two cells in the same neighborhood.""",
         _eps_docstring,
         """:param dmats: An array of squareform distance matrices of shape (k,n,n),
