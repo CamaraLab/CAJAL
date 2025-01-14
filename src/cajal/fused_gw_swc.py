@@ -262,7 +262,9 @@ def _fused_gromov_wasserstein_estimate_costs(
     a, b = zip(*ell)
     a = np.array(a)
     b = np.array(b)
-    return np.max(b[a <= np.quantile(a, quantile)])
+    return np.quantile(b, quantile)
+
+    # return np.max(b[a <= np.quantile(a, quantile)])
 
 
 def fused_gromov_wasserstein_parallel(
@@ -362,7 +364,7 @@ def fused_gromov_wasserstein_parallel(
             penalty_dictionary[key] = (
                 penalty_dictionary[key] * worst_case_gw_increase / estimate
             )
-
+            print(penalty_dictionary[key])
         worst_case_gw_increase = None
         # A bit confusing but this controls the *dynamic* estimation
         # of weights, and we don't want to estimate them dynamically.
