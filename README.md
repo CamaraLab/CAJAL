@@ -52,4 +52,4 @@ The ```-p``` flag controls the port number on local host. For example, writing `
 Extensive documentation, including several tutorials, can be found in [CAJAL's readthedocs.io website](https://cajal.readthedocs.io/en/latest/index.html).
 
 ## New in this release
-Version 1.0.5 of CAJAL incorporates two significant new pieces of functionality for the analysis of neuron morphology, unbalanced Gromov-Wasserstein (a matching tool which allows for partial or incomplete matches) and fused Gromov-Wasserstein (a tool which allows the incorporation of additional feature data about neuron nodes, e.g., soma or dendrite.)
+Version 1.5 of CAJAL incorporates two significant new pieces of functionality for the analysis of neuron morphology, unbalanced Gromov-Wasserstein (a matching tool which allows for partial or incomplete matches) and fused Gromov-Wasserstein (a tool which allows the incorporation of additional feature data about neuron nodes, e.g., soma or dendrite.)
