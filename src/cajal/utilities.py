@@ -335,7 +335,7 @@ def louvain_clustering(
     graph = nx.convert_matrix.from_numpy_array(adj_mat)
     # louvain_clus_dict is a dictionary whose keys are nodes of `graph` and whose
     # values are natural numbers indicating communities.
-    louvain_clus_dict = community_louvain.best_partition(graph)
+    louvain_clus_dict = community_louvain.best_partition(graph, randomize=False)
     louvain_clus = np.array([louvain_clus_dict[x] for x in range(gw_mat.shape[0])])
     return louvain_clus
 
