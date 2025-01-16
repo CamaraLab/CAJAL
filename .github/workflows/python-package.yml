@@ -129,6 +129,8 @@ jobs:
         pytest --cov src/ tests/
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
+      env:
+        CODECOV_TOKEN: a0dcb126-2254-41b3-9a99-512f983d3abc
 
   release:
     needs: build_wheels
