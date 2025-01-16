@@ -1,5 +1,5 @@
-from cajal.run_gw import compute_gw_distance_matrix
-from cajal.utilities import (
+from src.cajal.run_gw import compute_gw_distance_matrix
+from src.cajal.utilities import (
     read_gw_dists,
     read_gw_couplings,
     cell_iterator_csv,

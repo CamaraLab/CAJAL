@@ -1,6 +1,6 @@
 import os
-from cajal.sample_swc import compute_icdm_all_euclidean, compute_icdm_all_geodesic
-from cajal.fused_gw_swc import fused_gromov_wasserstein_parallel
+from src.cajal.sample_swc import compute_icdm_all_euclidean, compute_icdm_all_geodesic
+from src.cajal.fused_gw_swc import fused_gromov_wasserstein_parallel
 
 
 def test_fgw_par():

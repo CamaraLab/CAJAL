@@ -1,4 +1,4 @@
-from cajal.ternary import two_d_projection
+from src.cajal.ternary import two_d_projection
 from scipy.spatial.distance import pdist
 
 import numpy as np

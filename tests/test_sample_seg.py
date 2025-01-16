@@ -1,4 +1,4 @@
-from cajal.sample_seg import cell_boundaries, compute_icdm_all
+from src.cajal.sample_seg import cell_boundaries, compute_icdm_all
 import tifffile
 import os
 

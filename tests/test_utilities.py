@@ -1,4 +1,4 @@
-from cajal.utilities import (
+from src.cajal.utilities import (
     read_gw_dists,
     dist_mat_of_dict,
     read_gw_couplings,
