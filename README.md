@@ -53,3 +53,10 @@ Extensive documentation, including several tutorials, can be found in [CAJAL's r
 
 ## New in this release
 Version 1.5 of CAJAL incorporates two significant new pieces of functionality for the analysis of neuron morphology, unbalanced Gromov-Wasserstein (a matching tool which allows for partial or incomplete matches) and fused Gromov-Wasserstein (a tool which allows the incorporation of additional feature data about neuron nodes, e.g., soma or dendrite.)
+These are discussed in detail in the documentation [in a worked example tutorial](https://cajal.readthedocs.io/en/stable/notebooks/Example_5.html) and, at a more theoretical level, [here](https://cajal.readthedocs.io/en/stable/gw_variants.html).
+
+- Cleaned up function signatures - making function signatures more uniform between Euclidean and geodesic functions, removing unused parameters
+- Removed source of nondeterminism/non-reproducibility in Louvain clustering algorithm
+- Added optional dependencies for usage in the Docker image
+- Restored parallelism to SWC sampling
+- Fixed bug in implementation of Weighted Nearest Neighbors algorithm

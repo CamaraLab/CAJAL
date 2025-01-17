@@ -155,6 +155,7 @@ We let :math:`(X,\mu)`, :math:`(Y,\nu)` and :math:`\mathcal{G}`` be as before.
 Classical Gromov-Wasserstein treats cells purely geometrically, as shapes. In searching for good alignments between two neurons, it doesn't consider some important information present in cell morphology reconstructions, such as the labels for the soma and dendrite nodes.
 On biological grounds, it is reasonable to argue that a "good alignment" between two neurons should align the soma node to the soma node, align axon to axon, basal dendrites to basal dendrites, and apical dendrites to apical dendrites. Fused Gromov-Wasserstein is a construct
 which modifies classical Gromov-Wasserstein to add a penalty term for transport plans which align nodes of different types. By making the penalty term large, we can bias the search algorithm towards transport plans which reflect the additional information available in the cell structure.
+For more details please see the [Fused Gromov-Wasserstein paper](https://arxiv.org/abs/1811.02834) due to Vayer, Chapel, Flamary et. al.
 
 The formula for the fused GW cost of a transport plan is
 
