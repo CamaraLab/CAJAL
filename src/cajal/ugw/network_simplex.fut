@@ -32,12 +32,14 @@ module network_simplex(M : network_simplex_context) = {
   type index = M.tree.index -- our index type will be the same as the given implementation of the tree
   type t = N.t
   type direction = #up | #down
-  type ns_tree [n] =		-- The full state of a tree consists of
+  type ns_tree [n][k] =		-- The full state of a spanning tree consists of
     (M.tree.structure[n], -- the isomorphism type of the graph
      M.tree.data [n] direction, -- the orientation of the arc relative to its parent
      M.tree.data [n] N.t, -- the computed node potentials at each node
-     M.tree.data [n] N.t -- the flow through the edge above each point (oriented from root downward)
+     M.tree.data [n] N.t, -- the flow through the edge above each point (oriented from root downward)
+     [k]M.edge -- all other edges in the graph which aren't present in the tree
     )
+  
 
   import "lib/github.com/diku-dk/sorts/radix_sort"
   import "lib/github.com/diku-dk/segmented/segmented"
@@ -58,7 +60,7 @@ module network_simplex(M : network_simplex_context) = {
     let contiguous_streak_start_flag =
       let b_upshift = spread n b[0] (map (+1) (0..<n)) b :> [n]bool in
       map2 xor b b_upshift
-    in      
+    in
     -- I think this is correct but it seems less readable so I deleted it.
     -- let diffs = ([false] ++ map2 xor (map (\i -> b[i]) (0..<(n-1)))
     -- 	       (map (\i -> b[i+1]) (0..<(n-1)))) :> [n]bool in 
@@ -183,7 +185,7 @@ module network_simplex(M : network_simplex_context) = {
 
   def argmin 'a : (f : a -> t) = reduce1 (\x y -> if (f x) N.<= (f y) then x else y)
 
-  def dantzig_elimination_rule [n][k][l] (edges : (M.node, M.node)[n]) (G : M.graph[k] )
+  def dantzig_elimination_rule [n][k][l] (edges : (M.node, M.node)[n]) (G : M.graph[k])
        -- (current_tree : M.tree.structure[l] )
        (node_potentials : M.tree.data[l]) =
     let c_pi i j = N.(M.cost G i j - M.tree.get i + M.tree.get j)

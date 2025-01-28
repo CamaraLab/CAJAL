@@ -117,26 +117,32 @@ module tree : tree = tree_impl
 
 module type WeightedDiGraph = {
   module N : numeric
+  type node_index
   type node
-  -- This signature allows us some flexibility.
-  -- graph[k] might be, for example, the type of
-  -- k x k matrices, where there is an edge weight coded
-  -- in the matrix at each entry.
-  -- Or, graph could be vacuous,
-  -- in the case where the node type is something concrete
-  -- (like triples in Euclidean space)
-  -- and the cost function can be directly computed from
-  -- this information (i.e., Euclidean distance)
+  type edge
+  val source : edge -> node_index
+  val target : edge -> node_index
   type graph [k]
-  val cost[k]: graph[k] -> node -> node -> N.t
+  val get[k] : graph[k] -> node_index -> node
+  val cost[k] : graph[k] -> edge -> N.t					 
 }
 
--- module WeightedDiGraph_impl = {
---   module N = i64
---   type node = i64
---   type arc = i64
---   -- type cost_data [n] = i64
---   def cost (i: arc) = i
--- }
-
--- module WeightedDigraph : WeightedDiGraph = WeightedDiGraph_impl
+module WeightedDiGraph_Example : WeightedDiGraph = {
+  module N = float64
+  type node_index = i64
+  type node = (float64, float64, float64)
+  type edge = (node_index, node_index)
+  def source (x, _) = x
+  def target (_, y) = y
+  type graph[k] = [k]node
+  def get[k] (g : graph[k]) (i : node_index) = g[i]
+  def cost[k] (g : graph[k]) ((i,j): edge) =
+    let (x1, y1, z1) = node[i] in 
+    let (x2, y2, z2) = node[i] in
+    N.(
+      let dX = x1 - x2 in
+      let dY = y1 - y2 in
+      let dZ = z1 - z2 in
+      sqrt (dX * dX + dY * dY + dZ * dZ)
+    )
+}
