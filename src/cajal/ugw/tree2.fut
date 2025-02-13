@@ -52,6 +52,12 @@ module type tree = {
   -- tree should all have value equal to their original value.
   val bottom_up_scan [n] 'a : (a -> a -> a) -> a ->
     structure [n] -> data [n] a -> data [n] a
+
+  -- | A vector of node depths starting at 1.
+  -- If it is more convenient to start indexing at 0
+  -- then you can just map (\x -> x-1)
+  -- across the node depths.
+  val depth [n] : structure [n] -> data [n] i32
 }
 
 module tree_impl = {
@@ -106,14 +112,13 @@ module tree_impl = {
       loop (V, P) for _i < 64 - i64.clz n do
 	bottom_up_scan_step op ne root V P
     in V'
+
+  def depth [n] (structure: structure[n]) : data[n] i32 =
+    let const1 = of (\_ -> 1) structure in
+    top_down_scan (i32.+) structure const1
 }
 
 module tree : tree = tree_impl
-
--- module Make_tree (tree: tree) = {
---   open tree
-
--- }
 
 module type WeightedDiGraph = {
   module N : numeric
