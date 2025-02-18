@@ -3,7 +3,7 @@ import "initial_transport_plan"
 
 module type network_simplex_context = {
   module tree : tree
-  include WeightedDiGraph with node = tree.index, edge = (node,node)
+  include WeightedDiGraph with node = tree.index with edge = (node,node)
 
   val num_bits : i32
   val get_bit : i32 -> N.t -> i32
@@ -24,7 +24,7 @@ module network_simplex(M : network_simplex_context) = {
   -- the flow through the edge above each point
   -- (oriented from root downward)
   -- all other edges in the graph which aren't present in the tree
-  
+
   type ns_tree [n][k] = {
       parents : M.tree.structure[n];
       dir : M.tree.data[n] direction;
@@ -80,9 +80,9 @@ module network_simplex(M : network_simplex_context) = {
     let c_pi i j = N.(M.cost G i j -
 		      M.tree.get i node_potentials
 		      + M.tree.get j node_potentials)
-    in 
+    in
     argmin (uncurry c_pi) edges
-    
+
   module Update = {
 
   -- Given indices i0 and j0 coding the new edge to be added,
@@ -95,7 +95,7 @@ module network_simplex(M : network_simplex_context) = {
 
   -- Absorb some of the boilerplate code and case analysis.
   def get_cycle_info_helper ns_tree (i: index) above_i replacement_edge flow_bound =
-    let x = M.tree.get i ns_tree.edge_flows in 
+    let x = M.tree.get i ns_tree.edge_flows in
     match M.tree.get i ns_tree.dir case
       #up -> if above_i && N.(x < flow_bound) then (i, above_i, x)
 	     else (replacement_edge, above_i, flow_bound)
@@ -103,7 +103,7 @@ module network_simplex(M : network_simplex_context) = {
 	     else (replacement_edge, above_i, flow_bound)
 
   def get_cycle_info ns_tree (i0: index) (j0: index) =
-    let initial_flow_bound = N.highest in 
+    let initial_flow_bound = N.highest in
     let initial_replacement_edge = i0 in -- This value should be meaningless/arbitrary.
     let initial_above_i = true in -- This value should be meaningless/arbitrary.
     -- If the algorithm is correct, the outcome of this function should
@@ -116,19 +116,19 @@ module network_simplex(M : network_simplex_context) = {
 	M.tree.get i ns_tree.depth > M.tree.get j0 ns_tree.depth
       do
 	(M.tree.parent ns_tree.parents i,
-	 
+
 	 )
 
 
 
-    
+
     let (i, (flow_bound, replacement_edge))
     = loop (i, (flow_bound, replacement_edge)) =
 	(i0, (initial_flow_bound, initial_replacement_edge))
       while
 	M.tree.get i ns_tree.depth > M.tree.get j0 ns_tree.depth
       do
-	
+
 
     in
     let (j, (flow_bound, replacement_edge, above_i))
@@ -147,7 +147,7 @@ module network_simplex(M : network_simplex_context) = {
 	 ))
     in
   -- depth i = depth j.
-  let (i, j, flow_bound, replacement_edge, above_i) = 
+  let (i, j, flow_bound, replacement_edge, above_i) =
     loop (i, j, flow_bound, replacement_edge, above_i) =
       (i, j, flow_bound, replacement_edge, above_i)
     while i != j do
@@ -167,7 +167,7 @@ module network_simplex(M : network_simplex_context) = {
 		  else
 		    (flow_bound, replacement_edge, above_i)
       )
-    in 
+    in
     (
       M.tree.parent ns_tree.parents i,
       M.tree.parent ns_tree.parents j,
@@ -225,9 +225,9 @@ module network_simplex(M : network_simplex_context) = {
        (i0: index)
        flow_bound
        w
-       above_i = 
+       above_i =
       while i != w do
-      let new_flows = M.tree.set flows i 
+      let new_flows = M.tree.set flows i
 	match M.tree.get dir i case
 	  #up -> if above_i then N.(M.tree.get flows i - flow_bound)
 		 else N.(M.tree.get flows i + flow_bound)
@@ -242,8 +242,8 @@ module network_simplex(M : network_simplex_context) = {
        (parents: *M.tree.structure[])
        (dir: *M.tree.data[] direction)
        (flows: *M.tree.data[] N.t)
-       (i0: index) (j0: index) 
-       w flow_bound replacement_edge above_i = 
+       (i0: index) (j0: index)
+       w flow_bound replacement_edge above_i =
     if above_i then
     let (i, parents, dir, flows) =
       update_tree_and_reverse parents dir flows i0 flow_bound replacement_edge true in
@@ -267,7 +267,7 @@ module network_simplex(M : network_simplex_context) = {
     --    (flows: *M.tree.data[] N.t)
     --    (i0: index) w flow_bound replacement_edge =
 
-    -- let (i, _, _, _, parents, dir, depths)= 
+    -- let (i, _, _, _, parents, dir, depths)=
     -- loop (i, child, child_dir, child_flow,
     -- 	  parents : (*M.tree.structure[]),
     -- 	  dir : (*M.tree.data[] direction),
@@ -290,7 +290,7 @@ module network_simplex(M : network_simplex_context) = {
     -- potentials = potentials, depths = depths, flows = new_flows}
     --  })
     -- in
-    -- let (_, flows) = 
+    -- let (_, flows) =
     --   loop (i, flows) = (i, flows)
     --   while i != w do
     --   let new_flows = match M.tree.get dir i case
