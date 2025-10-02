@@ -37,6 +37,7 @@ pexpect==4.9.0
 pillow==11.0
 platformdirs==4.2.2
 potpourri3d==1.1.0
+POT==0.9.5
 pox==0.3.4
 ppft==1.7.6.8
 prompt_toolkit==3.0.47
