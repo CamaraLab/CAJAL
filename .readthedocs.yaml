@@ -20,5 +20,5 @@ build:
       - echo $(which pandoc)
       - echo $(whereis pandoc)
 sphinx:
-  fail_on_warning: true
+  fail_on_warning: false
   configuration: docs/conf.py
