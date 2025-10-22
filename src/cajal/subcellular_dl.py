@@ -1,0 +1,1703 @@
+import os
+import random
+import itertools as it
+import numpy as np
+import skimage as ski
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torchvision.models as models
+import torchvision.transforms.functional as TF
+import torchvision.transforms.v2 as transforms
+from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
+import pickle
+
+from .subcellular import make_cell_image, to_shape
+
+def resize_cell_image(image, target_shape):
+    """
+    Resize a 3-channel cell image with appropriate interpolation for each channel.
+
+    Uses bilinear interpolation for probability channels and nearest neighbor 
+    for binary mask channels to preserve the discrete nature of segmentation masks.
+
+    Parameters
+    ----------
+    image : numpy.ndarray
+        Input image of shape (H, W, 3) where channel 0 is probability/intensity,
+        channels 1 and 2 are binary masks.
+    target_shape : tuple of int
+        Target shape as (height, width) for the resized image.
+
+    Returns
+    -------
+    numpy.ndarray
+        Resized image of shape (target_shape[0], target_shape[1], 3) with
+        appropriate interpolation applied to each channel.
+    """
+    out = np.zeros((target_shape[0], target_shape[1], image.shape[2]), dtype=image.dtype)
+    # Probability channel (bilinear)
+    out[:,:,0] = ski.transform.resize(image[:,:,0], target_shape, order=1, preserve_range=True, anti_aliasing=True)
+    # Binary channels (nearest neighbor)
+    out[:,:,1] = ski.transform.resize(image[:,:,1], target_shape, order=0, preserve_range=True, anti_aliasing=False)
+    out[:,:,2] = ski.transform.resize(image[:,:,2], target_shape, order=0, preserve_range=True, anti_aliasing=False)
+    return out
+
+
+def major_axis_pca_with_center(mask, center):
+    """
+    Compute the major axis of a binary mask using PCA with a specified center point.
+
+    Performs principal component analysis on the mask pixels relative to a given 
+    center point to determine the major axis of the shape. The axis orientation 
+    is normalized to point toward the side with more mass distribution.
+
+    Parameters
+    ----------
+    mask : numpy.ndarray
+        2D binary mask where non-zero values indicate the region of interest.
+    center : tuple of float
+        Center point as (y, x) coordinates to use for PCA computation 
+        (e.g., nucleus centroid).
+
+    Returns
+    -------
+    tuple
+        major_axis_vector : numpy.ndarray
+            Unit vector representing the major axis direction as [dy, dx].
+        angle : float
+            Angle in radians relative to the x-axis, with consistent orientation 
+            toward the side with more mass.
+    """
+    yx = np.argwhere(mask > 0)
+    yx_centered = yx - np.array(center)  # center at nucleus
+    if len(yx_centered) < 2:
+        return np.array([1, 0]), 0.0  # default axis
+    cov = np.cov(yx_centered, rowvar=False)
+    eigvals, eigvecs = np.linalg.eig(cov)
+    major_axis = eigvecs[:, np.argmax(eigvals)]
+    # Ensure consistent orientation: major axis points toward side with more mass
+    projections = yx_centered @ major_axis
+    if projections.sum() < 0:
+        major_axis = -major_axis
+    angle = np.arctan2(major_axis[1], major_axis[0])  # angle w.r.t. x-axis
+    return major_axis, angle
+
+
+def align_image(image, center='cell', cell_mask_channel=1, nucleus_channel=2):
+    """
+    Center and align a 3-channel cell image based on morphological features.
+
+    Centers the image based on the centroid of the largest labeled object and 
+    rotates it to align the major axis horizontally. The image is padded as 
+    needed and trimmed to remove empty borders.
+
+    Parameters
+    ----------
+    image : numpy.ndarray
+        Input image of shape (H, W, 3) containing cell imaging data.
+    center : str, optional
+        Centering method: 'cell' to center on cell mask, 'nucleus' to center 
+        on nucleus mask. Default is 'cell'.
+    cell_mask_channel : int, optional
+        Index of the cell mask channel. Default is 1.
+    nucleus_channel : int, optional
+        Index of the nucleus mask channel. Default is 2.
+
+    Returns
+    -------
+    numpy.ndarray
+        Centered and rotated image, possibly larger than input due to padding 
+        and rotation operations.
+    """
+    # Center based on largest labeled cell/nucleus object
+    if center == 'cell':
+        mask = image[..., cell_mask_channel]
+    elif center == 'nucleus':
+        mask = image[..., nucleus_channel]
+    else:
+        raise ValueError("center must be 'cell' or 'nucleus'")
+    labeled_objects = ski.measure.label(mask > 0)
+    object_regions = ski.measure.regionprops(labeled_objects)
+    if not object_regions:
+        print(f'No {center}s found, returning original image.')
+        return image.copy()
+    largest_object = max(object_regions, key=lambda x: x.area)
+    cy, cx = largest_object.centroid  # (y, x)
+    h, w = image.shape[:2]
+    pad_top = int(max(0, (h - cy) - cy))
+    pad_bottom = int(max(0, cy - (h - cy)))
+    pad_left = int(max(0, (w - cx) - cx))
+    pad_right = int(max(0, cx - (w - cx)))
+    padded = np.pad(image, ((pad_top, pad_bottom), (pad_left, pad_right), (0,0)), mode='constant')
+    # pad image to make it square
+    if padded.shape[0] != padded.shape[1]:
+        size = max(padded.shape[:2])
+        pad_h = (size - padded.shape[0]) // 2
+        pad_w = (size - padded.shape[1]) // 2
+        padded = np.pad(padded, ((pad_h, size-padded.shape[0]-pad_h), (pad_w, size-padded.shape[1]-pad_w), (0,0)), mode='constant')
+    # add extra padding to ensure mask is not cropped after rotation
+    pad_extra = int(padded.shape[0] / 2 * (np.sqrt(2) - 1))
+    padded = np.pad(padded, ((pad_extra, pad_extra), (pad_extra, pad_extra), (0,0)), mode='constant')
+    # New centroid after padding
+    new_cy = padded.shape[0]//2
+    new_cx = padded.shape[1]//2
+    # Rotation based on largest labeled cell object
+    cell_mask = padded[..., cell_mask_channel]
+    # Use centroid of largest nucleus for centering, but largest cell for rotation
+    major_axis, angle = major_axis_pca_with_center(cell_mask, (new_cy, new_cx))
+    angle_deg = -np.degrees(angle)
+    rotated_channels = []
+    for c in range(padded.shape[2]):
+        order = 0 if np.array_equal(np.unique(padded[...,c]), [0,1]) else 1
+        rotated = ski.transform.rotate(padded[...,c], angle=angle_deg, center=(new_cy, new_cx), order=order, preserve_range=True)
+        rotated_channels.append(rotated)
+    result = np.stack(rotated_channels, axis=-1)
+    # trim empty borders
+    mask = result[..., cell_mask_channel]
+    if np.any(mask > 0):
+        min_y, min_x = np.array(np.where(mask > 0)).min(axis=1)
+        max_y, max_x = np.array(np.where(mask > 0)).max(axis=1)
+        trim_len = np.min([min_y, min_x, result.shape[0]-max_y, result.shape[1]-max_x])
+        if trim_len > 0:
+            result = result[trim_len:result.shape[0]-trim_len, trim_len:result.shape[1]-trim_len, :]
+    return result
+
+
+def make_NN_training_data(save_path, cell_objects, reference_cell_object, mapped_channel_distributions, channel, center='cell', rescale=True, shape=(64, 64)):
+    """
+    Generate training data from GW_OT_Cell objects for neural network training.
+
+    Creates paired cell images and their corresponding mapped versions for training 
+    deep learning models. Images are aligned, normalized, and saved as numpy arrays.
+
+    Parameters
+    ----------
+    save_path : str
+        Directory path to save processed images. Cell images saved to 
+        '<save_path>/cell_images' and mapped images to '<save_path>/mapped_cell_images'.
+    cell_objects : list
+        List of GW_OT_Cell objects or paths to pickled GW_OT_Cell objects.
+    reference_cell_object : GW_OT_Cell or str
+        Reference cell object or path to pickled reference cell object used 
+        as template for mapped distributions.
+    mapped_channel_distributions : numpy.ndarray
+        Array of mapped protein distributions for each cell.
+    channel : str
+        Channel name to use for image processing.
+    center : str, optional
+        Centering method for image alignment: 'cell' or 'nucleus'. Default is 'cell'.
+    rescale : bool, optional
+        Whether to rescale images to a fixed size. Default is True.
+    shape : tuple of int, optional
+        Target shape (height, width) for resizing images. Default is (64, 64).
+
+    Returns
+    -------
+    None
+        Images are saved to disk as .npy files.
+    """
+    if not rescale:
+        max_size = 0
+        for cell_object in cell_objects:
+            # Load GW_OT_Cell object if path specified
+            if isinstance(cell_object, str):
+                pickle.load(open(cell_object, 'rb'))
+            cell_image = make_cell_image(cell_object, ['nucleus', channel])
+            cell_image = to_shape(cell_image, (max(cell_image.shape[:2]), max(cell_image.shape[:2]), 3))
+            cell_image = cell_image[:,:,[1,0,2]]
+            cell_image = align_image(cell_image, center=center)
+            max_size = max(max_size, max(cell_image.shape[:2]))
+
+    for i, cell_object in enumerate(cell_objects):
+        # Load GW_OT_Cell object if path specified
+        if isinstance(cell_object, str):
+            pickle.load(open(cell_object, 'rb'))
+        # make image array from cell object
+        cell_image = make_cell_image(cell_object, ['nucleus', channel])
+        mapped_cell_object = reference_cell_object.copy()
+        mapped_cell_object.intensities[channel] = mapped_channel_distributions[i]
+        mapped_cell_image = make_cell_image(mapped_cell_object, ['nucleus', channel])
+        # pad image to square
+        cell_image = to_shape(cell_image, (max(cell_image.shape[:2]), max(cell_image.shape[:2]), 3))
+        mapped_cell_image = to_shape(mapped_cell_image, (max(mapped_cell_image.shape[:2]), max(mapped_cell_image.shape[:2]), 3))
+        # reorder channels: channel, binary cell mask, binary nucleus mask
+        cell_image = cell_image[:,:,[1,0,2]]
+        mapped_cell_image = mapped_cell_image[:,:,[1,0,2]]
+        # align image
+        cell_image = align_image(cell_image, center=center)
+        mapped_cell_image = align_image(mapped_cell_image, center=center)
+        # resize image
+        if not rescale:
+            cell_image = to_shape(cell_image, (max_size, max_size, 3))
+            mapped_cell_image = to_shape(mapped_cell_image, (max_size, max_size, 3))
+        cell_image = resize_cell_image(cell_image, shape)
+        mapped_cell_image = resize_cell_image(mapped_cell_image, shape)
+        # make cell_images & mapped_cell_images directories if they don't exist
+        if not os.path.exists(os.path.join(save_path, 'cell_images')):
+            os.makedirs(os.path.join(save_path, 'cell_images'))
+        if not os.path.exists(os.path.join(save_path, 'mapped_cell_images')):
+            os.makedirs(os.path.join(save_path, 'mapped_cell_images'))
+        # save image
+        np.save(os.path.join(save_path, 'cell_images', f'cell_{i}.npy'), cell_image)
+        np.save(os.path.join(save_path, 'mapped_cell_images', f'mapped_cell_{i}.npy'), mapped_cell_image)
+
+
+class EfficientNetFeatureExtractor(nn.Module):
+    """
+    Feature extractor using EfficientNet backbone for cell image embeddings.
+
+    Adapts a pretrained EfficientNet model to extract fixed-size feature 
+    embeddings from cell images. Handles variable input channel numbers 
+    and resizes inputs to match EfficientNet requirements.
+
+    Parameters
+    ----------
+    embedding_size : int, optional
+        Size of the output embedding vector. Default is 50.
+    input_channels : int, optional
+        Number of input channels in the cell images. Default is 3.
+    efficientnet_type : str, optional
+        Type of EfficientNet architecture to use. Default is 'efficientnet_b0'.
+    pretrained : bool, optional
+        Whether to use pretrained ImageNet weights. Default is True.
+    """
+    def __init__(self, embedding_size=50, input_channels=3, efficientnet_type='efficientnet_b0', pretrained=True):
+        super().__init__()
+        # Load a pretrained EfficientNet
+        efficientnet = getattr(models, efficientnet_type)(pretrained=pretrained)
+        # Determine expected input size from model metadata if available
+        if hasattr(efficientnet, 'default_cfg') and 'input_size' in efficientnet.default_cfg:
+            self.efficientnet_input_size = efficientnet.default_cfg['input_size'][-1]
+        else:
+            self.efficientnet_input_size = 224  # Fallback for older torchvision
+        if input_channels != 3:
+            efficientnet.features[0][0] = nn.Conv2d(input_channels, efficientnet.features[0][0].out_channels,
+                                                    kernel_size=efficientnet.features[0][0].kernel_size,
+                                                    stride=efficientnet.features[0][0].stride,
+                                                    padding=efficientnet.features[0][0].padding,
+                                                    bias=False)
+        self.features = efficientnet.features
+        self.avgpool = efficientnet.avgpool
+        self.fc = nn.Linear(efficientnet.classifier[1].in_features, embedding_size)
+
+    def forward(self, x):
+        """
+        Forward pass through the feature extractor.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (batch_size, channels, height, width).
+
+        Returns
+        -------
+        torch.Tensor
+            Feature embedding tensor of shape (batch_size, embedding_size).
+        """
+        # Always resize input to expected EfficientNet input size
+        if x.shape[2] != self.efficientnet_input_size or x.shape[3] != self.efficientnet_input_size:
+            x = F.interpolate(x, size=(self.efficientnet_input_size, self.efficientnet_input_size), mode='bilinear', align_corners=False)
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.fc(x)
+        return x
+    
+
+class UNetDecoder(nn.Module):
+    """
+    U-Net style decoder for reconstructing images from feature embeddings.
+
+    Implements a decoder network that reconstructs images from compressed 
+    feature embeddings using transposed convolutions and skip connections.
+    The architecture progressively upsamples from a compact representation 
+    back to full image resolution.
+
+    Parameters
+    ----------
+    embedding_size : int, optional
+        Size of the input embedding vector. Default is 50.
+    image_size : int, optional
+        Target output image size (assumed square). Default is 64.
+    out_channels : int, optional
+        Number of output channels in the reconstructed image. Default is 1.
+    """
+    def __init__(self, embedding_size=50, image_size=64, out_channels=1):
+        super().__init__()
+        self.image_size = image_size
+        self.fc = nn.Linear(embedding_size, 128 * (image_size // 8) * (image_size // 8))
+        # Encoder/decoder blocks
+        self.up1 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(64, 64, 3, padding=1), nn.ReLU(),
+            nn.Conv2d(64, 64, 3, padding=1), nn.ReLU()
+        )
+        self.up2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 32, 3, padding=1), nn.ReLU(),
+            nn.Conv2d(32, 32, 3, padding=1), nn.ReLU()
+        )
+        self.up3 = nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2)
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(16, 16, 3, padding=1), nn.ReLU(),
+            nn.Conv2d(16, 16, 3, padding=1), nn.ReLU()
+        )
+        self.final = nn.Conv2d(16, out_channels, 1)
+
+    def forward(self, x):
+        """
+        Forward pass through the U-Net decoder.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input embedding tensor of shape (batch_size, embedding_size).
+
+        Returns
+        -------
+        torch.Tensor
+            Reconstructed image tensor of shape (batch_size, out_channels, 
+            image_size, image_size) with softmax-normalized probability 
+            distributions.
+        """
+        # x: (batch, embedding_size)
+        x = self.fc(x)
+        x = x.view(x.size(0), 128, self.image_size // 8, self.image_size // 8)
+        x = self.up1(x)
+        x = self.conv1(x)
+        x = self.up2(x)
+        x = self.conv2(x)
+        x = self.up3(x)
+        x = self.conv3(x)
+        x = self.final(x)
+        # Output: (batch, out_channels, H, W)
+        x = torch.softmax(x.view(x.size(0), -1), dim=1).view(x.size(0), 1, self.image_size, self.image_size)
+        return x
+
+
+class dGWOTNetwork(nn.Module):
+    """
+    Deep Gromov-Wasserstein Optimal Transport Network.
+    
+    A complete neural network architecture that combines feature extraction, 
+    distance computation, and image reconstruction in a multi-task learning 
+    framework. Designed for learning embeddings that preserve Gromov-Wasserstein 
+    distances between cell morphologies while enabling reconstruction of 
+    protein distributions.
+
+    Parameters
+    ----------
+    input_channels : int, optional
+        Number of input image channels. Default is 3.
+    embedding_size : int, optional
+        Dimensionality of the feature embedding space. Default is 50.
+    image_size : int, optional
+        Size of input/output images (assumed square). Default is 64.
+    """
+    def __init__(self, input_channels=3, embedding_size=50, image_size=64):
+        super().__init__()
+        self.feature_extractor = EfficientNetFeatureExtractor(
+            embedding_size=embedding_size,
+            input_channels=input_channels,
+            efficientnet_type='efficientnet_b4',  
+            pretrained=True
+        )
+        # Only decode the first/protein/probability channel
+        self.feature_decoder = UNetDecoder(embedding_size, image_size)
+        
+    def forward(self, x1, x2, return_embedding=False):
+        """
+        Forward pass through the complete dGWOT network.
+
+        Processes two input images through feature extraction, computes their 
+        embedding distance, and reconstructs both images. Optionally returns 
+        the intermediate feature embeddings.
+
+        Parameters
+        ----------
+        x1, x2 : torch.Tensor
+            Input image tensors of shape (batch_size, channels, height, width).
+        return_embedding : bool, optional
+            Whether to return intermediate feature embeddings. Default is False.
+
+        Returns
+        -------
+        tuple
+            If return_embedding is False:
+                distance : torch.Tensor
+                    Squared Euclidean distance between embeddings of shape 
+                    (batch_size, 1).
+                uf1, uf2 : torch.Tensor
+                    Reconstructed images of shape (batch_size, 1, height, width).
+            
+            If return_embedding is True:
+                distance : torch.Tensor
+                    Squared Euclidean distance between embeddings.
+                uf1, uf2 : torch.Tensor
+                    Reconstructed images.
+                feat1, feat2 : torch.Tensor
+                    Feature embeddings of shape (batch_size, embedding_size).
+        """
+        # Extract features from both images
+        feat1 = self.feature_extractor(x1)
+        feat2 = self.feature_extractor(x2)
+        # Compute Euclidean distance in embedding space
+        distance = torch.sum((feat1 - feat2) ** 2, dim=1, keepdim=True)
+        # Reconstruct both images from their embeddings
+        uf1 = self.feature_decoder(feat1)
+        uf2 = self.feature_decoder(feat2)
+        # Return: distance, reconstruction1, reconstruction2, copy1, copy2
+        if return_embedding:
+            return distance, uf1, uf2, feat1, feat2
+        else:
+            return distance, uf1, uf2
+        
+
+class PretrainPairedDataset(Dataset):
+    """
+    PyTorch Dataset for pretraining with paired input and target images.
+
+    Loads pairs of numpy arrays for pretraining tasks where each input image 
+    has a corresponding target image. Handles channel dimension reordering 
+    and applies optional transforms.
+
+    Parameters
+    ----------
+    input_files : list of str
+        List of file paths to input image numpy arrays.
+    target_files : list of str
+        List of file paths to target image numpy arrays. Must have same 
+        length as input_files.
+    transform : callable, optional
+        Optional transform to apply to both input and target images.
+        Default is None.
+
+    Raises
+    ------
+    AssertionError
+        If input_files and target_files have different lengths.
+    """
+    def __init__(self, input_files, target_files, transform=None):
+        self.input_files = input_files
+        self.target_files = target_files
+        assert len(self.input_files) == len(self.target_files), 'Input and target directories must have the same number of images.'
+        self.transform = transform
+    
+    def __len__(self):
+        return len(self.input_files)
+    
+    def __getitem__(self, idx):
+        input_img = np.load(self.input_files[idx])
+        target_img = np.load(self.target_files[idx])
+        # Ensure shape is (C, H, W) for torch
+        if input_img.ndim == 2:
+            input_img = input_img[np.newaxis, ...]
+        elif input_img.ndim == 3 and input_img.shape[0] != 3 and input_img.shape[-1] == 3:
+            input_img = np.transpose(input_img, (2, 0, 1))
+        if target_img.ndim == 2:
+            target_img = target_img[np.newaxis, ...]
+        elif target_img.ndim == 3 and target_img.shape[0] != 3 and target_img.shape[-1] == 3:
+            target_img = np.transpose(target_img, (2, 0, 1))
+        if self.transform:
+            input_img = self.transform(input_img)
+            target_img = self.transform(target_img)
+        input_img = torch.from_numpy(input_img).float()
+        target_img = torch.from_numpy(target_img).float()
+        return input_img, target_img
+
+
+def pretrain_model(input_files, target_files, model, save_path=None, model_name="pretrained_model", 
+                  batch_size=64, epochs=10, lr=1e-3, device=None, return_model=True):
+    """
+    Pretrain a model using paired input and target images.
+
+    Performs pretraining of a neural network model using reconstruction loss 
+    between input images and their corresponding targets. Uses KL divergence 
+    loss for probability distributions.
+
+    Parameters
+    ----------
+    input_files : list of str
+        List of file paths to input image numpy arrays.
+    target_files : list of str
+        List of file paths to target image numpy arrays.
+    model : torch.nn.Module
+        Neural network model to pretrain. Must have a forward method that 
+        takes two identical inputs and returns reconstructions.
+    save_path : str, optional
+        Directory path to save the pretrained model. If None, model is not saved.
+        Default is None.
+    model_name : str, optional
+        Name prefix for saved model files. Default is "pretrained_model".
+    batch_size : int, optional
+        Batch size for training. Default is 64.
+    epochs : int, optional
+        Number of training epochs. Default is 10.
+    lr : float, optional
+        Learning rate for the Adam optimizer. Default is 1e-3.
+    device : torch.device, optional
+        Device to run training on. If None, automatically selects GPU 
+        if available. Default is None.
+    return_model : bool, optional
+        Whether to return the trained model. If False, returns None.
+        Default is True.
+
+    Returns
+    -------
+    torch.nn.Module or None
+        The pretrained model if return_model is True, otherwise None.
+    """
+    dataset = PretrainPairedDataset(input_files, target_files)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = model.to(device)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+
+    # Store config for saving (if it's a dGWOTNetwork)
+    config = None
+    if hasattr(model, 'feature_extractor') and hasattr(model, 'feature_decoder'):
+        # Try to extract config from dGWOTNetwork
+        try:
+            input_channels = model.feature_extractor.feature_extractor.features[0][0].in_channels if hasattr(model.feature_extractor, 'feature_extractor') else 3
+            embedding_size = model.feature_extractor.fc.out_features
+            image_size = model.feature_decoder.image_size
+            config = {
+                'input_channels': input_channels,
+                'embedding_size': embedding_size,
+                'image_size': image_size
+            }
+        except:
+            print("Warning: Could not extract model config for saving")
+    
+    # Create save directory if specified
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+    
+    model.train()
+    best_loss = float('inf')
+    
+    for epoch in range(epochs):
+        total_loss = 0
+        progress_bar = tqdm(loader, desc=f"Epoch {epoch+1}/{epochs}")
+        for input_batch, target_batch in progress_bar:
+            input_batch = input_batch.float()
+            target_batch = target_batch.float()
+            if input_batch.ndim == 4 and input_batch.shape[-1] == 3:
+                input_batch = input_batch.permute(0, 3, 1, 2)
+            if target_batch.ndim == 4 and target_batch.shape[-1] == 3:
+                target_batch = target_batch.permute(0, 3, 1, 2)
+            input_batch = input_batch.to(device)
+            target_batch = target_batch.to(device)
+            optimizer.zero_grad()
+            _, recon, _ = model(input_batch, input_batch)
+            # Only reconstruct the first channel (probability/protein) of the target
+            target = target_batch[:, 0:1, :, :]
+            pred = recon[:, 0:1, :, :]
+            loss = kullback_leibler_divergence_loss(target, pred)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item() * input_batch.size(0)
+            progress_bar.set_postfix({'loss': loss.item()})
+        
+        epoch_loss = total_loss / len(dataset)
+        print(f"Epoch {epoch+1}/{epochs}, Loss: {epoch_loss:.6f}")
+        
+        # Save best model if save_path is provided
+        if save_path is not None and epoch_loss < best_loss:
+            best_loss = epoch_loss
+            if config is not None:
+                # Save with config
+                torch.save({
+                    'state_dict': model.state_dict(),
+                    'config': config,
+                    'epoch': epoch + 1,
+                    'loss': epoch_loss
+                }, os.path.join(save_path, f'{model_name}_best.pth'))
+            else:
+                # Save without config (backward compatibility)
+                torch.save(model.state_dict(), os.path.join(save_path, f'{model_name}_best.pth'))
+            print(f'    → New best model saved (loss: {epoch_loss:.6f})')
+    
+    # Save final model if save_path is provided
+    if save_path is not None:
+        if config is not None:
+            torch.save({
+                'state_dict': model.state_dict(),
+                'config': config,
+                'epoch': epochs,
+                'loss': epoch_loss
+            }, os.path.join(save_path, f'{model_name}_final.pth'))
+        else:
+            torch.save(model.state_dict(), os.path.join(save_path, f'{model_name}_final.pth'))
+        print(f'Saved pretrained model to {save_path}/{model_name}_final.pth')
+    
+    return model if return_model else None
+
+
+def kullback_leibler_divergence_loss(y_true, y_pred):
+    """
+    Compute Kullback-Leibler divergence loss for probability distributions.
+
+    Measures how well a predicted probability distribution matches a target 
+    distribution. Used for reconstruction quality assessment when dealing 
+    with normalized protein distributions.
+
+    Parameters
+    ----------
+    y_true : torch.Tensor
+        Target probability distribution tensor.
+    y_pred : torch.Tensor
+        Predicted probability distribution tensor.
+
+    Returns
+    -------
+    torch.Tensor
+        Mean KL divergence loss across the batch.
+
+    Notes
+    -----
+    The KL divergence is computed as: KL(P||Q) = sum(P * log(P/Q))
+    Values are clamped to avoid log(0) numerical issues.
+    """
+    epsilon = 1e-8
+    
+    # Clamp values to avoid log(0)
+    y_true = torch.clamp(y_true, epsilon, 1.0)
+    y_pred = torch.clamp(y_pred, epsilon, 1.0)
+    
+    # Flatten tensors for computation
+    y_true_flat = y_true.view(y_true.size(0), -1)
+    y_pred_flat = y_pred.view(y_pred.size(0), -1)
+    
+    # Compute KL divergence: KL(P||Q) = sum(P * log(P/Q))
+    kl_div = torch.sum(y_true_flat * torch.log(y_true_flat / y_pred_flat), dim=1)
+    return torch.mean(kl_div)
+
+
+def sparsity_constraint_loss(embeddings, sparsity_target=0.1):
+    """
+    Apply KL divergence sparsity constraint to hidden unit activations.
+
+    Encourages sparse representations by penalizing deviations from a target 
+    sparsity level. This regularization helps prevent overfitting and promotes 
+    more interpretable feature representations.
+
+    Parameters
+    ----------
+    embeddings : torch.Tensor
+        Hidden unit activations of shape (batch_size, embedding_dim).
+    sparsity_target : float, optional
+        Desired average activation level for each hidden unit. Default is 0.1.
+
+    Returns
+    -------
+    torch.Tensor
+        Scalar sparsity loss computed as the sum of KL divergences across 
+        all embedding dimensions.
+
+    Notes
+    -----
+    Activations are passed through sigmoid to ensure they're in (0,1) range 
+    before computing the sparsity constraint.
+    """
+    epsilon = 1e-8
+    # Apply sigmoid to ensure activations are in (0,1)
+    activations = torch.sigmoid(embeddings)
+    rho_hat = torch.mean(activations, dim=0)  # (embedding_dim,)
+    rho = torch.full_like(rho_hat, sparsity_target)
+    kl = rho * torch.log((rho + epsilon) / (rho_hat + epsilon)) + \
+         (1 - rho) * torch.log((1 - rho + epsilon) / (1 - rho_hat + epsilon))
+    return torch.sum(kl)
+
+
+def reconstruction_loss(x, uf):
+    """
+    Compute multi-channel reconstruction loss for cell images.
+
+    Applies appropriate loss functions for different channel types:
+    probability distributions use KL divergence, while binary masks 
+    use binary cross-entropy loss.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Original image tensor of shape (batch_size, 3, height, width).
+    uf : torch.Tensor
+        Reconstructed image tensor of same shape as x.
+
+    Returns
+    -------
+    torch.Tensor
+        Combined reconstruction loss across all channels.
+
+    Notes
+    -----
+    - Channel 0: Probability distribution (KL divergence loss)
+    - Channel 1: Binary cell mask (Binary cross-entropy loss)  
+    - Channel 2: Binary nucleus mask (Binary cross-entropy loss)
+    """
+    # Split channels
+    x_prob, x_mask1, x_mask2 = x[:, 0:1, :, :], x[:, 1:2, :, :], x[:, 2:3, :, :]
+    uf_prob, uf_mask1, uf_mask2 = uf[:, 0:1, :, :], uf[:, 1:2, :, :], uf[:, 2:3, :, :]
+
+    # Probability channel: KL divergence
+    kl = kullback_leibler_divergence_loss(x_prob, uf_prob)
+    # Binary mask channels: BCE loss
+    bce1 = F.binary_cross_entropy(uf_mask1, x_mask1)
+    bce2 = F.binary_cross_entropy(uf_mask2, x_mask2)
+    return kl + bce1 + bce2
+
+
+def get_random_pairs(indices, n_pairs):
+    """
+    Generate a random subset of unique pairs from a list of indices.
+
+    Creates all possible unique pairs from the input indices and randomly 
+    samples a specified number of them. Useful for creating training pairs 
+    from a dataset without exhaustive pairwise combinations.
+
+    Parameters
+    ----------
+    indices : array-like
+        List or array of indices to create pairs from.
+    n_pairs : int
+        Number of pairs to randomly sample. If larger than the total 
+        possible pairs, returns all possible pairs.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape (n_pairs, 2) containing randomly selected index pairs.
+    """
+    all_pairs = np.array(list(it.combinations(indices, 2)))
+    if n_pairs > len(all_pairs):
+        n_pairs = len(all_pairs)
+    pair_inds = np.random.choice(len(all_pairs), n_pairs, replace=False)
+    return all_pairs[pair_inds]
+
+
+class IndexedImageDataset(Dataset):
+    """
+    PyTorch Dataset for loading individual cell images by index.
+
+    Simple dataset for loading cell images by index, useful for extracting 
+    embeddings from unique images in a PairedDataset without loading duplicates.
+
+    Parameters
+    ----------
+    image_dir : str
+        Path to directory containing cell image .npy files with naming 
+        convention 'cell_{index}.npy'.
+    indices : list of int
+        List of cell indices to load.
+    transform : callable, optional
+        Transform function to apply to all images. Default is None.
+    """
+    def __init__(self, image_dir, indices, transform=None):
+        self.image_dir = image_dir
+        self.indices = indices
+        self.transform = transform
+    
+    def __len__(self):
+        return len(self.indices)
+    
+    def __getitem__(self, idx):
+        index = self.indices[idx]
+        img_path = os.path.join(self.image_dir, f"cell_{index}.npy")
+        image = np.load(img_path)
+        
+        if self.transform is not None:
+            image = self.transform(image)
+        
+        return image
+
+
+class PairedDataset(Dataset):
+    """
+    PyTorch Dataset for loading paired cell images with distance labels.
+
+    Loads pairs of cell images and their mapped counterparts from numpy files 
+    for training distance-based models. Supports data augmentation and lazy 
+    loading for memory efficiency.
+
+    Parameters
+    ----------
+    image_dir : str
+        Path to directory containing cell image .npy files with naming 
+        convention 'cell_{index}.npy'.
+    mapped_image_dir : str
+        Path to directory containing mapped cell image .npy files with naming 
+        convention 'mapped_cell_{index}.npy'.
+    distances : list of float
+        Distance values corresponding to each image pair for supervised learning.
+    image_pairs : list of tuple
+        List of (index1, index2) tuples specifying which images to pair.
+    transform : callable, optional
+        Transform function to apply to all images. Default is None.
+    augment_transform : callable, optional
+        Additional augmentation transform for data augmentation. Default is None.
+    n_augment : int, optional
+        Number of augmented copies to create for each pair. Default is 1.
+
+    Notes
+    -----
+    The dataset expects file naming conventions:
+    - Cell images: 'cell_{index}.npy' 
+    - Mapped images: 'mapped_cell_{index}.npy'
+    """
+    def __init__(self, image_dir, mapped_image_dir, distances, image_pairs, transform=None, augment_transform=None, n_augment=1):
+        # Store directory paths. Listing all files is no longer needed.
+        self.image_dir = image_dir
+        self.mapped_image_dir = mapped_image_dir
+
+        # The rest of the logic remains the same
+        self.distances = [distance for distance in distances for _ in range(n_augment)]
+        self.image_pairs = [image_pair for image_pair in image_pairs for _ in range(n_augment)]
+        self.transform = transform
+        self.augment_transform = augment_transform
+
+    def __getitem__(self, index):
+        # Get the integer indices for the pair
+        ind_1, ind_2 = self.image_pairs[index]
+        
+        # Dynamically construct the filenames using the indices
+        img_path_1 = os.path.join(self.image_dir, f"cell_{ind_1}.npy")
+        img_path_2 = os.path.join(self.image_dir, f"cell_{ind_2}.npy")
+        mapped_img_path_1 = os.path.join(self.mapped_image_dir, f"mapped_cell_{ind_1}.npy")
+        mapped_img_path_2 = os.path.join(self.mapped_image_dir, f"mapped_cell_{ind_2}.npy")
+
+        # Load the NumPy arrays from the .npy files
+        image_1 = np.load(img_path_1)
+        image_2 = np.load(img_path_2)
+        mapped_image_cell_1 = np.load(mapped_img_path_1)
+        mapped_image_cell_2 = np.load(mapped_img_path_2)
+        
+        # Apply the general transform if it exists
+        if self.transform is not None:
+            image_1 = self.transform(image_1)
+            image_2 = self.transform(image_2)
+            mapped_image_cell_1 = self.transform(mapped_image_cell_1)
+            mapped_image_cell_2 = self.transform(mapped_image_cell_2)
+
+        # Apply the augmentation transform if it exists
+        if self.augment_transform is not None:
+            image_1 = self.augment_transform(image_1)
+            image_2 = self.augment_transform(image_2)
+        
+        distance = self.distances[index]
+
+        return image_1, image_2, mapped_image_cell_1, mapped_image_cell_2, distance
+
+    def __len__(self):
+        # The length is determined by the number of pairs, which is correct
+        return len(self.image_pairs)
+    
+
+class RandomHorizontalRescale(object):
+    """
+    Data augmentation transform that randomly rescales image width.
+
+    Randomly rescales the horizontal axis of cell images to achieve uniform 
+    distribution of cell mask widths. Uses appropriate interpolation methods 
+    for different channel types (bilinear for intensity, nearest for masks).
+
+    Parameters
+    ----------
+    min_relative_width : float, optional
+        Minimum relative width of the cell mask as fraction of image width.
+        Default is 0.1.
+    max_relative_width : float, optional
+        Maximum relative width of the cell mask as fraction of image width.
+        Default is 1.0.
+
+    Notes
+    -----
+    - Channel 0: Resized with bilinear interpolation (intensity/probability)
+    - Other channels: Resized with nearest neighbor interpolation (binary masks)
+    The transform maintains the original image width by padding or cropping after rescaling.
+    """
+    def __init__(self, min_relative_width=0.1, max_relative_width=1.0):
+        assert 0 < min_relative_width <= max_relative_width <= 1.0
+        self.min_relative_width = min_relative_width
+        self.max_relative_width = max_relative_width
+
+    def __call__(self, image):
+        c, h, w = image.shape
+        mask = image[1]  # channel 1 is the segmentation mask
+        mask_inds = (mask > 0).nonzero(as_tuple=False)
+        min_x = mask_inds[:, 1].min().item()
+        max_x = mask_inds[:, 1].max().item()
+        mask_width = max_x - min_x + 1
+
+        # Compute allowed min/max mask widths in pixels
+        min_mask_width = int(self.min_relative_width * w)
+        max_mask_width = int(self.max_relative_width * w)
+        min_mask_width = max(1, min_mask_width)
+        max_mask_width = max(min_mask_width, max_mask_width)
+
+        # Sample target mask width
+        target_mask_width = random.randint(min_mask_width, max_mask_width)
+        scale = target_mask_width / mask_width
+
+        # Compute new width for the whole image
+        new_w = int(round(w * scale))
+        new_w = max(1, new_w)
+
+        # Resize each channel separately, with bilinear for channel 0, nearest for others
+        resized = []
+        for i in range(c):
+            channel = image[i].unsqueeze(0)
+            if i == 0:
+                resized_channel = TF.resize(channel, [h, new_w], interpolation=TF.InterpolationMode.BILINEAR)
+            else:
+                resized_channel = TF.resize(channel, [h, new_w], interpolation=TF.InterpolationMode.NEAREST)
+            resized.append(resized_channel.squeeze(0))
+        image_rescaled = torch.stack(resized, dim=0)
+
+        # Pad or crop to original width
+        if new_w < w:
+            pad = (w - new_w) // 2
+            image_rescaled = TF.pad(image_rescaled, (pad, 0, w - new_w - pad, 0))
+        elif new_w > w:
+            crop = (new_w - w) // 2
+            image_rescaled = image_rescaled[:, :, crop:crop + w]
+        return image_rescaled
+    
+
+def train_dGWOT(train_dataset, valid_dataset, test_dataset, save_path, dataset_name, embedding_size=50, 
+              image_shape=(64,64), batch_size=100, epochs=100, 
+              device=None, learning_rate=0.001, dist_weight=1.0,
+              early_stopping=True, patience=3, weight_decay=1e-5,
+              lr_gamma=0.95, sparsity_weight=0.0, sparsity_target=0.05,
+              pretrained_path=None, show_loss_components=False):
+    """
+    Train the Deep Gromov-Wasserstein Optimal Transport model.
+
+    Trains a dGWOT network using multi-task learning with distance prediction 
+    and image reconstruction objectives. Supports early stopping, learning rate 
+    scheduling, and optional sparsity constraints.
+
+    Parameters
+    ----------
+    train_dataset, valid_dataset, test_dataset : Dataset
+        PyTorch datasets for training, validation, and testing.
+    save_path : str
+        Directory path to save the trained model and checkpoints.
+    dataset_name : str
+        Name prefix for saved model files.
+    embedding_size : int, optional
+        Dimensionality of the feature embedding space. Default is 50.
+    image_shape : tuple of int, optional
+        Shape of input images as (height, width). Default is (64, 64).
+    batch_size : int, optional
+        Batch size for training. Default is 100.
+    epochs : int, optional
+        Maximum number of training epochs. Default is 100.
+    device : torch.device, optional
+        Device for training. If None, automatically selects GPU if available.
+    learning_rate : float, optional
+        Initial learning rate for Adam optimizer. Default is 0.001.
+    dist_weight : float, optional
+        Weight for distance loss vs reconstruction loss in total loss. Default is 1.0.
+    early_stopping : bool, optional
+        Whether to use early stopping based on validation loss. Default is True.
+    patience : int, optional
+        Number of epochs to wait for improvement before stopping. Default is 3.
+    weight_decay : float, optional
+        L2 regularization weight for optimizer. Default is 1e-5.
+    lr_gamma : float, optional
+        Decay factor for exponential learning rate scheduler. Default is 0.95.
+    sparsity_weight : float, optional
+        Weight for sparsity constraint loss. Default is 0.0 (disabled).
+    sparsity_target : float, optional
+        Target sparsity level for hidden activations. Default is 0.05.
+    pretrained_path : str, optional
+        Path to pretrained model weights to initialize from. Default is None.
+    show_loss_components : bool, optional
+        Whether to display individual loss components (distance, reconstruction, 
+        sparsity) during training. Default is False.
+
+    Returns
+    -------
+    tuple
+        model : torch.nn.Module
+            Trained dGWOT model.
+        train_losses : list of float
+            Training loss history.
+        val_losses : list of float
+            Validation loss history.
+    """
+    # Setup device
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Training on device: {device}")
+    
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    input_channels = 3
+    image_size = image_shape[0]
+    model = dGWOTNetwork(input_channels, embedding_size, image_size).to(device)
+    
+    # Store config for saving
+    config = {
+        'input_channels': input_channels,
+        'embedding_size': embedding_size,
+        'image_size': image_size
+    }
+    
+    # Load pretrained weights if provided
+    if pretrained_path is not None and os.path.exists(pretrained_path):
+        print(f"Loading pretrained weights from {pretrained_path}")
+        checkpoint = torch.load(pretrained_path, map_location=device)
+        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['state_dict'], strict=False)
+        else:
+            model.load_state_dict(checkpoint, strict=False)
+
+    # Training setup
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_gamma)
+    best_val_loss = float('inf')
+    patience_counter = 0
+    
+    # Create model directory
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    
+    print(f"Starting training for {epochs} epochs...")
+    
+    train_losses = []
+    val_losses = []
+    # Training loop
+    for epoch in range(epochs):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_samples = 0
+        train_iter = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch+1}/{epochs}", leave=False)
+        for batch_idx, (x1, x2, mapped_x1, mapped_x2, target_dist) in train_iter:
+            x1, x2, mapped_x1, mapped_x2, target_dist = x1.to(device), x2.to(device), mapped_x1.to(device), mapped_x2.to(device), target_dist.to(device)
+            x1 = torch.clamp(x1, 0.0, 1.0)
+            x2 = torch.clamp(x2, 0.0, 1.0)
+            mapped_x1 = torch.clamp(mapped_x1, 0.0, 1.0)
+            mapped_x2 = torch.clamp(mapped_x2, 0.0, 1.0)
+            optimizer.zero_grad()
+            # Forward pass (with embeddings)
+            distance, uf1, uf2, emb1, emb2 = model(x1, x2, return_embedding=True)
+            dist_loss = F.mse_loss(distance.squeeze(), target_dist)
+            mapped_x1_prob = mapped_x1[:, 0:1, :, :]
+            mapped_x2_prob = mapped_x2[:, 0:1, :, :]
+            kl1 = kullback_leibler_divergence_loss(mapped_x1_prob, uf1)
+            kl2 = kullback_leibler_divergence_loss(mapped_x2_prob, uf2)
+            recon_loss = kl1 + kl2
+            # KL sparsity constraint
+            sparsity_loss = sparsity_constraint_loss(emb1, sparsity_target) + sparsity_constraint_loss(emb2, sparsity_target)
+            total_loss = dist_weight * dist_loss + recon_loss + sparsity_weight * sparsity_loss
+            total_loss.backward()
+            optimizer.step()
+            batch_size_actual = x1.size(0)
+            train_loss += total_loss.item() * batch_size_actual
+            train_samples += batch_size_actual
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_samples = 0
+        with torch.no_grad():
+            for x1, x2, mapped_x1, mapped_x2, target_dist in valid_loader:
+                x1, x2, mapped_x1, mapped_x2, target_dist = x1.to(device), x2.to(device), mapped_x1.to(device), mapped_x2.to(device), target_dist.to(device)
+                distance, uf1, uf2 = model(x1, x2)
+                dist_loss = F.mse_loss(distance.squeeze(), target_dist)
+                mapped_x1_prob = mapped_x1[:, 0:1, :, :]
+                mapped_x2_prob = mapped_x2[:, 0:1, :, :]
+                kl1 = kullback_leibler_divergence_loss(mapped_x1_prob, uf1)
+                kl2 = kullback_leibler_divergence_loss(mapped_x2_prob, uf2)
+                recon_loss = kl1 + kl2
+                total_loss = dist_weight * dist_loss + recon_loss
+                batch_size_actual = x1.size(0)
+                val_loss += total_loss.item() * batch_size_actual
+                val_samples += batch_size_actual
+        # Step the learning rate scheduler
+        scheduler.step()
+        # Calculate average losses per pair
+        train_loss /= train_samples
+        val_loss /= val_samples
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        print(f'Epoch {epoch+1:3d}/{epochs}: Train Loss: {train_loss:.6f}, '
+              f'Val Loss: {val_loss:.6f}')
+        
+        if show_loss_components:
+            # check ranges of losses (FOR TESTING)
+            print(f"Distance Loss: {dist_loss.item()}, Reconstruction Loss: {recon_loss.item()}, Sparsity Loss: {sparsity_loss.item()}")
+        
+        # Early stopping and model saving
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            patience_counter = 0
+            
+            # Save best model with config
+            torch.save({
+                'state_dict': model.state_dict(),
+                'config': config
+            }, f'{save_path}/{dataset_name}_best.pth')
+            print(f'    → New best model saved (val_loss: {val_loss:.6f})')
+        else:
+            patience_counter += 1
+            if early_stopping and patience_counter >= patience:
+                print(f'Early stopping at epoch {epoch+1} (patience: {patience})')
+                break
+    
+    # Final test evaluation
+    print("\nEvaluating on test set...")
+    model.eval()
+    test_loss = 0.0
+    test_samples = 0
+    
+    with torch.no_grad():
+        for x1, x2, mapped_x1, mapped_x2, target_dist in test_loader:
+            x1, x2, mapped_x1, mapped_x2, target_dist = x1.to(device), x2.to(device), mapped_x1.to(device), mapped_x2.to(device), target_dist.to(device)
+            distance, uf1, uf2 = model(x1, x2)
+            dist_loss = F.mse_loss(distance, target_dist)
+            mapped_x1_prob = mapped_x1[:, 0:1, :, :]
+            mapped_x2_prob = mapped_x2[:, 0:1, :, :]
+            kl1 = kullback_leibler_divergence_loss(mapped_x1_prob, uf1)
+            kl2 = kullback_leibler_divergence_loss(mapped_x2_prob, uf2)
+            recon_loss = kl1 + kl2
+            total_loss = dist_weight * dist_loss + recon_loss
+            batch_size_actual = x1.size(0)
+            test_loss += total_loss.item() * batch_size_actual
+            test_samples += batch_size_actual
+    
+    test_loss /= test_samples
+    print(f'Final Test Loss: {test_loss:.6f}')
+    
+    # Save final model with config
+    print("\nSaving model...")
+    torch.save({
+        'state_dict': model.state_dict(),
+        'config': config
+    }, f'{save_path}/{dataset_name}_final.pth')
+    print(f'Saved DWE model to {save_path}/{dataset_name}_final.pth')
+    
+    return model, train_losses, val_losses
+
+
+def load_dGWOT_model(checkpoint_path, device=None):
+    """
+    Load a dGWOT model from a checkpoint containing state dict and config.
+    
+    Parameters
+    ----------
+    checkpoint_path : str
+        Path to the checkpoint file containing both state_dict and config.
+    device : torch.device, optional
+        Device to load the model on. If None, uses GPU if available.
+        
+    Returns
+    -------
+    torch.nn.Module
+        Loaded dGWOT model ready for inference or further training.
+    """
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Load checkpoint
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    
+    # Handle different checkpoint formats
+    if isinstance(checkpoint, dict):
+        if 'config' in checkpoint and 'state_dict' in checkpoint:
+            # New format with config
+            config = checkpoint['config']
+            state_dict = checkpoint['state_dict']
+            
+            # Create model with saved config
+            model = dGWOTNetwork(**config)
+            model.load_state_dict(state_dict)
+            
+            print(f"Loaded dGWOT model from {checkpoint_path}")
+            print(f"Config: {config}")
+            
+        elif 'state_dict' in checkpoint:
+            # Old format with just state_dict
+            print("Warning: Loading checkpoint without config. You'll need to specify model parameters manually.")
+            return checkpoint['state_dict']
+        else:
+            # Assume checkpoint is a bare state_dict
+            print("Warning: Loading bare state_dict. You'll need to specify model parameters manually.")
+            return checkpoint
+    else:
+        print("Warning: Unknown checkpoint format.")
+        return checkpoint
+    
+    # Move to device
+    model = model.to(device)
+    
+    return model
+
+
+def extract_embeddings(model, data, batch_size=64, device=None):
+    """
+    Extract latent embeddings from a trained dGWOT model.
+
+    Processes input images through the feature extractor to obtain latent 
+    embeddings. Supports lists/arrays of images, PyTorch datasets, and PairedDatasets.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Trained dGWOT model with a feature_extractor attribute.
+    data : list, numpy.ndarray, torch.utils.data.Dataset, or PairedDataset
+        Input data to extract embeddings from. Can be:
+        - List of numpy arrays with shape (H, W, C)
+        - Single numpy array with shape (N, H, W, C) 
+        - PyTorch Dataset where __getitem__ returns images
+        - PairedDataset (extracts embeddings for unique images only)
+    batch_size : int, optional
+        Batch size for processing. Default is 64.
+    device : torch.device, optional
+        Device to run computation on. If None, uses model's current device.
+
+    Returns
+    -------
+    numpy.ndarray
+        Extracted embeddings of shape (N, embedding_size) where N is the 
+        number of input images.
+    """
+    if device is None:
+        device = next(model.parameters()).device
+    
+    model.eval()
+    embeddings = []
+    
+    # Case 1: PairedDataset - extract embeddings for unique images only
+    if isinstance(data, PairedDataset):
+        # Get all unique image indices from the dataset pairs
+        all_indices = set()
+        for pair in data.image_pairs:
+            all_indices.update(pair)
+        all_indices = sorted(list(all_indices))
+        
+        print(f"Extracting embeddings for {len(all_indices)} unique images from PairedDataset...")
+        
+        # Create dataset for unique images
+        unique_image_dataset = IndexedImageDataset(
+            data.image_dir, 
+            all_indices, 
+            transform=data.transform
+        )
+        
+        # Process the unique image dataset
+        loader = DataLoader(unique_image_dataset, batch_size=batch_size, shuffle=False)
+        with torch.no_grad():
+            for batch in tqdm(loader, desc="Extracting embeddings"):
+                images = batch
+                images = images.to(device)
+                if images.dtype != torch.float32:
+                    images = images.float()
+                
+                # Extract features using the model's feature extractor
+                feats = model.feature_extractor(images)
+                embeddings.append(feats.cpu().numpy())
+        
+        return np.concatenate(embeddings, axis=0)
+    
+    # Case 2: General PyTorch Dataset
+    elif hasattr(data, '__getitem__') and hasattr(data, '__len__') and isinstance(data, Dataset):
+        loader = DataLoader(data, batch_size=batch_size, shuffle=False)
+        with torch.no_grad():
+            for batch in tqdm(loader, desc="Extracting embeddings"):
+                # Handle different dataset return formats
+                if isinstance(batch, (list, tuple)):
+                    # If dataset returns multiple items, take the first (assumed to be images)
+                    images = batch[0]
+                else:
+                    images = batch
+                
+                images = images.to(device)
+                if images.dtype != torch.float32:
+                    images = images.float()
+                
+                # Extract features using the model's feature extractor
+                feats = model.feature_extractor(images)
+                embeddings.append(feats.cpu().numpy())
+        
+        return np.concatenate(embeddings, axis=0)
+    
+    # Case 2: List or numpy array of images
+    # Convert list to numpy array if needed
+    if isinstance(data, list):
+        data = np.stack(data, axis=0)
+    
+    # Ensure data is numpy array with shape (N, H, W, C)
+    if data.ndim == 3:
+        data = data[np.newaxis, ...]  # Add batch dimension
+    
+    n_images = data.shape[0]
+    
+    # Process in batches
+    with torch.no_grad():
+        for i in tqdm(range(0, n_images, batch_size), desc="Extracting embeddings"):
+            batch_end = min(i + batch_size, n_images)
+            batch_images = data[i:batch_end]
+            
+            # Convert to torch tensor and reorder dimensions (N, H, W, C) -> (N, C, H, W)
+            if batch_images.shape[-1] in [1, 3]:  # Channels last
+                batch_tensor = torch.from_numpy(batch_images).permute(0, 3, 1, 2).float()
+            else:  # Assume channels first already
+                batch_tensor = torch.from_numpy(batch_images).float()
+            
+            batch_tensor = batch_tensor.to(device)
+            
+            # Extract features
+            feats = model.feature_extractor(batch_tensor)
+            embeddings.append(feats.cpu().numpy())
+    
+    return np.concatenate(embeddings, axis=0)
+
+
+def predict_distances(model, paired_dataset, batch_size=64, device=None):
+    """
+    Predict distances in latent space for a PairedDataset.
+
+    Extracts embeddings for all unique images in the dataset and computes 
+    pairwise Euclidean distances in the embedding space. This provides 
+    predictions that can be compared against ground truth distances.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Trained dGWOT model with a feature_extractor attribute.
+    paired_dataset : PairedDataset
+        Dataset containing paired images with known distances.
+    batch_size : int, optional
+        Batch size for processing embeddings. Default is 64.
+    device : torch.device, optional
+        Device to run computation on. If None, uses model's current device.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of predicted distances of shape (len(paired_dataset),) 
+        corresponding to each pair in the dataset.
+    """
+    if device is None:
+        device = next(model.parameters()).device
+    
+    # Get all unique image indices from the dataset
+    all_indices = set()
+    for pair in paired_dataset.image_pairs:
+        all_indices.update(pair)
+    all_indices = sorted(list(all_indices))
+    
+    print(f"Extracting embeddings for {len(all_indices)} unique images...")
+    
+    # Create dataset for unique images
+    unique_image_dataset = IndexedImageDataset(
+        paired_dataset.image_dir, 
+        all_indices, 
+        transform=paired_dataset.transform
+    )
+    
+    # Extract embeddings for all unique images
+    embeddings = extract_embeddings(model, unique_image_dataset, batch_size=batch_size, device=device)
+    
+    # Create mapping from image index to embedding index
+    index_to_embedding = {img_idx: emb_idx for emb_idx, img_idx in enumerate(all_indices)}
+    
+    # Compute distances for each pair in the dataset
+    predicted_distances = []
+    
+    print(f"Computing distances for {len(paired_dataset.image_pairs)} pairs...")
+    
+    for pair in tqdm(paired_dataset.image_pairs, desc="Computing pairwise distances"):
+        idx1, idx2 = pair
+        
+        # Get embedding indices
+        emb_idx1 = index_to_embedding[idx1]
+        emb_idx2 = index_to_embedding[idx2]
+        
+        # Get embeddings
+        emb1 = embeddings[emb_idx1]
+        emb2 = embeddings[emb_idx2]
+        
+        # Compute squared Euclidean distance (matching model's training objective)
+        distance = np.sum((emb1 - emb2) ** 2)
+        predicted_distances.append(distance)
+    
+    return np.array(predicted_distances)
+
+
+def plot_distance_predictions(model, paired_dataset, batch_size=64, device=None, figsize=(8, 8), 
+                             return_plot=False, title=None, alpha=0.6, s=20):
+    """
+    Plot predicted vs true distances for a PairedDataset.
+
+    Creates a scatter plot comparing model predictions against ground truth 
+    distances with a diagonal reference line and correlation metrics.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Trained dGWOT model with a feature_extractor attribute.
+    paired_dataset : PairedDataset
+        Dataset containing paired images with known distances.
+    batch_size : int, optional
+        Batch size for processing embeddings. Default is 64.
+    device : torch.device, optional
+        Device to run computation on. If None, uses model's current device.
+    figsize : tuple, optional
+        Figure size as (width, height). Default is (8, 8).
+    return_plot : bool, optional
+        Whether to return the matplotlib figure and axes objects. Default is False.
+    title : str, optional
+        Custom title for the plot. If None, uses default with correlation metrics.
+    alpha : float, optional
+        Transparency of scatter points. Default is 0.6.
+    s : int, optional
+        Size of scatter points. Default is 20.
+
+    Returns
+    -------
+    None or tuple
+        If return_plot is False: displays the plot and returns None.
+        If return_plot is True: returns (fig, ax) matplotlib objects.
+    """
+    # Get predictions
+    predicted_distances = predict_distances(model, paired_dataset, batch_size=batch_size, device=device)
+    true_distances = np.array(paired_dataset.distances)
+    
+    try:
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        
+        # Create the plot
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Scatter plot
+        sns.scatterplot(x=true_distances, y=predicted_distances, alpha=alpha, s=s, ax=ax)
+        
+        # Add diagonal reference line
+        min_val = min(true_distances.min(), predicted_distances.min())
+        max_val = max(true_distances.max(), predicted_distances.max())
+        ax.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.8, linewidth=2, label='Perfect prediction')
+        
+        # Labels and title
+        ax.set_xlabel('True Distances')
+        ax.set_ylabel('Predicted Distances')
+        
+        if title:
+            ax.set_title(title)
+        
+        # Grid and legend
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        
+        if return_plot:
+            return fig, ax
+        else:
+            plt.show()
+            return None
+            
+    except ImportError:
+        print("Matplotlib/Seaborn not available for plotting")
+        return None if not return_plot else (None, None)
+
+
+def plot_reconstruction_comparison(model, paired_dataset, num_images=5, device=None, figsize=None, seed=None):
+    """
+    Plot comparison of original mapped protein images vs model reconstructions.
+
+    Randomly selects different individual images from the dataset, shows the original mapped 
+    protein images in the top row and their reconstructions from the model in 
+    the bottom row.
+
+    Parameters
+    ----------
+    model : torch.nn.Module
+        Trained dGWOT model with reconstruction capabilities.
+    paired_dataset : PairedDataset
+        Dataset containing paired images for reconstruction.
+    num_images : int, optional
+        Number of image pairs to display. Default is 5.
+    device : torch.device, optional
+        Device to run model on. If None, uses model's current device.
+    figsize : tuple, optional
+        Figure size as (width, height). If None, automatically calculated 
+        based on number of images.
+    seed : int, optional
+        Random seed for reproducible image selection. Default is None.
+
+    Returns
+    -------
+    None
+        Displays the plot using matplotlib.
+    """
+    if device is None:
+        device = next(model.parameters()).device
+    
+    # Set random seed if provided
+    if seed is not None:
+        np.random.seed(seed)
+    
+    # Get unique image indices from the dataset pairs
+    all_image_indices = set()
+    for pair in paired_dataset.image_pairs:
+        all_image_indices.update(pair)
+    all_image_indices = list(all_image_indices)
+    
+    # Randomly select unique image indices
+    selected_image_indices = np.random.choice(all_image_indices, size=min(num_images, len(all_image_indices)), replace=False)
+    
+    # Set up the plot
+    if figsize is None:
+        figsize = (3 * num_images, 6)
+    
+    try:
+        import matplotlib.pyplot as plt
+        
+        fig, axes = plt.subplots(2, num_images, figsize=figsize)
+        if num_images == 1:
+            axes = axes.reshape(2, 1)
+        
+        model.eval()
+        
+        with torch.no_grad():
+            for i, img_idx in enumerate(selected_image_indices):
+                # Load the specific image directly by constructing the path
+                img_path = os.path.join(paired_dataset.image_dir, f"cell_{img_idx}.npy")
+                mapped_img_path = os.path.join(paired_dataset.mapped_image_dir, f"mapped_cell_{img_idx}.npy")
+                
+                # Load the numpy arrays
+                image = np.load(img_path)
+                mapped_image = np.load(mapped_img_path)
+                
+                # Apply transforms if they exist
+                if paired_dataset.transform is not None:
+                    image = paired_dataset.transform(image)
+                    mapped_image = paired_dataset.transform(mapped_image)
+                
+                # Convert to tensor and add batch dimension
+                if isinstance(image, np.ndarray):
+                    # Convert from (H, W, C) to (1, C, H, W)
+                    image_tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).float().to(device)
+                else:
+                    # Already a tensor, just add batch dimension and ensure correct device
+                    image_tensor = image.unsqueeze(0).to(device)
+                
+                # Get reconstruction from model
+                _, reconstruction, _ = model(image_tensor, image_tensor)
+                
+                # Extract protein channel (channel 0)
+                if isinstance(mapped_image, np.ndarray):
+                    original_protein = mapped_image[:, :, 0]  # Protein channel
+                else:
+                    original_protein = mapped_image[0].cpu().numpy()  # Protein channel
+                
+                reconstructed_protein = reconstruction[0, 0].cpu().numpy()  # First batch, first (protein) channel
+                
+                # Plot original protein (top row)
+                im1 = axes[0, i].imshow(original_protein, cmap='viridis')
+                axes[0, i].set_title(f'Original Cell {img_idx}')
+                axes[0, i].axis('off')
+                
+                # Plot reconstructed protein (bottom row)
+                im2 = axes[1, i].imshow(reconstructed_protein, cmap='viridis')
+                axes[1, i].set_title(f'Reconstructed Cell {img_idx}')
+                axes[1, i].axis('off')
+        
+        plt.tight_layout()
+        plt.show()
+        
+    except ImportError:
+        print("Matplotlib not available for plotting")
+        return
+    
+    except Exception as e:
+        print(f"Error creating plot: {e}")
+        return
+    
+
+def generate_dataset_split_pairs(indices, n_pairs, proportions=None, seed=None):
+    """
+    Generate cell pairs for dGWOT dataset splits.
+    
+    Creates stratified cell pairs for deep learning model training. Supports both 
+    random sampling across all cells and stratified sampling from predefined groups 
+    to ensure balanced representation across train/validation/test splits.
+    
+    Parameters
+    ----------
+    indices : list or array-like
+        List of available cell indices corresponding to processed cell images.
+    n_pairs : list of int
+        N-length list specifying number of pairs to generate for each dataset split.
+        Typically [n_train_pairs, n_val_pairs, n_test_pairs].
+    proportions : list of float, optional
+        N-length list of proportions that sum to 1.0 for stratified sampling.
+        If provided, cell indices are split into N groups according to these 
+        proportions, and pairs are drawn only within each group. This ensures
+        train/val/test sets use disjoint cell populations. If None, all pairs 
+        are drawn randomly from all available cells. Default is None.
+    seed : int, optional
+        Random seed for reproducible dataset splits. Default is None.
+    
+    Returns
+    -------
+    list of numpy.ndarray
+        N-length list where each element is a 2D array of shape (n_pairs, 2) 
+        containing cell index pairs for each dataset split (train, val, test).
+    """
+    if seed is not None:
+        np.random.seed(seed)
+    
+    indices = np.array(indices)
+    n_groups = len(n_pairs)  # Number of dataset splits (train, val, test)
+    
+    if proportions is not None:
+        if len(proportions) != n_groups:
+            raise ValueError(f"Length of proportions ({len(proportions)}) must match length of n_pairs ({n_groups})")
+        
+        if not np.isclose(sum(proportions), 1.0, rtol=1e-5):
+            raise ValueError(f"Proportions must sum to 1.0, got {sum(proportions)}")
+        
+        # Split cell indices into disjoint groups for train/val/test
+        np.random.shuffle(indices)  # Randomize cell order first
+        n_total = len(indices)
+        
+        group_indices = []
+        start_idx = 0
+        
+        for i, prop in enumerate(proportions[:-1]):  # Handle all but last group
+            group_size = int(np.round(prop * n_total))
+            end_idx = start_idx + group_size
+            group_indices.append(indices[start_idx:end_idx])
+            start_idx = end_idx
+        
+        # Last group gets remaining indices
+        group_indices.append(indices[start_idx:])
+        
+        # Generate pairs within each disjoint cell group (train, val, test)
+        paired_arrays = []
+        for i, group_inds in enumerate(group_indices):
+            n_pairs_for_group = n_pairs[i]
+            if len(group_inds) < 2:
+                raise ValueError(f"Dataset split {i} has only {len(group_inds)} cells, need at least 2 to generate pairs")
+            
+            pairs = get_random_pairs(group_inds, n_pairs_for_group)
+            paired_arrays.append(pairs)
+    
+    else:
+        # Generate all pairs randomly from all cells (overlapping populations)
+        paired_arrays = []
+        for n_pairs_for_group in n_pairs:
+            pairs = get_random_pairs(indices, n_pairs_for_group)
+            paired_arrays.append(pairs)
+    
+    return paired_arrays
