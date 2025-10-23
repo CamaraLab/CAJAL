@@ -260,16 +260,16 @@ class GW_OT_Cell:
     for Gromov-Wasserstein distance computations and optimal transport analysis 
     between cells.
 
-    :param coords : Array of shape (N, 2) containing (x, y) coordinates for each pixel in the cell.
+    :param coords: Array of shape (N, 2) containing (x, y) coordinates for each pixel in the cell.
     :type coords: numpy.ndarray
-    :param boundary_coords : Array of shape (M, 2) containing (x, y) coordinates sampled from the cell boundary. Default is None.
+    :param boundary_coords: Array of shape (M, 2) containing (x, y) coordinates sampled from the cell boundary. Default is None.
     :type boundary_coords: numpy.ndarray or None
-    :param intensities : Dictionary mapping channel names (str) to intensity arrays (numpy.ndarray) 
+    :param intensities: Dictionary mapping channel names (str) to intensity arrays (numpy.ndarray) 
         of length N, where N is the number of cell pixels. Default is None.
     :type intensities: dict or None
-    :param nucleus : Array of length N indicating nuclear identity (0 or 1) for each cell pixel. Default is None.
+    :param nucleus: Array of length N indicating nuclear identity (0 or 1) for each cell pixel. Default is None.
     :type nucleus: numpy.ndarray or None
-    :param metric : Distance metric for computing coordinate distance matrices. Options are 'euclidean', 'geodesic', or None. Default is 'euclidean'.
+    :param metric: Distance metric for computing coordinate distance matrices. Options are 'euclidean', 'geodesic', or None. Default is 'euclidean'.
     :type metric: str or None
     """
     def __init__(self, coords, boundary_coords=None, intensities=None, nucleus=None, metric='euclidean'):
@@ -319,38 +319,34 @@ def process_image(image, channels, cell_mask_image, nucleus_mask_image=None, ds_
     masks to create a list of GW_OT_Cell objects suitable for Gromov-Wasserstein 
     optimal transport analysis.
 
-    :param image : numpy.ndarray
+    :param image: numpy.ndarray
         3D numpy array of shape (H, W, C) representing the multi-channel image.
-    :param channels : list of str
+    :param channels: list of str
         List of channel names corresponding to the last dimension of the image.
-    :param cell_mask_image : numpy.ndarray
+    :param cell_mask_image: numpy.ndarray
         2D numpy array of shape (H, W) with integer labels for each cell 
         (0 for background).
-    :param nucleus_mask_image : numpy.ndarray, optional
+    :param nucleus_mask_image: numpy.ndarray, optional
         2D numpy array of shape (H, W) with integer labels for nuclei 
         (0 for background). Default is None.
-    :param ds_factor : int, optional
+    :param ds_factor: int, optional
         Downsampling factor. If provided, downsample by this factor. 
         Default is None.
-    :param ds_target_size : int, optional
+    :param ds_target_size: int, optional
         Target number of pixels per cell after downsampling. If provided, 
         downsample to achieve this pixel count. Default is None.
-    :param filter_border_cells : bool, optional
+    :param filter_border_cells: bool, optional
         If True, exclude cells touching the image border. Default is True.
-    :param n_boundary_points : int, optional
+    :param n_boundary_points: int, optional
         Number of points to sample from the cell boundary. If None, boundary 
         sampling is skipped. Default is 100.
-    :param save_path : str, optional
+    :param save_path: str, optional
         Directory path to save the processed cell objects as pickle files. 
         If None, objects are not saved. Default is None.
-    :param return_objects : bool, optional
+    :param return_objects: bool, optional
         If True, return the list of GW_OT_Cell objects. Default is True.
-
-    :return
-    -------
-    list of GW_OT_Cell or None
-        If return_objects is True, returns a list of GW_OT_Cell objects; 
-        otherwise returns None.
+    :return: If return_objects is True, returns a list of GW_OT_Cell objects; otherwise returns None.
+    :rtype: list[GW_OT_Cell] or None
     """
     cell_inds = np.unique(cell_mask_image)
     cell_inds = cell_inds[cell_inds > 0]  # Remove background (0)
@@ -411,9 +407,9 @@ def _init_gw_pool(cell_objects: list, points: str):
     This function sets up shared state for multiprocessing workers computing 
     pairwise Gromov-Wasserstein distances.
 
-    :param cell_objects : list
+    :param cell_objects: list
         List of GW_OT_Cell objects or paths to pickled GW_OT_Cell objects.
-    :param points : str
+    :param points: str
         Type of points to use for distance computation. Either 'boundary' 
         for boundary coordinates or 'full' for all cell coordinates.
     """
