@@ -11,12 +11,30 @@ from multiprocessing import Pool, cpu_count
 import itertools as it
 import ot
 import warnings
+import copy
 
 from .sample_seg import cell_boundaries
 from .gw_cython import gw_cython_core
 
 
 def make_cell_image(gw_ot_cell, channels):
+    """Create a multi-channel image array from a GW_OT_Cell object.
+
+    This function generates a 3D image array where the first channel contains 
+    the cell segmentation mask and subsequent channels contain normalized 
+    intensity values for the specified channels.
+
+    :param gw_ot_cell: Either a GW_OT_Cell object or a path to a pickled GW_OT_Cell object.
+    :type gw_ot_cell: GW_OT_Cell or str
+    :param channels: List of channel names to include in the image. Each channel should 
+        correspond to a key in the GW_OT_Cell's intensities dictionary or 
+        be 'nucleus' for nuclear segmentation.
+    :type channels: list[str]
+    :return: 3D array of shape (height, width, len(channels)+1) where the first 
+        channel (index 0) contains the segmentation mask and subsequent 
+        channels contain normalized intensity values (0-1 range).
+    :rtype: numpy.ndarray
+    """
     # Load GW_OT_Cell object if path specified
     if isinstance(gw_ot_cell, str):
         with open(gw_ot_cell, 'rb') as file:
@@ -42,7 +60,21 @@ def make_cell_image(gw_ot_cell, channels):
 
 
 def to_shape(a, shape):
+    """Pad a 3D array to match a target shape.
 
+    Centers the input array within the target shape by adding symmetric 
+    padding with zeros. This is useful for standardizing array dimensions 
+    for visualization or analysis.
+
+    :param a: numpy.ndarray
+        Input 3D array to be padded.
+    :param shape: tuple of int
+        Target shape as (z, y, x) dimensions.
+    :return: numpy.ndarray
+        Padded array with the specified target shape, centered with 
+        zero-padding.
+    :rtype: numpy.ndarray
+    """
     z_, y_, x_ = shape
     z, y, x = a.shape
     z_pad = (z_-z)
@@ -55,6 +87,21 @@ def to_shape(a, shape):
 
 
 def make_cell_image_for_plot(image, mask_alpha=0.2):
+    """Prepare a cell image for visualization by creating an RGB composite.
+
+    Converts a multi-channel cell image into an RGB format suitable for 
+    plotting. Adds a transparent cell mask overlay and reorders channels 
+    to blue-red-green color scheme.
+
+    :param image: Multi-channel cell image with shape (height, width, channels).
+        Channel 0 should contain the cell segmentation mask.
+    :type image: numpy.ndarray
+    :param mask_alpha: Transparency level for the cell mask overlay, by default 0.2.
+    :type mask_alpha: float
+    :return: RGB image array with shape (height, width, 3) suitable for 
+        visualization with channel ordering as blue, red, green.
+    :rtype: numpy.ndarray
+    """
     im = np.zeros((image.shape[0], image.shape[1], 3))
     mask = image[:,:,0].copy()
     for channel_i in range(1, image.shape[2]):
@@ -70,19 +117,33 @@ def make_cell_image_for_plot(image, mask_alpha=0.2):
     return(im)
 
 
-def plot_cell_image(gw_ot_cell, channels, make_square=True, ax=None, mask_alpha = 0.2):
-    """
-    Plots a cell image with the specified channels.
+def plot_cell_image(gw_ot_cell, channels, make_square=True, ax=None, mask_alpha=0.2):
+    """Plot a cell image with the specified channels as an RGB composite.
 
-    Args:
-        gw_ot_cell: The cell object or file path.
-        channels: A list of channels to plot.
-        make_square: Whether to make the plot square.
-        ax: The axes to plot on.
-        mask_alpha: The alpha value for the mask.
+    Creates a visualization of cell image data by combining multiple channels 
+    into an RGB representation with an optional transparent mask overlay.
 
-    Returns:
-        The axes object with the plotted image if ax is specified, else returns None.
+    :param gw_ot_cell: GW_OT_Cell or str
+        Either a GW_OT_Cell object or a path to a pickled GW_OT_Cell object.
+    :type gw_ot_cell: GW_OT_Cell or str
+    :param channels: list of str
+        List of channel names to plot. Maximum of 3 channels allowed.
+        Each channel should correspond to a key in the GW_OT_Cell's 
+        intensities dictionary or be 'nucleus' for nuclear segmentation.
+    :type channels: list[str]
+    :param make_square: bool, optional
+        Whether to pad the image to make it square, by default True.
+    :type make_square: bool
+    :param ax: matplotlib.axes.Axes, optional
+        The matplotlib axes object to plot on. If None, uses current axes.
+    :type ax: matplotlib.axes.Axes or None
+    :param mask_alpha: float, optional
+        Transparency level for the cell mask overlay, by default 0.2.
+    :type mask_alpha: float
+    :return: matplotlib.image.AxesImage or None
+        Returns the AxesImage object if ax is provided, otherwise None.
+    :rtype: matplotlib.image.AxesImage or None
+    :raises ValueError: If more than 3 channels are specified for plotting.
     """
     if len(channels) > 3:
         raise ValueError("Only up to 3 channels can be plotted.")
@@ -98,17 +159,25 @@ def plot_cell_image(gw_ot_cell, channels, make_square=True, ax=None, mask_alpha 
 
 
 def rescale_mask_to_pixel_count(mask, target_pixels, max_iter=20, tolerance=0.01):
-    """
-    Rescale a binary mask to achieve a target number of non-zero pixels using skimage.transform.resize.
-    
-    Args:
-        mask: 2D binary numpy array (0s and 1s)
-        target_pixels: Desired number of non-zero pixels
-        max_iter: Maximum number of scaling iterations (default: 20)
-        tolerance: Acceptable relative error (default: 0.01 for 1%)
-        
-    Returns:
-        Rescaled mask with pixel count close to target, maintaining binary values
+    """Rescale a binary mask to achieve a target number of non-zero pixels.
+
+    Iteratively adjusts the scale factor to resize a binary mask until the 
+    number of non-zero pixels is close to the target value. Uses skimage's 
+    resize function with nearest neighbor interpolation to maintain binary 
+    nature of the mask.
+
+    :param mask : numpy.ndarray
+        2D binary numpy array containing 0s and 1s.
+    :param target_pixels : int
+        Desired number of non-zero pixels in the rescaled mask.
+    :param max_iter : int, optional
+        Maximum number of scaling iterations, by default 20.
+    :param tolerance : float, optional
+        Acceptable relative error as a fraction, by default 0.01 (1%).
+    :return: numpy.ndarray
+        Rescaled binary mask with pixel count close to target, maintaining 
+        binary values (0s and 1s).
+    :rtype: numpy.ndarray
     """
     current_pixels = np.count_nonzero(mask)
     
@@ -150,8 +219,19 @@ def rescale_mask_to_pixel_count(mask, target_pixels, max_iter=20, tolerance=0.01
 
 
 def compute_geodesic_dmat(mask_coords):
-    """
-    Compute geodesic distance matrix for given coordinates within a binary mask.
+    """Compute geodesic distance matrix for given coordinates within a binary mask.
+
+    Calculates the shortest path distances between all pairs of coordinates 
+    that lie within a connected binary mask region. Uses the MCP_Geometric 
+    algorithm from scikit-image to compute geodesic distances.
+
+    :param mask_coords : numpy.ndarray
+        2D array of shape (N, 2) containing (x, y) coordinates of pixels 
+        within the binary mask.
+    :return: numpy.ndarray
+        Symmetric distance matrix of shape (N, N) where element (i, j) 
+        contains the geodesic distance between coordinates i and j.
+    :rtype: numpy.ndarray
     """
     mask_coords[:,0] = mask_coords[:,0] - mask_coords[:,0].min()
     mask_coords[:,1] = mask_coords[:,1] - mask_coords[:,1].min()
@@ -170,14 +250,42 @@ def compute_geodesic_dmat(mask_coords):
 
 
 class GW_OT_Cell:
-    """
-    Represents a cell in the GW-OT framework.
+    """A cell representation for Gromov-Wasserstein Optimal Transport analysis.
 
-    Args:
-        coords: list of (x, y) tuples for each pixel in the cell
-        boundary_coords: list of (x, y) tuples sampled from the cell boundary
-        intensities: dict mapping channel names to pixel intensity arrays
-        nucleus: array or list indicating nuclear identity for each cell pixel
+    This class encapsulates cell morphology and intensity information needed 
+    for Gromov-Wasserstein distance computations and optimal transport analysis 
+    between cells.
+
+    :param coords : numpy.ndarray
+        Array of shape (N, 2) containing (x, y) coordinates for each pixel 
+        in the cell.
+    :param boundary_coords : numpy.ndarray, optional
+        Array of shape (M, 2) containing (x, y) coordinates sampled from 
+        the cell boundary. Default is None.
+    :param intensities : dict, optional
+        Dictionary mapping channel names (str) to intensity arrays (numpy.ndarray) 
+        of length N, where N is the number of cell pixels. Default is None.
+    :param nucleus : numpy.ndarray, optional
+        Array of length N indicating nuclear identity (0 or 1) for each 
+        cell pixel. Default is None.
+    :param metric : str, optional
+        Distance metric for computing coordinate distance matrices. Options 
+        are 'euclidean', 'geodesic', or None. Default is 'euclidean'.
+
+    :ivar coords: Cell pixel coordinates.
+    :vartype coords: numpy.ndarray
+    :ivar boundary_coords: Cell boundary coordinates.
+    :vartype boundary_coords: numpy.ndarray or None
+    :ivar coord_dmat: Distance matrix between all cell pixel coordinates.
+    :vartype coord_dmat: numpy.ndarray or None
+    :ivar boundary_coord_dmat: Distance matrix between boundary coordinates.
+    :vartype boundary_coord_dmat: numpy.ndarray or None
+    :ivar intensities: Channel intensity information.
+    :vartype intensities: dict
+    :ivar nucleus: Nuclear segmentation information.
+    :vartype nucleus: numpy.ndarray or None
+    :ivar size: Number of pixels in the cell.
+    :vartype size: int
     """
     def __init__(self, coords, boundary_coords=None, intensities=None, nucleus=None, metric='euclidean'):
         self.coords = coords
@@ -187,7 +295,7 @@ class GW_OT_Cell:
             self.boundary_coord_dmat = None
         elif metric == 'geodesic':
             self.coord_dmat = compute_geodesic_dmat(self.coords)
-            self.boundary_coord_dmat = None
+            self.boundary_coord_dmat = squareform(pdist(boundary_coords, metric=metric)) if boundary_coords is not None else None
             # if boundary_coords is not None:
             #     warnings.warn("Geodesic distance matrix cannot be computed for cell boundary coordinates, ignoring.")
         else:
@@ -198,35 +306,66 @@ class GW_OT_Cell:
         self.size = len(coords)
 
     def copy(self):
-        copy = GW_OT_Cell(
+        """Return a deep copy of the GW_OT_Cell instance.
+
+        Returns
+        -------
+        GW_OT_Cell
+            A new GW_OT_Cell instance with copied data from the current object.
+            All arrays and dictionaries are deep-copied to avoid shared references.
+        """
+        obj_copy = GW_OT_Cell(
             coords=self.coords.copy(),
             boundary_coords=self.boundary_coords.copy() if self.boundary_coords is not None else None,
             intensities=copy.deepcopy(self.intensities),
             nucleus=self.nucleus.copy() if self.nucleus is not None else None
         )
-        copy.coord_dmat = self.coord_dmat.copy() if self.coord_dmat is not None else None
-        copy.boundary_coord_dmat = self.boundary_coord_dmat.copy() if self.boundary_coords is not None else None
-        copy.size = self.size
-        return copy
+        obj_copy.coord_dmat = self.coord_dmat.copy() if self.coord_dmat is not None else None
+        obj_copy.boundary_coord_dmat = self.boundary_coord_dmat.copy() if self.boundary_coord_dmat is not None else None
+        obj_copy.size = self.size
+        return obj_copy
 
 
 def process_image(image, channels, cell_mask_image, nucleus_mask_image=None, ds_factor=None, ds_target_size=None, 
     filter_border_cells=True, n_boundary_points=100, save_path=None, return_objects=True):
-    """
-    Create a list of GW_OT_Cell objects, each representing a cell in the image.
-    Args:
-        image: 3D numpy array (H x W x C) representing the image
-        channels: List of channel names corresponding to the last dimension of the image
-        cell_mask_image: 2D numpy array (H x W) with integer labels for each cell (0 for background)
-        nucleus_mask_image: Optional 2D numpy array (H x W) with integer labels for nuclei (0 for background)
-        ds_factor: Optional downsampling factor (integer). If provided, downsample by this factor.
-        ds_target_size: Optional target size (integer). If provided, downsample to achieve this number of pixels per cell.
-        filter_border_cells: If True, exclude cells touching the image border.
-        n_boundary_points: If provided, sample this many points from the cell boundary and include in the dictionary.
-        save_path: Optional path to save the processed cell objects.
-        return_objects: If True, return the list of GW_OT_Cell objects.
-    Returns:
-        If return_objects is True, return the list of GW_OT_Cell objects; otherwise, return None.
+    """Create GW_OT_Cell objects from segmented microscopy images.
+
+    Processes a multi-channel microscopy image with cell and nuclear segmentation 
+    masks to create a list of GW_OT_Cell objects suitable for Gromov-Wasserstein 
+    optimal transport analysis.
+
+    :param image : numpy.ndarray
+        3D numpy array of shape (H, W, C) representing the multi-channel image.
+    :param channels : list of str
+        List of channel names corresponding to the last dimension of the image.
+    :param cell_mask_image : numpy.ndarray
+        2D numpy array of shape (H, W) with integer labels for each cell 
+        (0 for background).
+    :param nucleus_mask_image : numpy.ndarray, optional
+        2D numpy array of shape (H, W) with integer labels for nuclei 
+        (0 for background). Default is None.
+    :param ds_factor : int, optional
+        Downsampling factor. If provided, downsample by this factor. 
+        Default is None.
+    :param ds_target_size : int, optional
+        Target number of pixels per cell after downsampling. If provided, 
+        downsample to achieve this pixel count. Default is None.
+    :param filter_border_cells : bool, optional
+        If True, exclude cells touching the image border. Default is True.
+    :param n_boundary_points : int, optional
+        Number of points to sample from the cell boundary. If None, boundary 
+        sampling is skipped. Default is 100.
+    :param save_path : str, optional
+        Directory path to save the processed cell objects as pickle files. 
+        If None, objects are not saved. Default is None.
+    :param return_objects : bool, optional
+        If True, return the list of GW_OT_Cell objects. Default is True.
+
+    :return
+    -------
+    list of GW_OT_Cell or None
+        If return_objects is True, returns a list of GW_OT_Cell objects; 
+        otherwise returns None.
     """
     cell_inds = np.unique(cell_mask_image)
     cell_inds = cell_inds[cell_inds > 0]  # Remove background (0)
@@ -282,6 +421,17 @@ def process_image(image, channels, cell_mask_image, nucleus_mask_image=None, ds_
 
 
 def _init_gw_pool(cell_objects: list, points: str):
+    """Initialize global variables for parallel Gromov-Wasserstein computation.
+
+    This function sets up shared state for multiprocessing workers computing 
+    pairwise Gromov-Wasserstein distances.
+
+    :param cell_objects : list
+        List of GW_OT_Cell objects or paths to pickled GW_OT_Cell objects.
+    :param points : str
+        Type of points to use for distance computation. Either 'boundary' 
+        for boundary coordinates or 'full' for all cell coordinates.
+    """
     # list of GW_OT_Cell objects or list of paths to GW_OT_Cell objects
     global _CELL_OBJECTS
     _CELL_OBJECTS = cell_objects
@@ -291,15 +441,12 @@ def _init_gw_pool(cell_objects: list, points: str):
 
 
 def _gw_index(p: tuple[int, int]):
-    """
-    Compute Gromov-Wasserstein distance between two cells given their indices.
-    Args:
-        p: tuple of two indices (i, j) representing the cells to compare
-    Returns:
-        tuple of (i, j, coupling_mat, gw_dist) where:
-            i, j: indices of the cells
-            coupling_mat: numpy array representing the coupling matrix
-            gw_dist: Gromov-Wasserstein distance between the two cells
+    """Worker that computes the GW coupling and distance for a pair of cells.
+
+    :param p: tuple (i, j) of cell indices
+    :type p: tuple[int, int]
+    :return: (i, j, coupling_mat, gw_dist)
+    :rtype: tuple[int, int, numpy.ndarray, float]
     """
     i, j = p
     # load GW_OT_Cell objects if path specified
@@ -335,19 +482,26 @@ def _gw_index(p: tuple[int, int]):
 
     return (i, j, coupling_mat, gw_dist) 
 
-
 def gw_pairwise_parallel(cell_objects, points='boundary', num_processes=4, chunksize=20, n_approx_anchors=None, initial_anchor=0):
-    """
-    Compute pairwise Gromov-Wasserstein distances between cells in parallel.
-    Args:
-        cell_objects: list of GW_OT_Cell objects or list of paths to GW_OT_Cell objects
-        points: which points to use for the distance computation ('boundary' or 'full')
-        num_processes: number of parallel processes to use (default: 4)
-        chunksize: number of pairs to process in each chunk (default: 20)
-        n_approx_anchors: number of anchors to use for triangle inequality approximation of GW distances
-        initial_anchor: index of the first anchor cell (default: None, which means the first cell is used)
-    Returns:
-        gw_dmat: numpy array of shape (N, N) containing pairwise Gromov-Wasserstein distances
+    """Compute pairwise Gromov-Wasserstein distances (optionally in parallel).
+
+    Calculates the Gromov-Wasserstein distance matrix for a colloection of cells 
+    using either exact computation or traiangle inequality approximation with anchors.
+
+    :param cell_objects: list of GW_OT_Cell objects or file paths
+    :type cell_objects: list
+    :param points: 'boundary' or 'full' (default: 'boundary')
+    :type points: str
+    :param num_processes: number of parallel processes to use
+    :type num_processes: int
+    :param chunksize: chunk size for parallel imap
+    :type chunksize: int
+    :param n_approx_anchors: number of anchors for approximation (None = exact)
+    :type n_approx_anchors: int or None
+    :param initial_anchor: initial anchor index for approximation
+    :type initial_anchor: int
+    :return: symmetric GW distance matrix of shape (N, N)
+    :rtype: numpy.ndarray
     """
     N = len(cell_objects)
     # Compute all pairwise GW distances
@@ -387,8 +541,12 @@ def gw_pairwise_parallel(cell_objects, points='boundary', num_processes=4, chunk
 
 
 def find_centroid(distance_matrix):
-    """
-    Find the centroid of a set of points given a distance matrix.
+    """Return the index of the centroid point (minimizes sum of distances).
+
+    :param distance_matrix: square symmetric pairwise distance matrix
+    :type distance_matrix: numpy.ndarray
+    :return: index of centroid point
+    :rtype: int
     """
     sum_distances = np.sum(distance_matrix, axis=1)
     centroid_index = np.argmin(sum_distances)
@@ -396,7 +554,29 @@ def find_centroid(distance_matrix):
 
 
 def _init_fgw_map_pool(cell_objects: list, channels: list, compartment_specific: bool, method, 
-                       fused_channel: str, fused_cost: float, fused_param: float, unbalanced_param: float):
+                       fused_channel: str, fused_cost: float, fused_param: float, unbalanced_param: float, 
+                       nuclear_fraction: float = 0.2):
+    """Initialize global state for parallel fused GW mapping workers.
+
+    :param cell_objects: list of GW_OT_Cell objects or paths
+    :type cell_objects: list
+    :param channels: channel names to compute OT for
+    :type channels: list[str]
+    :param compartment_specific: whether to perform compartment-specific mapping
+    :type compartment_specific: bool
+    :param method: mapping method ('fused' or 'fused_unbalanced')
+    :type method: str
+    :param fused_channel: channel name used for fused mapping
+    :type fused_channel: str
+    :param fused_cost: fused channel cost multiplier
+    :type fused_cost: float
+    :param fused_param: alpha parameter for fused GW
+    :type fused_param: float
+    :param unbalanced_param: regularization for unbalanced fused GW
+    :type unbalanced_param: float
+    :param nuclear_fraction: fraction considered nuclear during mapping
+    :type nuclear_fraction: float
+    """
     global _CELL_OBJECTS #
     _CELL_OBJECTS = cell_objects # list of GW_OT_Cell objects or list of paths to GW_OT_Cell objects
     global _CHANNELS
@@ -412,11 +592,19 @@ def _init_fgw_map_pool(cell_objects: list, channels: list, compartment_specific:
     global _FUSED_PARAM
     _FUSED_PARAM = fused_param # parameter for fused/unbalanced GW morphology mapping
     global _UNBALANCED_PARAM
-    _UNBALANCED_PARAM = unbalanced_param # parameter for fused unbalanced GW mapping``
+    _UNBALANCED_PARAM = unbalanced_param # parameter for fused unbalanced GW mapping
+    global _NUC_FRAC
+    _NUC_FRAC = nuclear_fraction # fraction of cell considered as nucleus for compartment-specific
 
 
-# compute morphology fGW and map protein distribution from one cell to another 
 def _fgw_map_index(p: tuple[int, int]):
+    """Worker that computes fused GW mapping and maps protein distributions.
+
+    :param p: tuple (i, j) of source and target cell indices
+    :type p: tuple[int, int]
+    :return: (i, j, gw_dist, mapped_distbs)
+    :rtype: tuple[int, int, float, numpy.ndarray]
+    """
     i, j = p
     # load GW_OT_Cell objects if path specified
     if isinstance(_CELL_OBJECTS[i], str):
@@ -440,11 +628,11 @@ def _fgw_map_index(p: tuple[int, int]):
 
         # rescale uniform distribution in cell i to have same nuclear/cytoplasm ration as cell j
         a = np.zeros(n_A)
-        a[_CELL_OBJECTS[i].nucleus==1] = 0.5 / n_pixel_nuc_i
-        a[_CELL_OBJECTS[i].nucleus==0] = 0.5 / n_pixel_cyto_i
+        a[_CELL_OBJECTS[i].nucleus==1] = _NUC_FRAC / n_pixel_nuc_i
+        a[_CELL_OBJECTS[i].nucleus==0] = (1 - _NUC_FRAC) / n_pixel_cyto_i
         b = np.zeros(n_B)
-        b[_CELL_OBJECTS[j].nucleus==1] = 0.5 / n_pixel_nuc_j
-        b[_CELL_OBJECTS[j].nucleus==0] = 0.5 / n_pixel_cyto_j
+        b[_CELL_OBJECTS[j].nucleus==1] = _NUC_FRAC / n_pixel_nuc_j
+        b[_CELL_OBJECTS[j].nucleus==0] = (1 - _NUC_FRAC) / n_pixel_cyto_j
     else:
         a = np.repeat(1/n_A, n_A)
         b = np.repeat(1/n_B, n_B)
@@ -453,17 +641,21 @@ def _fgw_map_index(p: tuple[int, int]):
     alpha = _FUSED_PARAM
     cost = _FUSED_COST
     rho = _UNBALANCED_PARAM
-    if _FUSED_CHANNEL == 'nucleus':
-        cost_matrix = cdist(_CELL_OBJECTS[i].nucleus[:,np.newaxis], _CELL_OBJECTS[j].nucleus[:,np.newaxis],) * cost
+    if i == j:
+        gw_dist = 0
+        coupling_mat = np.eye(n_A)
     else:
-        cost_matrix = cdist(_CELL_OBJECTS[i].intensities[_FUSED_CHANNEL][:,np.newaxis], _CELL_OBJECTS[j].intensities[_FUSED_CHANNEL][:,np.newaxis],) * cost
-    if _METHOD == 'fused':
-        coupling_mat, log = ot.gromov.fused_gromov_wasserstein(M=cost_matrix, C1=A, C2=B, p=a, q=b, alpha=alpha, log=True)
-        gw_dist = log['fgw_dist']
-    elif _METHOD == 'fused_unbalanced':
-        coupling_mat, coupling_mat_2, log = ot.gromov.fused_unbalanced_gromov_wasserstein(M=cost_matrix, Cx=A, Cy=B, wx=a, wy=b, alpha=alpha, 
-                                                                                          reg_marginals=rho, max_iter=20, log=True)
-        gw_dist = log['fugw_cost']
+        if _FUSED_CHANNEL == 'nucleus':
+            cost_matrix = cdist(_CELL_OBJECTS[i].nucleus[:,np.newaxis], _CELL_OBJECTS[j].nucleus[:,np.newaxis],) * cost
+        else:
+            cost_matrix = cdist(_CELL_OBJECTS[i].intensities[_FUSED_CHANNEL][:,np.newaxis], _CELL_OBJECTS[j].intensities[_FUSED_CHANNEL][:,np.newaxis],) * cost
+        if _METHOD == 'fused':
+            coupling_mat, log = ot.gromov.fused_gromov_wasserstein(M=cost_matrix, C1=A, C2=B, p=a, q=b, alpha=alpha, log=True)
+            gw_dist = log['fgw_dist']
+        elif _METHOD == 'fused_unbalanced':
+            coupling_mat, coupling_mat_2, log = ot.gromov.fused_unbalanced_gromov_wasserstein(M=cost_matrix, Cx=A, Cy=B, wx=a, wy=b, alpha=alpha, 
+                                                                                            reg_marginals=rho, max_iter=20, log=True)
+            gw_dist = log['fugw_cost']
 
     if _COMPARTMENT_SPECIFIC:
         # find nuclear pixels after mapping
@@ -518,26 +710,80 @@ def _fgw_map_index(p: tuple[int, int]):
     return (i, j, gw_dist, mapped_distbs) 
 
 
+def map_to_cell(cell_object_from, cell_object_to, channels, compartment_specific=True, method='fused', 
+                fused_channel='protein', fused_cost=10, fused_param=0.1, unbalanced_param=70, nuclear_fraction=0.2):
+    """Map protein distributions from one cell onto another via Fused Gromov-Wasserstein.
+
+    :param cell_object_from: source ``GW_OT_Cell``
+    :type cell_object_from: GW_OT_Cell
+    :param cell_object_to: target ``GW_OT_Cell``
+    :type cell_object_to: GW_OT_Cell
+    :param channels: list of channel names to map
+    :type channels: list[str]
+    :param compartment_specific: whether to use compartment-specific mapping
+    :type compartment_specific: bool
+    :param method: 'fused' or 'fused_unbalanced'
+    :type method: str
+    :param fused_channel: channel name to use for fused morphology cost
+    :type fused_channel: str
+    :param fused_cost: fused channel cost multiplier
+    :type fused_cost: float
+    :param fused_param: alpha parameter for fused GW
+    :type fused_param: float
+    :param unbalanced_param: regularization for unbalanced GW
+    :type unbalanced_param: float
+    :param nuclear_fraction: nuclear fraction for compartment scaling
+    :type nuclear_fraction: float
+    :return: mapped distributions with shape (len(channels), n_target_pixels)
+    :rtype: numpy.ndarray
+    """
+    mapped_distbs = map_to_cell_parallel(
+        cell_objects=[cell_object_from, cell_object_to],
+        channels=channels,
+        target_cell_ind=1,
+        compartment_specific=compartment_specific,
+        method=method,
+        fused_channel=fused_channel,
+        fused_cost=fused_cost,
+        fused_param=fused_param,
+        unbalanced_param=unbalanced_param,
+        nuclear_fraction=nuclear_fraction,
+        parallel=False
+    )
+    return mapped_distbs[:,0,:]
+
+
 def map_to_cell_parallel(cell_objects, channels, target_cell_ind, compartment_specific=True, method='fused', 
                          fused_channel='protein', fused_cost=10, fused_param=0.1, unbalanced_param=70, parallel=True,
-                         num_processes=4, chunksize=20):
-    """
-    Map protein distributions from all cells to a target cell using fused Gromov-Wasserstein morphology mapping in parallel.
-    Args:
-        cell_objects: list of GW_OT_Cell objects or list of paths to GW_OT_Cell objects
-        channels: list of channel names to map
-        target_cell_ind: index of the target cell to map to
-        compartment_specific: whether to do compartment-specific mapping (nuclear/cytoplasm)
-        method: method for morphology mapping ('fused' or 'fused_unbalanced')
-        fused_channel: channel to use for fused GW morphology mapping
-        fused_cost: cost for fused GW morphology mapping
-        fused_param: parameter for fused/unbalanced GW morphology mapping
-        unbalanced_param: parameter for fused unbalanced GW mapping
-        num_processes: number of parallel processes to use (default: 4)
-        chunksize: number of pairs to process in each chunk (default: 20)
-    Returns:
-        mapped_distbs: numpy array of shape (N, len(channels), n_target_pixels) containing mapped protein distributions
-                       from each cell to the target cell
+                         nuclear_fraction=0.2, num_processes=4, chunksize=20):
+    """Map protein distributions from all cells to a single target cell.
+
+    :param cell_objects: list of GW_OT_Cell objects or file paths
+    :type cell_objects: list
+    :param channels: channel names to map
+    :type channels: list[str]
+    :param target_cell_ind: index of the target cell
+    :type target_cell_ind: int
+    :param compartment_specific: whether to use compartment-specific mapping
+    :type compartment_specific: bool
+    :param method: mapping method ('fused' or 'fused_unbalanced')
+    :type method: str
+    :param fused_channel: channel used for fused cost
+    :type fused_channel: str
+    :param fused_cost: cost multiplier for fused channel
+    :type fused_cost: float
+    :param fused_param: alpha parameter for fused GW
+    :type fused_param: float
+    :param unbalanced_param: regularization for unbalanced GW
+    :type unbalanced_param: float
+    :param parallel: whether to run in parallel
+    :type parallel: bool
+    :param num_processes: number of processes for parallel execution
+    :type num_processes: int
+    :param chunksize: chunk size for parallel map
+    :type chunksize: int
+    :return: array of mapped distributions with shape (len(channels), N, n_target_pixels)
+    :rtype: numpy.ndarray
     """
     print('Mapping cells to target cell:')
     N = len(cell_objects)
@@ -547,7 +793,7 @@ def map_to_cell_parallel(cell_objects, channels, target_cell_ind, compartment_sp
         # Parallelized
         with Pool(
             initializer=_init_fgw_map_pool, initargs=(cell_objects, channels, compartment_specific, method, 
-                                                    fused_channel, fused_cost, fused_param, unbalanced_param), 
+                                                    fused_channel, fused_cost, fused_param, unbalanced_param, nuclear_fraction), 
             processes=num_processes
         ) as pool:
             res = pool.imap_unordered(_fgw_map_index, index_pairs, chunksize=chunksize)
@@ -560,7 +806,8 @@ def map_to_cell_parallel(cell_objects, channels, target_cell_ind, compartment_sp
                 mapped_distbs[:,i,:] = mapped_distb
     else:
         # Non-parallelized
-        _init_fgw_map_pool(cell_objects, channels, compartment_specific, method, fused_channel, fused_cost, fused_param, unbalanced_param)
+        _init_fgw_map_pool(cell_objects, channels, compartment_specific, method, fused_channel, fused_cost, 
+                           fused_param, unbalanced_param, nuclear_fraction)
         mapped_distbs = np.zeros((len(channels),N,cell_objects[target_cell_ind].coord_dmat.shape[0]))
         for p in tqdm(index_pairs):
             i, j, gw_dist, mapped_distb = _fgw_map_index(p)
@@ -569,6 +816,13 @@ def map_to_cell_parallel(cell_objects, channels, target_cell_ind, compartment_sp
 
 
 def _init_gw_mapped_ot_pool(cell_object: GW_OT_Cell, mapped_cell_dists: np.ndarray):
+    """Initialize global state for OT computation on mapped distributions.
+
+    :param cell_object: target ``GW_OT_Cell`` containing coordinate distance matrix
+    :type cell_object: GW_OT_Cell
+    :param mapped_cell_dists: mapped distributions array (n_channels, N, n_target_pixels)
+    :type mapped_cell_dists: numpy.ndarray
+    """
     global _CELL_OBJECT
     _CELL_OBJECT = cell_object # GW_OT_Cell object
     global _MAPPED_CELL_DISTS
@@ -576,6 +830,13 @@ def _init_gw_mapped_ot_pool(cell_object: GW_OT_Cell, mapped_cell_dists: np.ndarr
 
 
 def _gw_mapped_ot_index(p: tuple[int, int]):
+    """Worker that computes OT distances between two mapped distributions.
+
+    :param p: tuple (i, j) of indices
+    :type p: tuple[int, int]
+    :return: (i, j, ot_dists) where ot_dists is an array per channel
+    :rtype: tuple[int, int, numpy.ndarray]
+    """
     global _CELL_OBJECT
     i, j = p
     if isinstance(_CELL_OBJECT, str):
@@ -594,30 +855,79 @@ def _gw_mapped_ot_index(p: tuple[int, int]):
     return (i, j, ot_dists)
 
 
-def gw_mapped_ot_pairwise_parallel(cell_object, mapped_cell_dists, num_processes=4, chunksize=20):
-    """
-    Compute pairwise Gromov-Wasserstein distances between cells with mapped protein distributions in parallel.
-    Args:
-        cell_object: GW_OT_Cell object for target cell or path to GW_OT_Cell object for target cell
-        mapped_cell_dists: numpy array of shape (N, len(channels), n_target_pixels) containing mapped protein distributions
-                           from each cell to the target cell
-        num_processes: number of parallel processes to use (default: 4)
-        chunksize: number of pairs to process in each chunk (default: 20)
-    Returns:
-        ot_dmats: numpy array of shape (len(channels), N, N) containing pairwise Gromov-Wasserstein distances
-                  for each channel between cells with mapped protein distributions
+def gw_mapped_ot_pairwise_parallel(cell_object, mapped_cell_dists, num_processes=4, chunksize=20, index_pairs=None, n_approx_anchors=None, initial_anchor=0):
+    """Compute pairwise OT distances between mapped protein distributions.
+
+    Calculates pairwise optimal transport distances for protein distribution after 
+    mapping to a common cell morphology.
+
+    :param cell_object: target ``GW_OT_Cell`` or path to pickled object
+    :type cell_object: GW_OT_Cell or str
+    :param mapped_cell_dists: array of mapped distributions (len(channels), N, n_target_pixels)
+    :type mapped_cell_dists: numpy.ndarray
+    :param num_processes: number of processes for parallel execution
+    :type num_processes: int
+    :param chunksize: chunk size for parallel imap
+    :type chunksize: int
+    :param index_pairs: optional iterable of (i, j) index pairs to compute
+    :type index_pairs: iterable[tuple[int, int]] or None
+    :param n_approx_anchors: number of anchors for triangle inequality approximation
+    :type n_approx_anchors: int or None
+    :param initial_anchor: initial anchor index
+    :type initial_anchor: int
+    :return: if ``index_pairs`` is None returns array (len(channels), N, N), else (len(channels), len(index_pairs))
+    :rtype: numpy.ndarray
     """
     print('Computing pairwise OT distances:')
     N = mapped_cell_dists.shape[1]
-    index_pairs = it.combinations(iter(range(N)), 2) # cell pairs to compute fGW / OT for
-    total_num_pairs = int((N * (N - 1)) / 2) # total number of cell pairs to compute (for progress bar)
-    with Pool(
-        initializer=_init_gw_mapped_ot_pool, initargs=(cell_object,mapped_cell_dists,), processes=num_processes
-    ) as pool:
-        res = pool.imap(_gw_mapped_ot_index, index_pairs, chunksize=chunksize)
-        # store OT distances in dictionary of matricies
-        ot_dmats = np.zeros((mapped_cell_dists.shape[0],N,N))
-        for i, j, ot_dists in tqdm(res, total=total_num_pairs, position=0, leave=True):
-            ot_dmats[:,i,j] = ot_dists
-            ot_dmats[:,j,i] = ot_dists
-    return(ot_dmats)
+    # Compute all pairwise OT distances or specific specific pairs
+    if n_approx_anchors is None:
+        if index_pairs is None:
+            index_pairs = list(it.combinations(range(N), 2))
+            total_num_pairs = int((N * (N - 1)) / 2)
+            output_full_matrix = True
+        else:
+            index_pairs = list(index_pairs)
+            total_num_pairs = len(index_pairs)
+            output_full_matrix = False
+
+        with Pool(
+            initializer=_init_gw_mapped_ot_pool, initargs=(cell_object, mapped_cell_dists,), processes=num_processes
+        ) as pool:
+            res = pool.imap(_gw_mapped_ot_index, index_pairs, chunksize=chunksize)
+            if output_full_matrix:
+                ot_dmats = np.zeros((mapped_cell_dists.shape[0], N, N))
+                for i, j, ot_dists in tqdm(res, total=total_num_pairs, position=0, leave=True):
+                    ot_dmats[:, i, j] = ot_dists
+                    ot_dmats[:, j, i] = ot_dists
+                return ot_dmats
+            else:
+                ot_dists_arr = np.zeros((mapped_cell_dists.shape[0], total_num_pairs))
+                for idx, (i, j, ot_dists) in enumerate(tqdm(res, total=total_num_pairs, position=0, leave=True)):
+                    ot_dists_arr[:, idx] = ot_dists
+                return ot_dists_arr
+    # Approximate OT distances using triangle inequality
+    else:
+        if index_pairs is not None:
+            raise ValueError("index_pairs cannot be specified when using triangle inequality approximation.")
+        anchor_ind = initial_anchor
+        all_anchor_ot_dists = np.zeros((mapped_cell_dists.shape[0], n_approx_anchors, N))
+        for i_anchor in range(n_approx_anchors):
+            anchor_ot_dists = np.zeros((mapped_cell_dists.shape[0], N))
+            index_pairs = it.product(iter(range(N)), [anchor_ind]) 
+            total_num_pairs = N 
+            with Pool(
+                initializer=_init_gw_mapped_ot_pool, initargs=(cell_object, mapped_cell_dists,), processes=num_processes
+            ) as pool:
+                res = pool.imap(_gw_mapped_ot_index, index_pairs, chunksize=chunksize)
+                for i, j, ot_dists in tqdm(res, total=total_num_pairs, position=0, leave=True):
+                    anchor_ot_dists[:, i] = ot_dists
+                all_anchor_ot_dists[:,i_anchor,:] = anchor_ot_dists
+                anchor_ind = np.argmax(all_anchor_ot_dists.mean(axis=0)[:i_anchor+1,:].min(axis=0)) # next anchor
+        ot_dmats = np.zeros((mapped_cell_dists.shape[0], N, N))
+        for channel_i in range(mapped_cell_dists.shape[0]):
+            for i,j in it.combinations(range(N), 2):
+                d = min(all_anchor_ot_dists[channel_i,i] + all_anchor_ot_dists[channel_i,j]) 
+                ot_dmats[channel_i, i, j] = d
+                ot_dmats[channel_i, j, i] = d
+        return ot_dmats

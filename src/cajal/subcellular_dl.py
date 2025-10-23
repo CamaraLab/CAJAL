@@ -23,19 +23,14 @@ def resize_cell_image(image, target_shape):
     Uses bilinear interpolation for probability channels and nearest neighbor 
     for binary mask channels to preserve the discrete nature of segmentation masks.
 
-    Parameters
-    ----------
-    image : numpy.ndarray
-        Input image of shape (H, W, 3) where channel 0 is probability/intensity,
+    :param image: Input image of shape (H, W, 3) where channel 0 is probability/intensity,
         channels 1 and 2 are binary masks.
-    target_shape : tuple of int
-        Target shape as (height, width) for the resized image.
-
-    Returns
-    -------
-    numpy.ndarray
-        Resized image of shape (target_shape[0], target_shape[1], 3) with
+    :type image: numpy.ndarray
+    :param target_shape: Target shape as (height, width) for the resized image.
+    :type target_shape: tuple of int
+    :returns: Resized image of shape (target_shape[0], target_shape[1], 3) with
         appropriate interpolation applied to each channel.
+    :rtype: numpy.ndarray
     """
     out = np.zeros((target_shape[0], target_shape[1], image.shape[2]), dtype=image.dtype)
     # Probability channel (bilinear)
@@ -54,22 +49,13 @@ def major_axis_pca_with_center(mask, center):
     center point to determine the major axis of the shape. The axis orientation 
     is normalized to point toward the side with more mass distribution.
 
-    Parameters
-    ----------
-    mask : numpy.ndarray
-        2D binary mask where non-zero values indicate the region of interest.
-    center : tuple of float
-        Center point as (y, x) coordinates to use for PCA computation 
+    :param mask: 2D binary mask where non-zero values indicate the region of interest.
+    :type mask: numpy.ndarray
+    :param center: Center point as (y, x) coordinates to use for PCA computation 
         (e.g., nucleus centroid).
-
-    Returns
-    -------
-    tuple
-        major_axis_vector : numpy.ndarray
-            Unit vector representing the major axis direction as [dy, dx].
-        angle : float
-            Angle in radians relative to the x-axis, with consistent orientation 
-            toward the side with more mass.
+    :type center: tuple of float
+    :returns: Tuple containing the major axis unit vector and the angle in radians.
+    :rtype: tuple (major_axis_vector: numpy.ndarray, angle: float)
     """
     yx = np.argwhere(mask > 0)
     yx_centered = yx - np.array(center)  # center at nucleus
@@ -94,23 +80,18 @@ def align_image(image, center='cell', cell_mask_channel=1, nucleus_channel=2):
     rotates it to align the major axis horizontally. The image is padded as 
     needed and trimmed to remove empty borders.
 
-    Parameters
-    ----------
-    image : numpy.ndarray
-        Input image of shape (H, W, 3) containing cell imaging data.
-    center : str, optional
-        Centering method: 'cell' to center on cell mask, 'nucleus' to center 
+    :param image: Input image of shape (H, W, 3) containing cell imaging data.
+    :type image: numpy.ndarray
+    :param center: Centering method: 'cell' to center on cell mask, 'nucleus' to center 
         on nucleus mask. Default is 'cell'.
-    cell_mask_channel : int, optional
-        Index of the cell mask channel. Default is 1.
-    nucleus_channel : int, optional
-        Index of the nucleus mask channel. Default is 2.
-
-    Returns
-    -------
-    numpy.ndarray
-        Centered and rotated image, possibly larger than input due to padding 
+    :type center: str
+    :param cell_mask_channel: Index of the cell mask channel. Default is 1.
+    :type cell_mask_channel: int
+    :param nucleus_channel: Index of the nucleus mask channel. Default is 2.
+    :type nucleus_channel: int
+    :returns: Centered and rotated image, possibly larger than input due to padding 
         and rotation operations.
+    :rtype: numpy.ndarray
     """
     # Center based on largest labeled cell/nucleus object
     if center == 'cell':
@@ -173,31 +154,26 @@ def make_NN_training_data(save_path, cell_objects, reference_cell_object, mapped
     Creates paired cell images and their corresponding mapped versions for training 
     deep learning models. Images are aligned, normalized, and saved as numpy arrays.
 
-    Parameters
-    ----------
-    save_path : str
-        Directory path to save processed images. Cell images saved to 
+    :param save_path: Directory path to save processed images. Cell images saved to 
         '<save_path>/cell_images' and mapped images to '<save_path>/mapped_cell_images'.
-    cell_objects : list
-        List of GW_OT_Cell objects or paths to pickled GW_OT_Cell objects.
-    reference_cell_object : GW_OT_Cell or str
-        Reference cell object or path to pickled reference cell object used 
+    :type save_path: str
+    :param cell_objects: List of GW_OT_Cell objects or paths to pickled GW_OT_Cell objects.
+    :type cell_objects: list
+    :param reference_cell_object: Reference cell object or path to pickled reference cell object used 
         as template for mapped distributions.
-    mapped_channel_distributions : numpy.ndarray
-        Array of mapped protein distributions for each cell.
-    channel : str
-        Channel name to use for image processing.
-    center : str, optional
-        Centering method for image alignment: 'cell' or 'nucleus'. Default is 'cell'.
-    rescale : bool, optional
-        Whether to rescale images to a fixed size. Default is True.
-    shape : tuple of int, optional
-        Target shape (height, width) for resizing images. Default is (64, 64).
-
-    Returns
-    -------
-    None
-        Images are saved to disk as .npy files.
+    :type reference_cell_object: GW_OT_Cell or str
+    :param mapped_channel_distributions: Array of mapped protein distributions for each cell.
+    :type mapped_channel_distributions: numpy.ndarray
+    :param channel: Channel name to use for image processing.
+    :type channel: str
+    :param center: Centering method for image alignment: 'cell' or 'nucleus'. Default is 'cell'.
+    :type center: str
+    :param rescale: Whether to rescale images to a fixed size. Default is True.
+    :type rescale: bool
+    :param shape: Target shape (height, width) for resizing images. Default is (64, 64).
+    :type shape: tuple of int
+    :returns: None. Images are saved to disk as .npy files.
+    :rtype: None
     """
     if not rescale:
         max_size = 0
@@ -253,16 +229,14 @@ class EfficientNetFeatureExtractor(nn.Module):
     embeddings from cell images. Handles variable input channel numbers 
     and resizes inputs to match EfficientNet requirements.
 
-    Parameters
-    ----------
-    embedding_size : int, optional
-        Size of the output embedding vector. Default is 50.
-    input_channels : int, optional
-        Number of input channels in the cell images. Default is 3.
-    efficientnet_type : str, optional
-        Type of EfficientNet architecture to use. Default is 'efficientnet_b0'.
-    pretrained : bool, optional
-        Whether to use pretrained ImageNet weights. Default is True.
+    :param embedding_size: Size of the output embedding vector. Default is 50.
+    :type embedding_size: int, optional
+    :param input_channels: Number of input channels in the cell images. Default is 3.
+    :type input_channels: int, optional
+    :param efficientnet_type: Type of EfficientNet architecture to use. Default is 'efficientnet_b0'.
+    :type efficientnet_type: str, optional
+    :param pretrained: Whether to use pretrained ImageNet weights. Default is True.
+    :type pretrained: bool, optional
     """
     def __init__(self, embedding_size=50, input_channels=3, efficientnet_type='efficientnet_b0', pretrained=True):
         super().__init__()
@@ -316,14 +290,12 @@ class UNetDecoder(nn.Module):
     The architecture progressively upsamples from a compact representation 
     back to full image resolution.
 
-    Parameters
-    ----------
-    embedding_size : int, optional
-        Size of the input embedding vector. Default is 50.
-    image_size : int, optional
-        Target output image size (assumed square). Default is 64.
-    out_channels : int, optional
-        Number of output channels in the reconstructed image. Default is 1.
+    :param embedding_size: Size of the input embedding vector. Default is 50.
+    :type embedding_size: int, optional
+    :param image_size: Target output image size (assumed square). Default is 64.
+    :type image_size: int, optional
+    :param out_channels: Number of output channels in the reconstructed image. Default is 1.
+    :type out_channels: int, optional
     """
     def __init__(self, embedding_size=50, image_size=64, out_channels=1):
         super().__init__()
@@ -388,14 +360,12 @@ class dGWOTNetwork(nn.Module):
     distances between cell morphologies while enabling reconstruction of 
     protein distributions.
 
-    Parameters
-    ----------
-    input_channels : int, optional
-        Number of input image channels. Default is 3.
-    embedding_size : int, optional
-        Dimensionality of the feature embedding space. Default is 50.
-    image_size : int, optional
-        Size of input/output images (assumed square). Default is 64.
+    :param input_channels: Number of input image channels. Default is 3.
+    :type input_channels: int, optional
+    :param embedding_size: Dimensionality of the feature embedding space. Default is 50.
+    :type embedding_size: int, optional
+    :param image_size: Size of input/output images (assumed square). Default is 64.
+    :type image_size: int, optional
     """
     def __init__(self, input_channels=3, embedding_size=50, image_size=64):
         super().__init__()
@@ -464,27 +434,25 @@ class PretrainPairedDataset(Dataset):
     has a corresponding target image. Handles channel dimension reordering 
     and applies optional transforms.
 
-    Parameters
-    ----------
-    input_files : list of str
-        List of file paths to input image numpy arrays.
-    target_files : list of str
-        List of file paths to target image numpy arrays. Must have same 
+    :param input_files: List of file paths to input image numpy arrays.
+    :type input_files: list of str
+    :param target_files: List of file paths to target image numpy arrays. Must have same 
         length as input_files.
-    transform : callable, optional
-        Optional transform to apply to both input and target images.
+    :type target_files: list of str
+    :param transform: Optional transform to apply to both input and target images.
         Default is None.
+    :type transform: callable, optional
+    :param augment_transform: Additional augmentation transform for data augmentation. Default is None.
+    :type augment_transform: callable, optional
 
-    Raises
-    ------
-    AssertionError
-        If input_files and target_files have different lengths.
+    :raises AssertionError: If input_files and target_files have different lengths.
     """
-    def __init__(self, input_files, target_files, transform=None):
-        self.input_files = input_files
-        self.target_files = target_files
+    def __init__(self, input_files, target_files, transform=None, augment_transform=None, n_augment=1):
+        self.input_files = [f for f in input_files for _ in range(n_augment)]
+        self.target_files = [f for f in target_files for _ in range(n_augment)]
         assert len(self.input_files) == len(self.target_files), 'Input and target directories must have the same number of images.'
         self.transform = transform
+        self.augment_transform = augment_transform
     
     def __len__(self):
         return len(self.input_files)
@@ -504,52 +472,65 @@ class PretrainPairedDataset(Dataset):
         if self.transform:
             input_img = self.transform(input_img)
             target_img = self.transform(target_img)
+        if self.augment_transform:
+            input_img = self.augment_transform(input_img)
+            target_img = self.augment_transform(target_img)
         input_img = torch.from_numpy(input_img).float()
         target_img = torch.from_numpy(target_img).float()
         return input_img, target_img
 
 
-def pretrain_model(input_files, target_files, model, save_path=None, model_name="pretrained_model", 
+def pretrain_model(paired_dataset, model, save_path=None, model_name="pretrained_model", 
                   batch_size=64, epochs=10, lr=1e-3, device=None, return_model=True):
     """
-    Pretrain a model using paired input and target images.
+    Pretrain a model using paired input and target images provided as a PairedDataset.
 
-    Performs pretraining of a neural network model using reconstruction loss 
-    between input images and their corresponding targets. Uses KL divergence 
-    loss for probability distributions.
+    This function accepts a `PairedDataset` object and first converts it into a
+    `PretrainPairedDataset` by collecting the unique image indices referenced in
+    the paired dataset. For each unique image index `i`, the input path is
+    '<image_dir>/cell_i.npy' and the target path is
+    '<mapped_image_dir>/mapped_cell_i.npy'. After conversion the rest of the
+    training loop is identical to the previous implementation.
 
-    Parameters
-    ----------
-    input_files : list of str
-        List of file paths to input image numpy arrays.
-    target_files : list of str
-        List of file paths to target image numpy arrays.
-    model : torch.nn.Module
-        Neural network model to pretrain. Must have a forward method that 
+    :param paired_dataset: Dataset containing paired indices and directory information. Must have
+        attributes `image_dir`, `mapped_image_dir` and `image_pairs`.
+    :type paired_dataset: PairedDataset
+    :param model: Neural network model to pretrain. Must have a forward method that 
         takes two identical inputs and returns reconstructions.
-    save_path : str, optional
-        Directory path to save the pretrained model. If None, model is not saved.
+    :type model: torch.nn.Module
+    :param save_path: Directory path to save the pretrained model. If None, model is not saved.
         Default is None.
-    model_name : str, optional
-        Name prefix for saved model files. Default is "pretrained_model".
-    batch_size : int, optional
-        Batch size for training. Default is 64.
-    epochs : int, optional
-        Number of training epochs. Default is 10.
-    lr : float, optional
-        Learning rate for the Adam optimizer. Default is 1e-3.
-    device : torch.device, optional
-        Device to run training on. If None, automatically selects GPU 
+    :type save_path: str, optional
+    :param model_name: Name prefix for saved model files. Default is "pretrained_model".
+    :type model_name: str, optional
+    :param batch_size: Batch size for training. Default is 64.
+    :type batch_size: int, optional
+    :param epochs: Number of training epochs. Default is 10.
+    :type epochs: int, optional
+    :param lr: Learning rate for the Adam optimizer. Default is 1e-3.
+    :type lr: float, optional
+    :param device: Device to run training on. If None, automatically selects GPU 
         if available. Default is None.
-    return_model : bool, optional
-        Whether to return the trained model. If False, returns None.
+    :type device: torch.device, optional
+    :param return_model: Whether to return the trained model. If False, returns None.
         Default is True.
+    :type return_model: bool, optional
 
-    Returns
-    -------
-    torch.nn.Module or None
-        The pretrained model if return_model is True, otherwise None.
+    :returns: The pretrained model if return_model is True, otherwise None.
+    :rtype: torch.nn.Module or None
     """
+    # Convert PairedDataset to lists of input/target files (unique images)
+    if not isinstance(paired_dataset, PairedDataset):
+        raise TypeError("paired_dataset must be an instance of PairedDataset")
+
+    all_indices = set()
+    for pair in paired_dataset.image_pairs:
+        all_indices.update(pair)
+    all_indices = sorted(list(all_indices))
+
+    input_files = [os.path.join(paired_dataset.image_dir, f"cell_{idx}.npy") for idx in all_indices]
+    target_files = [os.path.join(paired_dataset.mapped_image_dir, f"mapped_cell_{idx}.npy") for idx in all_indices]
+
     dataset = PretrainPairedDataset(input_files, target_files)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     if device is None:
@@ -646,22 +627,17 @@ def kullback_leibler_divergence_loss(y_true, y_pred):
     distribution. Used for reconstruction quality assessment when dealing 
     with normalized protein distributions.
 
-    Parameters
-    ----------
-    y_true : torch.Tensor
-        Target probability distribution tensor.
-    y_pred : torch.Tensor
-        Predicted probability distribution tensor.
+    :param y_true: Target probability distribution tensor.
+    :type y_true: torch.Tensor
+    :param y_pred: Predicted probability distribution tensor.
+    :type y_pred: torch.Tensor
+    :returns: Mean KL divergence loss across the batch.
+    :rtype: torch.Tensor
 
-    Returns
-    -------
-    torch.Tensor
-        Mean KL divergence loss across the batch.
+    .. note::
 
-    Notes
-    -----
-    The KL divergence is computed as: KL(P||Q) = sum(P * log(P/Q))
-    Values are clamped to avoid log(0) numerical issues.
+        The KL divergence is computed as: KL(P||Q) = sum(P * log(P/Q))
+        Values are clamped to avoid log(0) numerical issues.
     """
     epsilon = 1e-8
     
@@ -686,23 +662,18 @@ def sparsity_constraint_loss(embeddings, sparsity_target=0.1):
     sparsity level. This regularization helps prevent overfitting and promotes 
     more interpretable feature representations.
 
-    Parameters
-    ----------
-    embeddings : torch.Tensor
-        Hidden unit activations of shape (batch_size, embedding_dim).
-    sparsity_target : float, optional
-        Desired average activation level for each hidden unit. Default is 0.1.
-
-    Returns
-    -------
-    torch.Tensor
-        Scalar sparsity loss computed as the sum of KL divergences across 
+    :param embeddings: Hidden unit activations of shape (batch_size, embedding_dim).
+    :type embeddings: torch.Tensor
+    :param sparsity_target: Desired average activation level for each hidden unit. Default is 0.1.
+    :type sparsity_target: float, optional
+    :returns: Scalar sparsity loss computed as the sum of KL divergences across 
         all embedding dimensions.
+    :rtype: torch.Tensor
 
-    Notes
-    -----
-    Activations are passed through sigmoid to ensure they're in (0,1) range 
-    before computing the sparsity constraint.
+    .. note::
+
+        Activations are passed through sigmoid to ensure they're in (0,1) range 
+        before computing the sparsity constraint.
     """
     epsilon = 1e-8
     # Apply sigmoid to ensure activations are in (0,1)
@@ -722,23 +693,18 @@ def reconstruction_loss(x, uf):
     probability distributions use KL divergence, while binary masks 
     use binary cross-entropy loss.
 
-    Parameters
-    ----------
-    x : torch.Tensor
-        Original image tensor of shape (batch_size, 3, height, width).
-    uf : torch.Tensor
-        Reconstructed image tensor of same shape as x.
+    :param x: Original image tensor of shape (batch_size, 3, height, width).
+    :type x: torch.Tensor
+    :param uf: Reconstructed image tensor of same shape as x.
+    :type uf: torch.Tensor
+    :returns: Combined reconstruction loss across all channels.
+    :rtype: torch.Tensor
 
-    Returns
-    -------
-    torch.Tensor
-        Combined reconstruction loss across all channels.
+    .. note::
 
-    Notes
-    -----
-    - Channel 0: Probability distribution (KL divergence loss)
-    - Channel 1: Binary cell mask (Binary cross-entropy loss)  
-    - Channel 2: Binary nucleus mask (Binary cross-entropy loss)
+        - Channel 0: Probability distribution (KL divergence loss)
+        - Channel 1: Binary cell mask (Binary cross-entropy loss)
+        - Channel 2: Binary nucleus mask (Binary cross-entropy loss)
     """
     # Split channels
     x_prob, x_mask1, x_mask2 = x[:, 0:1, :, :], x[:, 1:2, :, :], x[:, 2:3, :, :]
@@ -760,18 +726,13 @@ def get_random_pairs(indices, n_pairs):
     samples a specified number of them. Useful for creating training pairs 
     from a dataset without exhaustive pairwise combinations.
 
-    Parameters
-    ----------
-    indices : array-like
-        List or array of indices to create pairs from.
-    n_pairs : int
-        Number of pairs to randomly sample. If larger than the total 
+    :param indices: List or array of indices to create pairs from.
+    :type indices: array-like
+    :param n_pairs: Number of pairs to randomly sample. If larger than the total 
         possible pairs, returns all possible pairs.
-
-    Returns
-    -------
-    numpy.ndarray
-        Array of shape (n_pairs, 2) containing randomly selected index pairs.
+    :type n_pairs: int
+    :returns: Array of shape (n_pairs, 2) containing randomly selected index pairs.
+    :rtype: numpy.ndarray
     """
     all_pairs = np.array(list(it.combinations(indices, 2)))
     if n_pairs > len(all_pairs):
@@ -787,15 +748,13 @@ class IndexedImageDataset(Dataset):
     Simple dataset for loading cell images by index, useful for extracting 
     embeddings from unique images in a PairedDataset without loading duplicates.
 
-    Parameters
-    ----------
-    image_dir : str
-        Path to directory containing cell image .npy files with naming 
+    :param image_dir: Path to directory containing cell image .npy files with naming 
         convention 'cell_{index}.npy'.
-    indices : list of int
-        List of cell indices to load.
-    transform : callable, optional
-        Transform function to apply to all images. Default is None.
+    :type image_dir: str
+    :param indices: List of cell indices to load.
+    :type indices: list of int
+    :param transform: Transform function to apply to all images. Default is None.
+    :type transform: callable, optional
     """
     def __init__(self, image_dir, indices, transform=None):
         self.image_dir = image_dir
@@ -824,30 +783,28 @@ class PairedDataset(Dataset):
     for training distance-based models. Supports data augmentation and lazy 
     loading for memory efficiency.
 
-    Parameters
-    ----------
-    image_dir : str
-        Path to directory containing cell image .npy files with naming 
+    :param image_dir: Path to directory containing cell image .npy files with naming 
         convention 'cell_{index}.npy'.
-    mapped_image_dir : str
-        Path to directory containing mapped cell image .npy files with naming 
+    :type image_dir: str
+    :param mapped_image_dir: Path to directory containing mapped cell image .npy files with naming 
         convention 'mapped_cell_{index}.npy'.
-    distances : list of float
-        Distance values corresponding to each image pair for supervised learning.
-    image_pairs : list of tuple
-        List of (index1, index2) tuples specifying which images to pair.
-    transform : callable, optional
-        Transform function to apply to all images. Default is None.
-    augment_transform : callable, optional
-        Additional augmentation transform for data augmentation. Default is None.
-    n_augment : int, optional
-        Number of augmented copies to create for each pair. Default is 1.
+    :type mapped_image_dir: str
+    :param distances: Distance values corresponding to each image pair for supervised learning.
+    :type distances: list of float
+    :param image_pairs: List of (index1, index2) tuples specifying which images to pair.
+    :type image_pairs: list of tuple
+    :param transform: Transform function to apply to all images. Default is None.
+    :type transform: callable, optional
+    :param augment_transform: Additional augmentation transform for data augmentation. Default is None.
+    :type augment_transform: callable, optional
+    :param n_augment: Number of augmented copies to create for each pair. Default is 1.
+    :type n_augment: int, optional
 
-    Notes
-    -----
-    The dataset expects file naming conventions:
-    - Cell images: 'cell_{index}.npy' 
-    - Mapped images: 'mapped_cell_{index}.npy'
+    .. note::
+
+        The dataset expects file naming conventions:
+        - Cell images: 'cell_{index}.npy'
+        - Mapped images: 'mapped_cell_{index}.npy'
     """
     def __init__(self, image_dir, mapped_image_dir, distances, image_pairs, transform=None, augment_transform=None, n_augment=1):
         # Store directory paths. Listing all files is no longer needed.
@@ -905,20 +862,18 @@ class RandomHorizontalRescale(object):
     distribution of cell mask widths. Uses appropriate interpolation methods 
     for different channel types (bilinear for intensity, nearest for masks).
 
-    Parameters
-    ----------
-    min_relative_width : float, optional
-        Minimum relative width of the cell mask as fraction of image width.
+    :param min_relative_width: Minimum relative width of the cell mask as fraction of image width.
         Default is 0.1.
-    max_relative_width : float, optional
-        Maximum relative width of the cell mask as fraction of image width.
+    :type min_relative_width: float, optional
+    :param max_relative_width: Maximum relative width of the cell mask as fraction of image width.
         Default is 1.0.
+    :type max_relative_width: float, optional
 
-    Notes
-    -----
-    - Channel 0: Resized with bilinear interpolation (intensity/probability)
-    - Other channels: Resized with nearest neighbor interpolation (binary masks)
-    The transform maintains the original image width by padding or cropping after rescaling.
+    .. note::
+
+        - Channel 0: Resized with bilinear interpolation (intensity/probability)
+        - Other channels: Resized with nearest neighbor interpolation (binary masks)
+        The transform maintains the original image width by padding or cropping after rescaling.
     """
     def __init__(self, min_relative_width=0.1, max_relative_width=1.0):
         assert 0 < min_relative_width <= max_relative_width <= 1.0
@@ -981,55 +936,50 @@ def train_dGWOT(train_dataset, valid_dataset, test_dataset, save_path, dataset_n
     and image reconstruction objectives. Supports early stopping, learning rate 
     scheduling, and optional sparsity constraints.
 
-    Parameters
-    ----------
-    train_dataset, valid_dataset, test_dataset : Dataset
-        PyTorch datasets for training, validation, and testing.
-    save_path : str
-        Directory path to save the trained model and checkpoints.
-    dataset_name : str
-        Name prefix for saved model files.
-    embedding_size : int, optional
-        Dimensionality of the feature embedding space. Default is 50.
-    image_shape : tuple of int, optional
-        Shape of input images as (height, width). Default is (64, 64).
-    batch_size : int, optional
-        Batch size for training. Default is 100.
-    epochs : int, optional
-        Maximum number of training epochs. Default is 100.
-    device : torch.device, optional
-        Device for training. If None, automatically selects GPU if available.
-    learning_rate : float, optional
-        Initial learning rate for Adam optimizer. Default is 0.001.
-    dist_weight : float, optional
-        Weight for distance loss vs reconstruction loss in total loss. Default is 1.0.
-    early_stopping : bool, optional
-        Whether to use early stopping based on validation loss. Default is True.
-    patience : int, optional
-        Number of epochs to wait for improvement before stopping. Default is 3.
-    weight_decay : float, optional
-        L2 regularization weight for optimizer. Default is 1e-5.
-    lr_gamma : float, optional
-        Decay factor for exponential learning rate scheduler. Default is 0.95.
-    sparsity_weight : float, optional
-        Weight for sparsity constraint loss. Default is 0.0 (disabled).
-    sparsity_target : float, optional
-        Target sparsity level for hidden activations. Default is 0.05.
-    pretrained_path : str, optional
-        Path to pretrained model weights to initialize from. Default is None.
-    show_loss_components : bool, optional
-        Whether to display individual loss components (distance, reconstruction, 
+    :param train_dataset: PyTorch datasets for training, validation, and testing.
+    :type train_dataset: Dataset
+    :param valid_dataset: Validation dataset.
+    :type valid_dataset: Dataset
+    :param test_dataset: Test dataset.
+    :type test_dataset: Dataset
+    :param save_path: Directory path to save the trained model and checkpoints.
+    :type save_path: str
+    :param dataset_name: Name prefix for saved model files.
+    :type dataset_name: str
+    :param embedding_size: Dimensionality of the feature embedding space. Default is 50.
+    :type embedding_size: int, optional
+    :param image_shape: Shape of input images as (height, width). Default is (64, 64).
+    :type image_shape: tuple of int, optional
+    :param batch_size: Batch size for training. Default is 100.
+    :type batch_size: int, optional
+    :param epochs: Maximum number of training epochs. Default is 100.
+    :type epochs: int, optional
+    :param device: Device for training. If None, automatically selects GPU if available.
+    :type device: torch.device, optional
+    :param learning_rate: Initial learning rate for Adam optimizer. Default is 0.001.
+    :type learning_rate: float, optional
+    :param dist_weight: Weight for distance loss vs reconstruction loss in total loss. Default is 1.0.
+    :type dist_weight: float, optional
+    :param early_stopping: Whether to use early stopping based on validation loss. Default is True.
+    :type early_stopping: bool, optional
+    :param patience: Number of epochs to wait for improvement before stopping. Default is 3.
+    :type patience: int, optional
+    :param weight_decay: L2 regularization weight for optimizer. Default is 1e-5.
+    :type weight_decay: float, optional
+    :param lr_gamma: Decay factor for exponential learning rate scheduler. Default is 0.95.
+    :type lr_gamma: float, optional
+    :param sparsity_weight: Weight for sparsity constraint loss. Default is 0.0 (disabled).
+    :type sparsity_weight: float, optional
+    :param sparsity_target: Target sparsity level for hidden activations. Default is 0.05.
+    :type sparsity_target: float, optional
+    :param pretrained_path: Path to pretrained model weights to initialize from. Default is None.
+    :type pretrained_path: str, optional
+    :param show_loss_components: Whether to display individual loss components (distance, reconstruction, 
         sparsity) during training. Default is False.
+    :type show_loss_components: bool, optional
 
-    Returns
-    -------
-    tuple
-        model : torch.nn.Module
-            Trained dGWOT model.
-        train_losses : list of float
-            Training loss history.
-        val_losses : list of float
-            Validation loss history.
+    :returns: Tuple containing the trained model, training loss history, and validation loss history.
+    :rtype: tuple (model: torch.nn.Module, train_losses: list of float, val_losses: list of float)
     """
     # Setup device
     if device is None:
@@ -1192,17 +1142,12 @@ def load_dGWOT_model(checkpoint_path, device=None):
     """
     Load a dGWOT model from a checkpoint containing state dict and config.
     
-    Parameters
-    ----------
-    checkpoint_path : str
-        Path to the checkpoint file containing both state_dict and config.
-    device : torch.device, optional
-        Device to load the model on. If None, uses GPU if available.
-        
-    Returns
-    -------
-    torch.nn.Module
-        Loaded dGWOT model ready for inference or further training.
+    :param checkpoint_path: Path to the checkpoint file containing both state_dict and config.
+    :type checkpoint_path: str
+    :param device: Device to load the model on. If None, uses GPU if available.
+    :type device: torch.device, optional
+    :returns: Loaded dGWOT model ready for inference or further training.
+    :rtype: torch.nn.Module
     """
     if device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -1249,26 +1194,21 @@ def extract_embeddings(model, data, batch_size=64, device=None):
     Processes input images through the feature extractor to obtain latent 
     embeddings. Supports lists/arrays of images, PyTorch datasets, and PairedDatasets.
 
-    Parameters
-    ----------
-    model : torch.nn.Module
-        Trained dGWOT model with a feature_extractor attribute.
-    data : list, numpy.ndarray, torch.utils.data.Dataset, or PairedDataset
-        Input data to extract embeddings from. Can be:
+    :param model: Trained dGWOT model with a feature_extractor attribute.
+    :type model: torch.nn.Module
+    :param data: Input data to extract embeddings from. Can be:
         - List of numpy arrays with shape (H, W, C)
-        - Single numpy array with shape (N, H, W, C) 
+        - Single numpy array with shape (N, H, W, C)
         - PyTorch Dataset where __getitem__ returns images
         - PairedDataset (extracts embeddings for unique images only)
-    batch_size : int, optional
-        Batch size for processing. Default is 64.
-    device : torch.device, optional
-        Device to run computation on. If None, uses model's current device.
-
-    Returns
-    -------
-    numpy.ndarray
-        Extracted embeddings of shape (N, embedding_size) where N is the 
+    :type data: list, numpy.ndarray, torch.utils.data.Dataset, or PairedDataset
+    :param batch_size: Batch size for processing. Default is 64.
+    :type batch_size: int, optional
+    :param device: Device to run computation on. If None, uses model's current device.
+    :type device: torch.device, optional
+    :returns: Extracted embeddings of shape (N, embedding_size) where N is the 
         number of input images.
+    :rtype: numpy.ndarray
     """
     if device is None:
         device = next(model.parameters()).device
@@ -1370,22 +1310,17 @@ def predict_distances(model, paired_dataset, batch_size=64, device=None):
     pairwise Euclidean distances in the embedding space. This provides 
     predictions that can be compared against ground truth distances.
 
-    Parameters
-    ----------
-    model : torch.nn.Module
-        Trained dGWOT model with a feature_extractor attribute.
-    paired_dataset : PairedDataset
-        Dataset containing paired images with known distances.
-    batch_size : int, optional
-        Batch size for processing embeddings. Default is 64.
-    device : torch.device, optional
-        Device to run computation on. If None, uses model's current device.
-
-    Returns
-    -------
-    numpy.ndarray
-        Array of predicted distances of shape (len(paired_dataset),) 
+    :param model: Trained dGWOT model with a feature_extractor attribute.
+    :type model: torch.nn.Module
+    :param paired_dataset: Dataset containing paired images with known distances.
+    :type paired_dataset: PairedDataset
+    :param batch_size: Batch size for processing embeddings. Default is 64.
+    :type batch_size: int, optional
+    :param device: Device to run computation on. If None, uses model's current device.
+    :type device: torch.device, optional
+    :returns: Array of predicted distances of shape (len(paired_dataset),)
         corresponding to each pair in the dataset.
+    :rtype: numpy.ndarray
     """
     if device is None:
         device = next(model.parameters()).device
@@ -1442,32 +1377,27 @@ def plot_distance_predictions(model, paired_dataset, batch_size=64, device=None,
     Creates a scatter plot comparing model predictions against ground truth 
     distances with a diagonal reference line and correlation metrics.
 
-    Parameters
-    ----------
-    model : torch.nn.Module
-        Trained dGWOT model with a feature_extractor attribute.
-    paired_dataset : PairedDataset
-        Dataset containing paired images with known distances.
-    batch_size : int, optional
-        Batch size for processing embeddings. Default is 64.
-    device : torch.device, optional
-        Device to run computation on. If None, uses model's current device.
-    figsize : tuple, optional
-        Figure size as (width, height). Default is (8, 8).
-    return_plot : bool, optional
-        Whether to return the matplotlib figure and axes objects. Default is False.
-    title : str, optional
-        Custom title for the plot. If None, uses default with correlation metrics.
-    alpha : float, optional
-        Transparency of scatter points. Default is 0.6.
-    s : int, optional
-        Size of scatter points. Default is 20.
-
-    Returns
-    -------
-    None or tuple
-        If return_plot is False: displays the plot and returns None.
+    :param model: Trained dGWOT model with a feature_extractor attribute.
+    :type model: torch.nn.Module
+    :param paired_dataset: Dataset containing paired images with known distances.
+    :type paired_dataset: PairedDataset
+    :param batch_size: Batch size for processing embeddings. Default is 64.
+    :type batch_size: int, optional
+    :param device: Device to run computation on. If None, uses model's current device.
+    :type device: torch.device, optional
+    :param figsize: Figure size as (width, height). Default is (8, 8).
+    :type figsize: tuple, optional
+    :param return_plot: Whether to return the matplotlib figure and axes objects. Default is False.
+    :type return_plot: bool, optional
+    :param title: Custom title for the plot. If None, uses default with correlation metrics.
+    :type title: str, optional
+    :param alpha: Transparency of scatter points. Default is 0.6.
+    :type alpha: float, optional
+    :param s: Size of scatter points. Default is 20.
+    :type s: int, optional
+    :returns: If return_plot is False: displays the plot and returns None.
         If return_plot is True: returns (fig, ax) matplotlib objects.
+    :rtype: None or tuple
     """
     # Get predictions
     predicted_distances = predict_distances(model, paired_dataset, batch_size=batch_size, device=device)
@@ -1510,34 +1440,29 @@ def plot_distance_predictions(model, paired_dataset, batch_size=64, device=None,
         return None if not return_plot else (None, None)
 
 
-def plot_reconstruction_comparison(model, paired_dataset, num_images=5, device=None, figsize=None, seed=None):
+def plot_reconstruction_comparison(model, paired_dataset, n_cells=5, device=None, figsize=None, seed=None):
     """
-    Plot comparison of original mapped protein images vs model reconstructions.
+    Plot comparison of original mapped protein distributions vs model reconstructions.
 
-    Randomly selects different individual images from the dataset, shows the original mapped 
-    protein images in the top row and their reconstructions from the model in 
+    Randomly selects cell images from the dataset, shows the original mapped 
+    protein distributions in the top row and their reconstructions from the model in 
     the bottom row.
 
-    Parameters
-    ----------
-    model : torch.nn.Module
-        Trained dGWOT model with reconstruction capabilities.
-    paired_dataset : PairedDataset
-        Dataset containing paired images for reconstruction.
-    num_images : int, optional
-        Number of image pairs to display. Default is 5.
-    device : torch.device, optional
-        Device to run model on. If None, uses model's current device.
-    figsize : tuple, optional
-        Figure size as (width, height). If None, automatically calculated 
+    :param model: Trained dGWOT model with reconstruction capabilities.
+    :type model: torch.nn.Module
+    :param paired_dataset: Dataset containing paired images for reconstruction.
+    :type paired_dataset: PairedDataset
+    :param n_cells: Number of image pairs to display. Default is 5.
+    :type n_cells: int, optional
+    :param device: Device to run model on. If None, uses model's current device.
+    :type device: torch.device, optional
+    :param figsize: Figure size as (width, height). If None, automatically calculated 
         based on number of images.
-    seed : int, optional
-        Random seed for reproducible image selection. Default is None.
-
-    Returns
-    -------
-    None
-        Displays the plot using matplotlib.
+    :type figsize: tuple, optional
+    :param seed: Random seed for reproducible image selection. Default is None.
+    :type seed: int, optional
+    :returns: None. Displays the plot using matplotlib.
+    :rtype: None
     """
     if device is None:
         device = next(model.parameters()).device
@@ -1553,17 +1478,17 @@ def plot_reconstruction_comparison(model, paired_dataset, num_images=5, device=N
     all_image_indices = list(all_image_indices)
     
     # Randomly select unique image indices
-    selected_image_indices = np.random.choice(all_image_indices, size=min(num_images, len(all_image_indices)), replace=False)
+    selected_image_indices = np.random.choice(all_image_indices, size=min(n_cells, len(all_image_indices)), replace=False)
     
     # Set up the plot
     if figsize is None:
-        figsize = (3 * num_images, 6)
+        figsize = (3 * n_cells, 6)
     
     try:
         import matplotlib.pyplot as plt
         
-        fig, axes = plt.subplots(2, num_images, figsize=figsize)
-        if num_images == 1:
+        fig, axes = plt.subplots(2, n_cells, figsize=figsize)
+        if n_cells == 1:
             axes = axes.reshape(2, 1)
         
         model.eval()
