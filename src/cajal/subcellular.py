@@ -123,27 +123,30 @@ def plot_cell_image(gw_ot_cell, channels, make_square=True, ax=None, mask_alpha=
     Creates a visualization of cell image data by combining multiple channels 
     into an RGB representation with an optional transparent mask overlay.
 
-    :param gw_ot_cell: GW_OT_Cell or str
-        Either a GW_OT_Cell object or a path to a pickled GW_OT_Cell object.
-    :type gw_ot_cell: GW_OT_Cell or str
-    :param channels: list of str
-        List of channel names to plot. Maximum of 3 channels allowed.
-        Each channel should correspond to a key in the GW_OT_Cell's 
-        intensities dictionary or be 'nucleus' for nuclear segmentation.
+    :param image: 3D numpy array of shape (H, W, C) representing the multi-channel image.
+    :type image: numpy.ndarray
+    :param channels: List of channel names corresponding to the last dimension of the image.
     :type channels: list[str]
-    :param make_square: bool, optional
-        Whether to pad the image to make it square, by default True.
-    :type make_square: bool
-    :param ax: matplotlib.axes.Axes, optional
-        The matplotlib axes object to plot on. If None, uses current axes.
-    :type ax: matplotlib.axes.Axes or None
-    :param mask_alpha: float, optional
-        Transparency level for the cell mask overlay, by default 0.2.
-    :type mask_alpha: float
-    :return: matplotlib.image.AxesImage or None
-        Returns the AxesImage object if ax is provided, otherwise None.
-    :rtype: matplotlib.image.AxesImage or None
-    :raises ValueError: If more than 3 channels are specified for plotting.
+    :param cell_mask_image: 2D numpy array of shape (H, W) with integer labels for each cell (0 for background).
+    :type cell_mask_image: numpy.ndarray
+    :param nucleus_mask_image: 2D numpy array of shape (H, W) with integer labels for nuclei (0 for background). Default is None.
+    :type nucleus_mask_image: numpy.ndarray or None
+    :param ds_factor: Downsampling factor. If provided, downsample by this factor. Default is None.
+    :type ds_factor: int or None
+    :param ds_target_size: Target number of pixels per cell after downsampling. If provided, downsample to achieve this pixel count. Default is None.
+    :type ds_target_size: int or None
+    :param filter_border_cells: If True, exclude cells touching the image border. Default is True.
+    :type filter_border_cells: bool
+    :param n_boundary_points: Number of points to sample from the cell boundary. If None, boundary sampling is skipped. Default is 100.
+    :type n_boundary_points: int or None
+    :param save_path: Directory path to save the processed cell objects as pickle files. If None, objects are not saved. Default is None.
+    :type save_path: str or None
+    :param return_objects: If True, return the list of GW_OT_Cell objects. Default is True.
+    :type return_objects: bool
+
+    :return:
+        If return_objects is True, returns a list of GW_OT_Cell objects; otherwise returns None.
+    :rtype: list[GW_OT_Cell] or None
     """
     if len(channels) > 3:
         raise ValueError("Only up to 3 channels can be plotted.")
@@ -249,6 +252,7 @@ def compute_geodesic_dmat(mask_coords):
     return(geodesic_dmat)
 
 
+
 class GW_OT_Cell:
     """A cell representation for Gromov-Wasserstein Optimal Transport analysis.
 
@@ -256,36 +260,17 @@ class GW_OT_Cell:
     for Gromov-Wasserstein distance computations and optimal transport analysis 
     between cells.
 
-    :param coords : numpy.ndarray
-        Array of shape (N, 2) containing (x, y) coordinates for each pixel 
-        in the cell.
-    :param boundary_coords : numpy.ndarray, optional
-        Array of shape (M, 2) containing (x, y) coordinates sampled from 
-        the cell boundary. Default is None.
-    :param intensities : dict, optional
-        Dictionary mapping channel names (str) to intensity arrays (numpy.ndarray) 
+    :param coords : Array of shape (N, 2) containing (x, y) coordinates for each pixel in the cell.
+    :type coords: numpy.ndarray
+    :param boundary_coords : Array of shape (M, 2) containing (x, y) coordinates sampled from the cell boundary. Default is None.
+    :type boundary_coords: numpy.ndarray or None
+    :param intensities : Dictionary mapping channel names (str) to intensity arrays (numpy.ndarray) 
         of length N, where N is the number of cell pixels. Default is None.
-    :param nucleus : numpy.ndarray, optional
-        Array of length N indicating nuclear identity (0 or 1) for each 
-        cell pixel. Default is None.
-    :param metric : str, optional
-        Distance metric for computing coordinate distance matrices. Options 
-        are 'euclidean', 'geodesic', or None. Default is 'euclidean'.
-
-    :ivar coords: Cell pixel coordinates.
-    :vartype coords: numpy.ndarray
-    :ivar boundary_coords: Cell boundary coordinates.
-    :vartype boundary_coords: numpy.ndarray or None
-    :ivar coord_dmat: Distance matrix between all cell pixel coordinates.
-    :vartype coord_dmat: numpy.ndarray or None
-    :ivar boundary_coord_dmat: Distance matrix between boundary coordinates.
-    :vartype boundary_coord_dmat: numpy.ndarray or None
-    :ivar intensities: Channel intensity information.
-    :vartype intensities: dict
-    :ivar nucleus: Nuclear segmentation information.
-    :vartype nucleus: numpy.ndarray or None
-    :ivar size: Number of pixels in the cell.
-    :vartype size: int
+    :type intensities: dict or None
+    :param nucleus : Array of length N indicating nuclear identity (0 or 1) for each cell pixel. Default is None.
+    :type nucleus: numpy.ndarray or None
+    :param metric : Distance metric for computing coordinate distance matrices. Options are 'euclidean', 'geodesic', or None. Default is 'euclidean'.
+    :type metric: str or None
     """
     def __init__(self, coords, boundary_coords=None, intensities=None, nucleus=None, metric='euclidean'):
         self.coords = coords

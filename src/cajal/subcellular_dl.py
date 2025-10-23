@@ -1557,27 +1557,22 @@ def generate_dataset_split_pairs(indices, n_pairs, proportions=None, seed=None):
     random sampling across all cells and stratified sampling from predefined groups 
     to ensure balanced representation across train/validation/test splits.
     
-    Parameters
-    ----------
-    indices : list or array-like
-        List of available cell indices corresponding to processed cell images.
-    n_pairs : list of int
-        N-length list specifying number of pairs to generate for each dataset split.
+    :param indices: List of available cell indices corresponding to processed cell images.
+    :type indices: list or array-like
+    :param n_pairs: N-length list specifying number of pairs to generate for each dataset split.
         Typically [n_train_pairs, n_val_pairs, n_test_pairs].
-    proportions : list of float, optional
-        N-length list of proportions that sum to 1.0 for stratified sampling.
+    :type n_pairs: list of int
+    :param proportions: N-length list of proportions that sum to 1.0 for stratified sampling.
         If provided, cell indices are split into N groups according to these 
         proportions, and pairs are drawn only within each group. This ensures
         train/val/test sets use disjoint cell populations. If None, all pairs 
         are drawn randomly from all available cells. Default is None.
-    seed : int, optional
-        Random seed for reproducible dataset splits. Default is None.
-    
-    Returns
-    -------
-    list of numpy.ndarray
-        N-length list where each element is a 2D array of shape (n_pairs, 2) 
+    :type proportions: list of float, optional
+    :param seed: Random seed for reproducible dataset splits. Default is None.
+    :type seed: int, optional
+    :returns: N-length list where each element is a 2D array of shape (n_pairs, 2) 
         containing cell index pairs for each dataset split (train, val, test).
+    :rtype: list of numpy.ndarray
     """
     if seed is not None:
         np.random.seed(seed)
