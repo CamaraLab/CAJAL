@@ -80,7 +80,7 @@ def cell_boundaries(
                 + " pixels around boundary of cell "
                 + str(cell)
             )
-        indices = np.linspace(0, boundary_pts.shape[0] - 1, n_sample)
+        indices = np.linspace(0, boundary_pts.shape[0] - 1, n_sample, endpoint=False)
         outlist.append((cell, boundary_pts[indices.astype("uint32")]))
     return list(outlist)
 
