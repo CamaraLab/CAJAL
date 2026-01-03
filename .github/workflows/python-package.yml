@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, macos-13, macos-14, ubuntu-latest]
+        platform: [macos-latest, macos-14, ubuntu-latest]
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
@@ -161,3 +161,4 @@ jobs:
         merge-multiple: true
 
     - uses: pypa/gh-action-pypi-publish@release/v1
+
