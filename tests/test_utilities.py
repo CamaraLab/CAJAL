@@ -17,7 +17,7 @@ def test():
     dist_mat_of_dict(gw_dist_dictionary, [cell_names[3], cell_names[2], cell_names[1]])
     gmat = dist_mat_of_dict(gw_dist_dictionary, cell_names)
     assert np.all(gmat >= 0)
-    coupling_mats = read_gw_couplings("tests/gw_coupling_mat.csv", True)
+    coupling_mats = read_gw_couplings("tests/gw_coupling_mat.npz")
     assert isinstance(coupling_mats, dict)
     icdm = np.loadtxt(
         "tests/icdm.csv", skiprows=1, delimiter=",", usecols=range(1, 1226)

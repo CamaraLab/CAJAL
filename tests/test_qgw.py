@@ -1,5 +1,5 @@
-from cajal.qgw import slb_parallel
-from cajal.combined_slb_qgw import combined_slb_quantized_gw
+from src.cajal.qgw import slb_parallel
+from src.cajal.combined_slb_qgw import combined_slb_quantized_gw
 import os
 
 
@@ -18,8 +18,8 @@ def test_combined_slb_quantized_gw():
         gw_out_csv_location="tests/slb_qgw.csv",
         num_processes=2,
         num_clusters=20,
-        accuracy=.97,
+        accuracy=0.97,
         nearest_neighbors=3,
         verbose=False,
-        chunksize=20
+        chunksize=20,
     )

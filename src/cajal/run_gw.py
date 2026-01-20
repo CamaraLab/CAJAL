@@ -1,5 +1,6 @@
 """Functionality to compute Gromov-Wasserstein distances \
 using algorithms in Peyre et al. ICML 2016."""
+
 from __future__ import annotations
 
 import csv
@@ -7,21 +8,20 @@ import csv
 # std lib dependencies
 import itertools as it
 import sys
-from typing import Iterator, List, Optional, TypeVar, NewType
+from typing import Iterator, List, Optional, TypeVar
 
 if "ipykernel" in sys.modules:
     from tqdm.notebook import tqdm
 else:
     from tqdm import tqdm  # type: ignore[assignment]
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-
-from math import ceil, sqrt
+from .cajal_types import Distribution, DistanceMatrix, Matrix
+from .utilities import cell_iterator_csv, icdm_csv_validate, uniform
 from multiprocessing import Pool
 
 import numpy as np
-import numpy.typing as npt
+
+# import numpy.typing as npt
 from scipy.sparse import coo_matrix
 from scipy.spatial.distance import squareform
 
@@ -31,18 +31,6 @@ from threadpoolctl import ThreadpoolController
 from .gw_cython import GW_cell, gw_cython_core
 
 T = TypeVar("T")
-
-Distribution: TypeAlias = npt.NDArray[np.float64]
-# A DistanceMatrix is a square symmetric matrix with zeros along the diagonal
-# and nonnegative entries.
-DistanceMatrix: TypeAlias = npt.NDArray[np.float64]
-Matrix = NewType("Matrix", npt.NDArray[np.float64])
-# An Array is a one-dimensional matrix.
-Array = NewType("Array", npt.NDArray[np.float64])
-# A MetricMeasureSpace is a pair consisting of a DistanceMatrix `A` and a Distribution `a`
-# such that `A.shape[0]==`a.shape[0]`.
-MetricMeasureSpace: TypeAlias = tuple[DistanceMatrix, Distribution]
-controller = ThreadpoolController()
 
 
 def _batched(itera: Iterator[T], n: int) -> Iterator[List[T]]:
@@ -58,68 +46,6 @@ def _is_sorted(int_list: List[int]) -> bool:
     if len(int_list) <= 1:
         return True
     return all(map(lambda tup: tup[0] <= tup[1], zip(int_list[:-1], int_list[1:])))
-
-
-def n_c_2(n: int):
-    """Compute the number of ordered pairs of distinct elements in the set {1,...,n}."""
-    return (n * (n - 1)) // 2
-
-
-def icdm_csv_validate(intracell_csv_loc: str) -> None:
-    """
-    Raise an exception if the file in intracell_csv_loc fails to pass formatting tests.
-
-    If formatting tests are passed, the function returns none.
-
-    :param intracell_csv_loc: The (full) file path for the CSV file containing the intracell
-        distance matrix.
-
-    The file format for an intracell distance matrix is as follows:
-
-    * A line whose first character is '#' is discarded as a comment.
-    * The first line which is not a comment is discarded as a "header" - this line may
-          contain the column titles for each of the columns.
-    * Values separated by commas. Whitespace is not a separator.
-    * The first value in the first non-comment line should be the string 'cell_id', and
-          all values in the first column after that should be a unique identifier for that cell.
-    * All values after the first column should be floats.
-    * Not including the cell id in the first column, each row except the header should contain
-          the entries of an intracell distance matrix lying strictly above the diagonal,
-          as in the footnotes of
-          https://docs.scipy.org/doc/scipy/reference/\
-          generated/scipy.spatial.distance.squareform.html
-    """
-    with open(intracell_csv_loc, "r", newline="") as icdm_infile:
-        csv_reader = csv.reader(icdm_infile, delimiter=",")
-        header = next(csv_reader)
-        while header[0] == "#":
-            header = next(csv_reader)
-        if header[0] != "cell_id":
-            raise ValueError("Expects header on first line starting with 'cell_id' ")
-        linenum = 1
-        for line in csv_reader:
-            if line[0] == "#":
-                continue
-            for value in line[1:]:
-                try:
-                    float(value)
-                except ValueError:
-                    print(
-                        "Unexpected value at file line "
-                        + str(linenum)
-                        + ", could not convert value"
-                        + str(value)
-                        + " to a float"
-                    )
-                    raise
-
-            line_length = len(header[1:])
-            side_length = ceil(sqrt(2 * line_length))
-            if side_length * (side_length - 1) != 2 * line_length:
-                raise ValueError(
-                    "Line " + str(linenum) + " is not in upper triangular form."
-                )
-            linenum += 1
 
 
 def _batched_cell_list_iterator_csv(
@@ -140,7 +66,7 @@ def _batched_cell_list_iterator_csv(
 
     :param intracell_csv_loc: A full file path to a csv file.
     :param chunk_size: A size parameter.
-
+csv
     :return: An iterator over pairs (list1, list2), where each element \
     in list1 and list2 is a triple
     (cell_id, cell_name, icdm), where cell_id is a natural number,
@@ -186,29 +112,6 @@ def _batched_cell_list_iterator_csv(
                         for (cell_id, ell) in inner_batch
                     ]
                     yield outer_list, inner_list
-
-
-def cell_iterator_csv(
-    intracell_csv_loc: str,
-) -> Iterator[tuple[str, DistanceMatrix]]:
-    """
-    :param intracell_csv_loc: A full file path to a csv file.
-
-    :return: an iterator over cells in the csv file, given as tuples of the form
-        (name, dmat). Intracell distance matrices are in squareform.
-    """
-    icdm_csv_validate(intracell_csv_loc)
-    with open(intracell_csv_loc, "r", newline="") as icdm_csvfile:
-        csv_reader = csv.reader(icdm_csvfile, delimiter=",")
-        # Assume a header
-        next(csv_reader)
-        while ell := next(csv_reader, None):
-            cell_name = ell[0]
-            arr = squareform(
-                np.array([float(x) for x in ell[1:]], dtype=np.float64),
-                force="tomatrix",
-            )
-            yield cell_name, arr
 
 
 def cell_pair_iterator_csv(
@@ -264,21 +167,10 @@ def _gw_index(p: tuple[int, int]) -> tuple[int, int, Matrix, float]:
     return (i, j, coupling_mat, gw_dist)
 
 
-def stringify_coupling_mat(A: npt.NDArray[np.float64]) -> list[str]:
-    """Convert a coupling matrix into a string."""
-    a = coo_matrix(A)
-    return (
-        [str(a.nnz)]
-        + list(map(str, a.data))
-        + list(map(str, a.row))
-        + list(map(str, a.col))
-    )
-
-
 def csv_output_writer(
     names: list[str],
     gw_dist_csv: Optional[str],
-    gw_coupling_mat_csv: Optional[str],
+    gw_coupling_mat_npz: Optional[str],
     results_iterator: Iterator[tuple[int, int, Matrix, float]],
 ) -> Iterator[tuple[int, int, Matrix, float]]:
     """Write the input to file, and return the output unchanged.
@@ -289,47 +181,47 @@ def csv_output_writer(
     If gw_coupling_mat_file is not None, then it will be created,
     and the given GW coupling matrices will be written to that file.
     """
-    write_gw_distances = gw_dist_csv is not None
+
+    write_gw_distances: bool = gw_dist_csv is not None
     if write_gw_distances:
         gw_dist_file = open(gw_dist_csv, "w", newline="")  # type: ignore[arg-type]
         gw_dist_writer = csv.writer(gw_dist_file)
         gw_dist_writer.writerow(["first_object", "second_object", "gw_distance"])
-    write_gw_coupling_mats = gw_coupling_mat_csv is not None
+
+    write_gw_coupling_mats: bool = gw_coupling_mat_npz is not None
+
     if write_gw_coupling_mats:
-        gw_coupling_mat_file = open(gw_coupling_mat_csv, "w", newline="")  # type: ignore[arg-type]
-        gw_coupling_mat_writer = csv.writer(gw_coupling_mat_file)
-        gw_coupling_mat_writer.writerow(
-            [
-                "first_object",
-                "first_object_sidelength",
-                "second_object",
-                "second_object_sidelength",
-                "num_nonzero",
-                "data",
-                "row_indices",
-                "col_indices",
-            ]
-        )
+        first_names = list()
+        second_names = list()
+        coo_data = list()
+        coo_row = list()
+        coo_col = list()
+
     for i, j, coupling_mat, gw_dist in results_iterator:
         if write_gw_distances:
             gw_dist_writer.writerow([names[i], names[j], str(gw_dist)])
         if write_gw_coupling_mats:
-            gw_coupling_mat_writer.writerow(
-                [
-                    names[i],
-                    str(coupling_mat.shape[0]),
-                    names[j],
-                    str(coupling_mat.shape[1]),
-                ]
-                + stringify_coupling_mat(coupling_mat)
-            )
+            first_names.append(names[i])
+            second_names.append(names[j])
+            coo = coo_matrix(coupling_mat.astype(np.float32))
+            coo_data.append(coo.data)
+            coo_row.append(coo.row)
+            coo_col.append(coo.col)
         yield (i, j, coupling_mat, gw_dist)
     if write_gw_distances:
         gw_dist_file.close()
     if write_gw_coupling_mats:
-        gw_coupling_mat_file.close()
+        np.savez(
+            gw_coupling_mat_npz,
+            first_names=np.array(first_names),
+            second_names=np.array(second_names),
+            coo_data=np.stack(coo_data),
+            coo_row=np.stack(coo_row),
+            coo_col=np.stack(coo_col),
+        )
 
 
+#
 def gw_pairwise_parallel(
     cells: list[
         tuple[
@@ -535,18 +427,12 @@ def gw(
     return gw_cython_core(A, a, Aa, c_A, B, b, Bb, c_B, max_iters_descent, max_iters_ot)
 
 
-def uniform(n: int) -> npt.NDArray[np.float64]:
-    """Compute the uniform distribution on n points, as a vector of floats."""
-    return np.ones((n,), dtype=float) / n
-
-
 def compute_gw_distance_matrix(
     intracell_csv_loc: str,
     gw_dist_csv_loc: str,
     num_processes: int,
-    gw_coupling_mat_csv_loc: Optional[str] = None,
+    gw_coupling_mat_npz_loc: Optional[str] = None,
     return_coupling_mats: bool = False,
-    verbose: Optional[bool] = False,
 ) -> tuple[
     DistanceMatrix,  # Pairwise GW distance matrix (Squareform)
     Optional[list[tuple[int, int, Matrix]]],
@@ -575,7 +461,7 @@ def compute_gw_distance_matrix(
         num_processes,
         names,
         gw_dist_csv_loc,
-        gw_coupling_mat_csv_loc,
+        gw_coupling_mat_npz_loc,
         return_coupling_mats,
     )
 

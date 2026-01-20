@@ -1,4 +1,5 @@
 """For testing partial matching."""
+
 import itertools as it
 
 import numpy as np
@@ -63,46 +64,6 @@ def newNeuronNode(n1: NeuronNode, n2: NeuronNode, d: float):
         radius=n1.radius,
         parent_sample_number=n1.sample_number,
     )
-
-
-# def trim_swc_mutate(
-#     t: NeuronTree, lt: dict[str, Any], p: float, rng: np.random.Generator
-# ) -> None:
-#     """Randomly cut off proportion p of the tree t. This mutates the tree t in place."""
-#     cut = p * lt["length"]
-#     ltchildren = copy(lt['children'])
-#     while cut >= 0.0:
-
-#         num_children = len(t.child_subgraphs)
-#         length_of_children = [
-#             dist(t.root, t.child_subgraphs[i].root) + ltchildren[i]['length']
-#             for i in range(num_children)
-#         ]
-#         print(total_length(t))
-#         print(length_of_children)
-#         assert(math.abs(total_length(t) - sum(length_of_children)) < .1)
-#         # assert sum(length_of_children) == total_length
-#         x = rng.uniform(low=0.0, high=sum(length_of_children))
-#         i = 0
-#         thres = 0.0
-#         while x >= thres + length_of_children[i]:
-#             thres += length_of_children[i]
-#             i += 1
-
-#         if length_of_children[i] <= cut:
-#             t.child_subgraphs.pop(i)
-#             cut -= length_of_children[i]
-#             ltchildren.pop(i)
-#         elif cut < dist(t.root, t.child_subgraphs[i].root):
-#             t.child_subgraphs[i] = NeuronTree(
-#                 root=newNeuronNode(t.root, t.child_subgraphs[i].root, cut),
-#                 child_subgraphs=[],
-#             )
-#             cut = 0.0
-#         else:
-#             cut -= dist(t.root, t.child_subgraphs[i].root)
-#             t = t.child_subgraphs[i]
-#             ltchildren = copy(ltchildren[i]['children'])
 
 
 def trim_swc_no_mutate(

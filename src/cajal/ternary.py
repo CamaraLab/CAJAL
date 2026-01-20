@@ -3,8 +3,7 @@ import mpltern  # noqa : F401
 from math import sqrt
 import numpy as np
 import numpy.typing as npt
-from numpy.linalg import norm
-from typing import Literal, Optional, Any
+from typing import Literal, Optional
 
 from scipy.spatial.distance import squareform
 from scipy.stats import gaussian_kde
@@ -215,8 +214,10 @@ def ternary_distance_clusters(
         coloring will vary more.
     :param contour_lines: How many contour lines to draw.
     :param figsize: Passed to matplotlib.pyplot.subplots.
-    :param clusters: Labels for clusters, should be the same length as the distance matrices featurei_dispersion
-    :param min_cluster_size: Ignore clusters below the threshold size (density plots are somewhat useless when there are very few observations)
+    :param clusters: Labels for clusters, should be the same length as the distance matrices
+        featurei_dispersion
+    :param min_cluster_size: Ignore clusters below the threshold size (density plots are somewhat
+        useless when there are very few observations)
     :param mpl_params: Passed to matplotlib.
     """
 

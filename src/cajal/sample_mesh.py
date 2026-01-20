@@ -1,6 +1,7 @@
 """
 Functions for sampling points from a triangular mesh
 """
+
 from __future__ import annotations
 import os
 import sys
@@ -192,11 +193,11 @@ def cell_generator(
     directory_name: str, segment: bool
 ) -> Iterator[Tuple[str, VertexArray, FaceArray]]:
     r"""
-    :param directory_name: The directory where the *.obj files are stored
-    :param segment: if segment is True, each cell will be segmented into its \
+:param directory_name: The directory where the *.obj files are stored
+:param segment: if segment is True, each cell will be segmented into its \
     set of connected components before being returned. If segment \
     is False, the contents of the \*.obj file will be returned as-is.
-    :return: An iterator over all cells in the directory, where a "cell"\
+:return: An iterator over all cells in the directory, where a "cell"\
     is a triple (cell_name, vertices, faces).
     """
 
@@ -221,13 +222,13 @@ def cell_generator(
 
 def sample_vertices(vertices: VertexArray, n_sample: int) -> Optional[VertexArray]:
     """
-    Evenly samples n vertices. Most .obj vertices are ordered \
-    counter-clockwise, so evenly sampling from vertex matrix \
-    can roughly approximate even sampling across the mesh
+Evenly samples n vertices. Most .obj vertices are ordered \
+counter-clockwise, so evenly sampling from vertex matrix \
+can roughly approximate even sampling across the mesh
 
-    :param vertices: 3D coordinates for vertices
-    :param n_sample: number of vertices to sample
-    :return: None, if there are fewer vertices than points to sample. \
+:param vertices: 3D coordinates for vertices
+:param n_sample: number of vertices to sample
+:return: None, if there are fewer vertices than points to sample. \
     Otherwise, a numpy array of sampled vertices, of shape (n_sample, 3).
     """
 
@@ -241,22 +242,22 @@ def get_geodesic_heat_one_mesh(
     vertices: VertexArray, faces: FaceArray, n_sample: int
 ) -> Optional[npt.NDArray[np.float64]]:
     r"""
-    Given a mesh, randomly sample n_sample points from the mesh, \
-    compute the pairwise geodesic distances between the sampled points using the heat method, \
-    and return the square matrix of pairwise geodesic distances, linearized into a vector, \
-    or "None" if there are fewer than n_sample vertices in the mesh. \
-    For more on the heat method, see: \
+Given a mesh, randomly sample n_sample points from the mesh, \
+compute the pairwise geodesic distances between the sampled points using the heat method, \
+and return the square matrix of pairwise geodesic distances, linearized into a vector, \
+or "None" if there are fewer than n_sample vertices in the mesh. \
+For more on the heat method, see: \
 
-    https://github.com/nmwsharp/potpourri3d/blob/master/README.md#mesh-distance
+https://github.com/nmwsharp/potpourri3d/blob/master/README.md#mesh-distance
 
-    https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/
+https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/
 
-    :param vertices: 3D coordinates for vertices
-    :param faces: row of vertices contained in each face
-    :param n_sample: number of vertices to sample
+:param vertices: 3D coordinates for vertices
+:param faces: row of vertices contained in each face
+:param n_sample: number of vertices to sample
 
-    :return: heat geodesic distance in vector form, of shape \
-        (n_sample \* (n_sample - 1)/2, 1)
+:return: heat geodesic distance in vector form, of shape \
+    (n_sample \* (n_sample - 1)/2, 1)
     """
     if vertices.shape[0] < n_sample:
         warnings.warn("Fewer vertices than points to sample, skipping")
@@ -275,16 +276,16 @@ def get_geodesic_networkx_one_mesh(
     vertices: VertexArray, faces: FaceArray, n_sample: int
 ) -> Optional[npt.NDArray[np.float64]]:
     """
-    Given a mesh, randomly sample n_sample points from the \
-    mesh, computes the pairwise geodesic distances between the sampled points \
-    along the (distance-weighted) underlying graph of the mesh, and returns the \
-    square matrix of pairwise geodesic distances, linearized into a vector, or \
-    "None" if there are fewer than n_sample vertices in the mesh.
+Given a mesh, randomly sample n_sample points from the \
+mesh, computes the pairwise geodesic distances between the sampled points \
+along the (distance-weighted) underlying graph of the mesh, and returns the \
+square matrix of pairwise geodesic distances, linearized into a vector, or \
+"None" if there are fewer than n_sample vertices in the mesh.
 
-    :param vertices: 3D coordinates for vertices
-    :param faces: row of vertices contained in each face
-    :param n_sample: number of vertices to sample
-    :return: graph geodesic distance in vector form
+:param vertices: 3D coordinates for vertices
+:param faces: row of vertices contained in each face
+:param n_sample: number of vertices to sample
+:return: graph geodesic distance in vector form
     """
     if vertices.shape[0] < n_sample:
         warnings.warn("Fewer vertices than points to sample, skipping")

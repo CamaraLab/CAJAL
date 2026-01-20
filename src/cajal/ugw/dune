@@ -1,0 +1,24 @@
+(include_subdirs qualified)
+ (dirs multicore)
+
+;; (env (opencl (env (futhark_backend opencl))))
+
+; (rule
+;   (targets unbalanced_gw.c unbalanced_gw.ml unbalanced_gw.mli)
+;   (deps (glob_files *.fut) (source_tree lib))
+;   (action
+;     (run futhark-bindgen run --backend
+;     %{env:futhark_backend=multicore} unbalanced_gw.fut
+;     unbalanced_gw.ml)
+;   )
+; )
+
+(library
+ (public_name futhark_gw)
+ (name futhark_gw)
+ (flags :standard -warn-error -69-34)
+ (libraries ppx_deriving npy ctypes ctypes.foreign domainslib)
+ (library_flags -linkall -cclib -lpthread)
+ (c_library_flags (-lm))
+ (foreign_stubs (language c) (names unbalanced_gw_multicore))
+ )

@@ -5,14 +5,15 @@ requires = [
 	 "pip>=24",
 	 "wheel",
 	 "Cython>=3",
-	 "numpy"
-	 ]
+	 "numpy",
+         "futhark-ffi >= 0.15"
+]
 # What should the build-backend be?
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cajal"
-version = "1.0.2"
+version = "1.5"
 description="A library for multi-modal cell morphology analyses using Gromov-Wasserstein (GW) distance."
 readme="./README.md"
 requires-python=">=3.9"
@@ -29,19 +30,21 @@ classifiers=[
 dependencies = [
 	"igraph",
         "leidenalg",
-        "networkx>=2.8.8",
         "numpy",
 	"cython >= 3",
-        "pathos",
-	"tqdm>=4.64.1",	
+        "pathos >= 0.3.2",
+        "futhark-ffi >= 0.15",
+	"tqdm>=4.64.1",
         "potpourri3d",
 	"pynndescent>=0.5.13",
+        "navis>=1.9.0",
         "python-louvain",
+        "pot",
+	"pillow>=11.0",
         "scipy>=1.10",
         "scikit-image",
         "tifffile",
         "trimesh",
-        "umap-learn>=0.5.3",
 	"mpltern>=1.0.0",
 	"scikit-dimension"
 	]
@@ -50,14 +53,43 @@ dependencies = [
 dev = [
     "mypy>=0.991",
     "pytest >= 7.2.1",
-    "pre-commit >= 2.20.0"
+    "pre-commit >= 2.20.0",
+    "myst_parser",
+    "plotly",
+    "nbsphinx",
+    "navis",
+    "black",
+    "flake8",
+    "ipywidgets",
+    "sphinx_rtd_theme"
+]
+
+doc = [
+    "sphinx",
+    "myst_parser",
+    "nbsphinx",
+    "sphinx_rtd_theme",
+    "pandas",
+    "plotly"
 ]
 
 vis = [
-    "matplotlib >= 3.7.0",
-    "networkx",
+    "networkx>=3",
+    "ipywidgets",
     "navis",
-    "mpltern"
+    "mpltern",
+    "plotly"
+]
+
+notebooks = [
+    "networkx>=3",
+    "ipywidgets",
+    "navis",
+    "numba",
+    "mpltern",
+    "plotly",
+    "umap-learn",
+    "scanpy"
 ]
 
 [project.license]
@@ -84,8 +116,8 @@ force-exclude = '''
 
 [tool.codespell]
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
-skip = '.git*,*.css,pyproject.toml,data,swc,*.swc,obj,*.obj,*.pyi'
+skip = '.git*,*.css,pyproject.toml,data,swc,*.swc,obj,*.obj,*.pyi,*.c'
 check-hidden = true
 # embedded images into jupyter notebooks, acronyms and names starting with capital letter
 ignore-regex = '(^\s*"image/\S+": ".*|\b([A-Z][a-zA-Z]+|scl/fo/|ser: Series|ot\.lp|networkx\.algorithms\.mis)\b)'
-ignore-words-list = 'coo'
+ignore-words-list = 'coo,ot,thi,nd'

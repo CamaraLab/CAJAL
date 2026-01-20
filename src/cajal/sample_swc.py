@@ -1,11 +1,9 @@
-"""
-Functions for sampling points from an SWC reconstruction of a neuron.
-"""
+"""Functions for sampling points from an SWC reconstruction of a neuron."""
 
 import math
-from typing import Callable, Iterator, Union
-
+from typing import Callable, Union
 import numpy as np
+from pathos.pools import ProcessPool
 import numpy.typing as npt
 from scipy.spatial.distance import euclidean, pdist
 from tqdm import tqdm
@@ -127,7 +125,7 @@ def _binary_stepwise_search(forest: SWCForest, num_samples: int) -> float:
 
 def get_sample_pts_euclidean(
     forest: SWCForest, step_size: float
-) -> list[npt.NDArray[np.float64]]:
+) -> list[tuple[npt.NDArray[np.float64], int]]:
     """
     Sample points uniformly throughout the forest, starting at the roots, \
      at the given step size.
@@ -139,7 +137,9 @@ def get_sample_pts_euclidean(
     """
     sample_pts_list: list[npt.NDArray[np.float64]] = []
     for tree in forest:
-        sample_pts_list.append(np.array(tree.root.coord_triple))
+        sample_pts_list.append(
+            (np.array(tree.root.coord_triple), tree.root.structure_id)
+        )
     treelist = [(tree, 0.0) for tree in forest]
     while bool(treelist):
         new_treelist: list[tuple[NeuronTree, float]] = []
@@ -163,7 +163,12 @@ def get_sample_pts_euclidean(
                 )
                 assert spacing.shape[0] == num_nodes
                 for x in spacing:
-                    sample_pts_list.append((root_triple * x) + (child_triple * (1 - x)))
+                    sample_pts_list.append(
+                        (
+                            (root_triple * x) + (child_triple * (1 - x)),
+                            tree.root.structure_id,
+                        )
+                    )
                 assert leftover >= 0
                 assert leftover < step_size
                 new_treelist.append((child_tree, leftover))
@@ -173,25 +178,29 @@ def get_sample_pts_euclidean(
 
 def euclidean_point_cloud(
     forest: SWCForest, num_samples: int
-) -> npt.NDArray[np.float64]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int32]]:
     r"""
     Compute the (Euclidean) point cloud matrix for the forest with n sample points.
 
     :param forest: The cell to be sampled.
     :param num_samples: How many points to be sampled.
-    :return: A rectangular matrix of shape (n,3).
+    :return: A rectangular matrix of shape (n,3), and an array of their structure ids.
     """
     if len(forest) >= num_samples:
         pts: list[npt.NDArray[np.float64]] = []
+        structure_ids: list[npt.NDArray[np.int32]] = []
         for i in range(num_samples):
             pts.append(np.array(forest[i].root.coord_triple))
+            structure_ids.append(forest[i].root.structure_id)
     else:
         step_size = _binary_stepwise_search(forest, num_samples)
-        pts = get_sample_pts_euclidean(forest, step_size)
-    return np.stack(pts)
+        pts, structure_ids = zip(*get_sample_pts_euclidean(forest, step_size))
+    return np.stack(pts), np.array(structure_ids, dtype=np.int32)
 
 
-def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float64]:
+def icdm_euclidean(
+    forest: SWCForest, num_samples: int
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int32]]:
     r"""
     Compute the (Euclidean) intracell distance matrix for the forest with n sample points.
 
@@ -199,7 +208,8 @@ def icdm_euclidean(forest: SWCForest, num_samples: int) -> npt.NDArray[np.float6
     :param num_samples: How many points to be sampled.
     :return: A condensed (vectorform) matrix of length n\* (n-1)/2.
     """
-    return pdist(euclidean_point_cloud(forest, num_samples))
+    x, y = euclidean_point_cloud(forest, num_samples)
+    return pdist(x), y
 
 
 def _sample_at_given_stepsize_wt(
@@ -242,9 +252,7 @@ def _sample_at_given_stepsize_wt(
 def _geodesic_distance_children(
     wt1: WeightedTreeChild, h1: float, wt2: WeightedTreeChild, h2: float
 ):
-    """
-    Compute the geodesic distance between p1 = (wt1,h1) and p2 = (wt2, h2).
-    """
+    """Compute the geodesic distance between p1 = (wt1,h1) and p2 = (wt2, h2)."""
     depth1 = wt1.depth
     unique_id1 = wt1.unique_id
     wt_parent1 = wt1.parent
@@ -391,7 +399,9 @@ def get_sample_pts_geodesic(
     raise Exception("Binary search timed out.")
 
 
-def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float64]:
+def icdm_geodesic(
+    tree: NeuronTree, num_samples: int
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int32]]:
     r"""
     Compute the intracell distance matrix for `tree` using the geodesic metric.
 
@@ -414,14 +424,16 @@ def icdm_geodesic(tree: NeuronTree, num_samples: int) -> npt.NDArray[np.float64]
                 len(dist_list)
                 == math.comb(num_samples, 2) - math.comb(num_samples - i, 2) + j - i
             )
-    return np.array(dist_list)
+    return np.array(dist_list), np.array(
+        [wt.structure_id for (wt, _) in pts_list], dtype=np.int32
+    )
 
 
 def read_preprocess_compute_euclidean(
     file_name: str,
     n_sample: int,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]],
-) -> Union[Err[T], npt.NDArray[np.float64]]:
+) -> Union[Err[T], tuple[npt.NDArray[np.float64], npt.NDArray[np.int32]]]:
     r"""
     Read the swc file, apply a preprocessor, and compute the Euclidean distance matrix.
 
@@ -452,7 +464,7 @@ def read_preprocess_compute_geodesic(
     file_name: str,
     n_sample: int,
     preprocess: Callable[[SWCForest], Union[Err[T], NeuronTree]],
-) -> Union[Err[T], npt.NDArray[np.float64]]:
+) -> Union[Err[T], tuple[npt.NDArray[np.float64], npt.NDArray[np.int32]]]:
     r"""
     Read the swc file, apply a preprocessor, and compute the geodesic distance matrix.
 
@@ -480,9 +492,12 @@ def read_preprocess_compute_geodesic(
 def compute_icdm_all_euclidean(
     infolder: str,
     out_csv: str,
+    out_node_types: str,
     n_sample: int,
+    num_processes: int = 8,
     preprocess: Callable[[SWCForest], Union[Err[T], SWCForest]] = lambda forest: forest,
     name_validate: Callable[[str], bool] = default_name_validate,
+    write_fn=write_csv_block,
 ) -> list[tuple[str, Err[T]]]:
     r"""
     Compute the intracell Euclidean distance matrices for all swc cells in `infolder`.
@@ -497,7 +512,8 @@ def compute_icdm_all_euclidean(
     preprocessing test to a csv file with path `out_csv`.
 
     :param infolder: Directory of input \*.swc files.
-    :param out_csv: Output file to write to.
+    :param out_csv: Output file to write the pairwise distances to.
+    :param out_node_types: Output file to write the node labels
     :param n_sample: How many points to sample from each cell.
     :param preprocess: `preprocess` is expected to be roughly of the following form:
 
@@ -513,7 +529,8 @@ def compute_icdm_all_euclidean(
         #. If all tests are passed, apply a transformation to `forest` and return
            the modified `new_forest`. (For example, filter out all axon nodes to
            focus on the dendrites, or filter out all undefined nodes, or filter out
-           all components which have fewer than 10% of the nodes in the largest component.)
+           all components which have fewer than 10% of the nodes in the
+           largest component.)
 
         If `preprocess(forest)` returns an instance of the
         :class:`utilities.Err` class, this file is not sampled from, and its
@@ -535,27 +552,31 @@ def compute_icdm_all_euclidean(
         return read_preprocess_compute_euclidean(file_path, n_sample, preprocess)
 
     # args = zip([file_paths,repeat(n_sample),repeat(preprocess)])
-    icdms: Iterator[Union[Err[T], npt.NDArray[np.float64]]]
+    # icdms: Iterator[Union[Err[T], npt.NDArray[np.float64]]]
     failed_cells: list[tuple[str, Err[T]]]
-    # with ProcessPool(nodes=num_processes) as pool:
-    # icdms = pool.imap(rpce, file_paths)
-    icdms = map(rpce, file_paths)
-    # icdms = pool.starmap(read_preprocess_compute_euclidean,args)
-    tq_icdms = tqdm(icdms, total=len(cell_names))
 
-    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, tq_icdms), 3)
+    pool = ProcessPool(nodes=num_processes)
+    results = tqdm(pool.imap(rpce, file_paths), total=len(cell_names))
+    failed_cells = write_fn(
+        out_csv, n_sample, zip(cell_names, results), 10, out_node_types=out_node_types
+    )
+    pool.close()
+    pool.join()
+    pool.clear()
     return failed_cells
 
 
 def compute_icdm_all_geodesic(
     infolder: str,
     out_csv: str,
+    out_node_types: str,
     n_sample: int,
     num_processes: int = 8,
     preprocess: Callable[
         [SWCForest], Union[Err[T], NeuronTree]
     ] = lambda forest: forest[0],
-    name_validate: Callable[[str], bool] = default_name_validate
+    name_validate: Callable[[str], bool] = default_name_validate,
+    write_fn=write_csv_block,
 ) -> list[tuple[str, Err[T]]]:
     """
     Compute the intracell geodesic distance matrices for all swc cells in `infolder`.
@@ -574,12 +595,13 @@ def compute_icdm_all_geodesic(
     def rpcg(file_path) -> Union[Err[T], npt.NDArray[np.float64]]:
         return read_preprocess_compute_geodesic(file_path, n_sample, preprocess)
 
-    icdms: Iterator[Err[T] | npt.NDArray[np.float64]]
     failed_cells: list[tuple[str, Err[T]]]
-    # with ProcessPool(nodes=num_processes) as pool:
-    # pool.restart(force=True)
-    icdms = map(rpcg, file_paths)
-    tq_icdms = tqdm(icdms, total=len(cell_names))
-    failed_cells = write_csv_block(out_csv, n_sample, zip(cell_names, tq_icdms), 10)
-
+    pool = ProcessPool(nodes=num_processes)
+    results = tqdm(pool.imap(rpcg, file_paths), total=len(cell_names))
+    failed_cells = write_fn(
+        out_csv, n_sample, zip(cell_names, results), 10, out_node_types=out_node_types
+    )
+    pool.close()
+    pool.join()
+    pool.clear()
     return failed_cells

@@ -4,7 +4,6 @@ n-modality version of the weighted nearest neighbors algorithm
 
 from typing import Optional
 import itertools as it
-import pdb
 import numpy as np
 import numpy.typing as npt
 from sklearn.manifold import Isomap
@@ -16,18 +15,19 @@ from .run_gw import DistanceMatrix
 
 class Modality:
     """
-    A Modality is a dataset profiling a collection of cells from one perspective or using one technology.
-    It can be constructed using either a set of observations in n-dimensional space (a `k` by `n`) matrix,
-    where `k` is the number of cells and `n` is the dimensionality of the ambient space;
-    or it can be constructed using a distance matrix (a `k` by `k`).
-    If only a distance matrix is supplied, then the constructor chooses an embedding of the points in the
-    distance matrix into n-dimensional space using Isomap,
-    so a set of observations in a vector space is preferable when it is available.
+A Modality is a dataset profiling a collection of cells from one perspective or using
+one technology. It can be constructed using either a set of observations in
+n-dimensional space (a `k` by `n`) matrix, where `k` is the number of cells and `n` is
+the dimensionality of the ambient space; or it can be constructed using a distance
+matrix (a `k` by `k`). If only a distance matrix is supplied, then the constructor
+chooses an embedding of the points in the distance matrix into n-dimensional space
+using Isomap, so a set of observations in a vector space is preferable when it
+is available.
 
-    If using a distance matrix, a Modality object must be constructed together with a given number of neighbors to consider when
-    constructing the nearest neighbors graphs for the Isomap embedding.
-    This number should be as least as high as the number of neighbors you care about when analyzing the output of the WNN embedding.
-    """
+If using a distance matrix, a Modality object must be constructed together with a given
+number of neighbors to consider when constructing the nearest neighbors
+graphs for the Isomap embedding. This number should be as least as high as the
+number of neighbors you care about when analyzing the output of the WNN embedding."""
 
     def local_bandwidth(self, margin_count: int = 20):
         n_obsv = self.nn_index_arr.shape[0]
@@ -56,7 +56,8 @@ class Modality:
 
     def __init__(self, obsv: npt.NDArray[np.float64]):
         """
-        The primary constructor for the Modality class is used when the user has direct access to
+        Construct the Modality class. The primary constructor is used
+        when the user has direct access to
         a sequence of observations in n dimensional space.
 
         :param obsv: A `k` row by `n` column matrix, where `k` is the number of observations,
@@ -76,8 +77,10 @@ class Modality:
         """
         :param dmat: A distance matrix.
         :param intrinsic_dim: If you have computed the intrinsic dimension
-        of your space by a technique other than MADA, feed the precomputed dimension in here as a parameter.
-        :param n_neighbors: How many nearest neighbors to build when constructing the Isomap embedding.
+           of your space by a technique other than MADA, feed the precomputed dimension in here as a
+           parameter.
+        :param n_neighbors: How many nearest neighbors to build when constructing the Isomap
+           embedding.
 
         :returns: A Modality object constructed from the distance matrix.
         """
@@ -96,20 +99,69 @@ class Modality:
         return m
 
 
+def cross_modality_affinities(m: Modality, prediction_vectors: npt.NDArray[np.float64]):
+    """
+    :param m: "target" modality (to be predicted)
+    :param prediction_vectors: `n_obsvs` rows, `k_n` columns,
+        where `k_n` is the dimension of Euclidean space for the target modality `m`.
+        The vectors for feature `m` predicted using the nearest neighbors in `n`.
+    """
+    prediction_distance = np.linalg.norm(prediction_vectors - m.obsv, axis=1)
+    assert prediction_distance.shape == (m.obsv.shape[0],)
+    return np.exp(
+        -np.maximum(prediction_distance - m.nn_distance, 0)
+        / (m.bandwidth - m.nn_distance)
+    )
+
+
+def pairwise_predictions(m: Modality, n: Modality, k: int):
+    """
+    We measure the ability of modality m to predict modality n.
+    """
+    prediction_vectors = n.obsv[m.nn_index_arr[:, 1 : (k + 1)], :].sum(axis=1) / k
+    assert prediction_vectors.shape == n.obsv.shape
+    return prediction_vectors
+
+
+def theta_m_i_j(m: Modality):
+    return np.exp(
+        -np.maximum(m.dmat - m.nn_distance[:, np.newaxis], 0)
+        / (m.bandwidth[:, np.newaxis] - m.nn_distance[:, np.newaxis])
+    )
+
+
+def all_pairwise_affinities(
+    modalities: list[Modality], n_obsvs: int, k: int  # number of observations
+):
+    M = len(modalities)
+    pairwise_affinities = np.zeros(shape=(M, M, n_obsvs), dtype=float)
+    for i in range(M):
+        m = modalities[i]
+        for j in range(M):
+            n = modalities[j]
+            # theta_m,n = pairwise_affinities[i,j]
+            # ability of j to predict i, ability of n to predict m
+            pairwise_affinities[i, j, :] = cross_modality_affinities(
+                m, pairwise_predictions(n, m, k)
+            )
+    return pairwise_affinities
+
+
 def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
     """
     Compute the weighted nearest neighbors pairing, following
-    `Integrated analysis of multimodal single-cell data <https://www.sciencedirect.com/science/article/pii/S0092867421005833>`_
+    `Integrated analysis of multimodal single-cell data
+    <https://www.sciencedirect.com/science/article/pii/S0092867421005833>`_
 
-    This algorithm differs from the published algorithm in the paper in a few ways.
-    In particular we do not take the L2 normalization of columns of the matrix before we begin.
+    This algorithm differs from the published algorithm in the paper in a few ways. In particular we
+    do not take the L2 normalization of columns of the matrix before we begin.
 
     :param modalities: list of modalities
     :param k: how many nearest neighbors to consider
     :param epsilon: This is a numerical stability parameter,
        it is added to the denominator of a fraction to prevent dividing by zero.
-    :returns: A matrix of pairwise similarities (not distances!) which can be used in
-       training a k-nearest neighbors classifier to identify cells which are overall most like the query cell
+    :returns: A matrix of pairwise similarities (not distances!) which can be used in training a
+       k-nearest neighbors classifier to identify cells which are overall most like the query cell
        from the perspective of multiple morphologies.
     """
 
@@ -121,74 +173,30 @@ def wnn(modalities: list[Modality], k: int, epsilon: float = 1e-4):
     for modality in modalities[1:]:
         if modality.obsv.shape[0] != n_obsvs:
             raise Exception(
-                "Must be a consistent count of exceptions across all modalities."
+                "Must be a consistent count of observations across all modalities."
             )
 
     # Notation follows the paper when appropriate.
-    #
     M = len(modalities)
 
-    def pairwise_predictions(m: Modality, n: Modality):
-        """
-        We measure the ability of modality m to predict modality n.
-        """
-        prediction_vectors = n.obsv[m.nn_index_arr[:, 1 : (k + 1)], :].sum(axis=1) / k
-        assert prediction_vectors.shape == n.obsv.shape
-        return prediction_vectors
-
-    def cross_modality_affinities(
-        m: Modality, prediction_vectors: npt.NDArray[np.float64]
-    ):
-        """
-        :param m: "target" modality (to be predicted)
-        :param prediction_vectors: `n_obsvs` rows, `k_n` columns,
-            where `k_n` is the dimension of Euclidean space for the target modality `m`.
-            The vectors for feature `m` predicted using the nearest neighbors in `n`.
-        """
-        prediction_distance = np.linalg.norm(prediction_vectors - m.obsv, axis=1)
-        assert prediction_distance.shape == (m.obsv.shape[0],)
-        return np.exp(
-            -np.maximum(prediction_distance - m.nn_distance, 0)
-            / (m.bandwidth - m.nn_distance)
-        )
-
-    def theta_m_i_j(m: Modality):
-        return np.exp(
-            -np.maximum(m.dmat - m.nn_distance[:, np.newaxis], 0)
-            / (m.bandwidth[:, np.newaxis] - m.nn_distance[:, np.newaxis])
-        )
-
-    def all_pairwise_affinities(modalities: list[Modality]):
-        pairwise_affinities = np.zeros(shape=(M, M, n_obsvs), dtype=float)
-        for i in range(M):
-            m = modalities[i]
-            for j in range(M):
-                n = modalities[j]
-                # theta_m,n = pairwise_affinities[i,j]
-                # ability of j to predict i, ability of n to predict m
-                pairwise_affinities[i, j, :] = cross_modality_affinities(
-                    m, pairwise_predictions(n, m)
-                )
-        return pairwise_affinities
-
-    pairwise_affinities = all_pairwise_affinities(modalities)
+    pairwise_affinities = all_pairwise_affinities(modalities, n_obsvs, k)
     theta = np.stack([theta_m_i_j(m) for m in modalities], axis=0)
     pairwise_affinity_ratios = np.zeros(shape=(M, M - 1, n_obsvs), dtype=float)
     for i in range(M):
         for j in range(M):
-            if j >= i:
+            if j > i:
                 k = j - 1
             else:
                 k = j
-            pairwise_affinity_ratios[i, k, :] = pairwise_affinities[i, i, :] / (
-                pairwise_affinities[i, j, :] + epsilon
-            )
-
+            if j != i:
+                pairwise_affinity_ratios[i, k, :] = pairwise_affinities[i, i, :] / (
+                    pairwise_affinities[i, j, :] + epsilon
+                )
     similarity_matrix = (
         softmax(pairwise_affinity_ratios, axis=(0, 1)).sum(axis=1)[:, :, np.newaxis]
         * theta
     ).sum(axis=0)
-    similarity_matrix[np.arange(n_obsvs), np.arange(n_obsvs)] = 0
+    similarity_matrix[np.arange(n_obsvs), np.arange(n_obsvs)] = 1
     assert np.all(similarity_matrix[similarity_matrix < 0] > -1e-10)
     assert np.all((similarity_matrix[similarity_matrix > 1] - 1) < 1e-10)
     similarity_matrix[similarity_matrix < 0] = 0

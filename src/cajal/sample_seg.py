@@ -1,15 +1,19 @@
 # Functions for sampling points from a 2D segmented image
 import os
 import warnings
+import itertools as it
+
 from typing import List, Iterator, Tuple
 import numpy as np
 import numpy.typing as npt
 from skimage import measure
 import tifffile
 from scipy.spatial.distance import pdist
-import itertools as it
 from pathos.pools import ProcessPool
+
+
 from .utilities import write_csv_block
+
 
 def _filter_to_cells(segmask: npt.NDArray[np.int_], background: int) -> list[int]:
     """
@@ -23,6 +27,7 @@ def _filter_to_cells(segmask: npt.NDArray[np.int_], background: int) -> list[int
     remove_cells.update(np.unique(segmask[:, 0]))
     remove_cells.update(np.unique(segmask[:, -1]))
     return list(cell_ids.difference(remove_cells))
+
 
 def cell_boundaries(
     imarray: npt.NDArray[np.int_],
@@ -75,10 +80,9 @@ def cell_boundaries(
                 + " pixels around boundary of cell "
                 + str(cell)
             )
-        indices = np.linspace(0, boundary_pts.shape[0] - 1, n_sample)
+        indices = np.linspace(0, boundary_pts.shape[0] - 1, n_sample, endpoint=False)
         outlist.append((cell, boundary_pts[indices.astype("uint32")]))
     return list(outlist)
-
 
 
 def _compute_intracell_all(

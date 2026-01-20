@@ -1,5 +1,6 @@
 """Functions for computing the quantized Gromov-Wasserstein distance and the SLB between \
 metric measure spaces, and related utilities for file IO and parallel computation."""
+
 # std lib dependencies
 import csv
 import itertools as it
@@ -21,15 +22,19 @@ from scipy import cluster, sparse
 from scipy.spatial.distance import pdist, squareform
 
 from .gw_cython import qgw_init_cost, quantized_gw_cython
-from .run_gw import (
+from .cajal_types import (
     Array,
     DistanceMatrix,
     Distribution,  # MetricMeasureSpace
     Matrix,
+)
+from .run_gw import (
     _batched,
     cell_iterator_csv,
     uniform,
 )
+from .run_gw import _batched, cell_iterator_csv, uniform
+
 from .slb import l2
 
 
@@ -446,7 +451,6 @@ def _quantized_gw_index(p: tuple[int, int]) -> tuple[int, int, float]:
     """Given input p= (i,j), compute the quantized GW distance between cells i \
     and j in the global list of quantized cells."""
     i, j = p
-    retval: tuple[int, int, float]
     return (
         i,
         j,

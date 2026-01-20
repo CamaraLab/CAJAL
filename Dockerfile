@@ -44,40 +44,7 @@ RUN apt-get install -y g++
 # The job of the backtick is to tell Docker to ignore the newline/carriage return,
 # letting us write the statement in a more readable way.
 USER jovyan
-RUN python3 -m pip install `
-PyWavelets==1.4.1 `
-contourpy==1.0.6 `
-cycler==0.11.0 `
-cython==0.29.32 `
-fonttools==4.38.0 `
-igraph==0.10.2 `
-imageio==2.22.4 `
-ipywidgets==8.0.2 `
-joblib==1.2.0 `
-jupyterlab-widgets==3.0.3 `
-kiwisolver==1.4.4 `
-leidenalg==0.9.0 `
-llvmlite `
-matplotlib==3.6.2 `
-networkx==2.8.8 `
-numba `
-numpy==1.23.4 `
-pandas==1.5.1 `
-pillow==9.3.0 `
-pot==0.7.0.post1 `
-potpourri3d `
-pynndescent==0.5.8 `
-python-louvain==0.16 `
-scikit-image==0.19.3 `
-scikit-learn==1.1.3 `
-scipy==1.9.3 `
-texttable==1.6.4 `
-threadpoolctl==3.1.0 `
-tifffile==2022.10.10 `
-trimesh==3.16.1 `
-umap-learn==0.5.3 `
-widgetsnbextension==4.0.3 `
- --upgrade setuptools
+RUN python3 -m pip install --upgrade setuptools
 
 # This approach copies the entire git repo into the container and runs pip install on it.
 # It seems more elegant to run pip install without copying the files,
@@ -87,4 +54,5 @@ widgetsnbextension==4.0.3 `
 RUN --mount=type=bind,target=/home/cajal_repo,source=CAJAL`
     mkdir /home/jovyan/CAJAL ; `
     cp -r /home/cajal_repo/* /home/jovyan/CAJAL/ ;`
-    python3 -m pip install /home/jovyan/CAJAL
+    python3 -m pip install -r /home/jovyan/CAJAL/requirements.txt ;`
+    python3 -m pip install /home/jovyan/CAJAL[notebooks]

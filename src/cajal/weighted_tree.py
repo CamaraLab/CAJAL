@@ -2,6 +2,7 @@
 Defines a WeightedTree class, to represent the information relevant in an SWC from the \
 geodesic point of view. Defines functions for manipulating and processing WeightedTrees.
 """
+
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union
@@ -15,6 +16,7 @@ from .swc import NeuronTree
 @dataclass
 class WeightedTreeRoot:
     subtrees: list[WeightedTreeChild]
+    structure_id: int
 
 
 @dataclass
@@ -24,6 +26,7 @@ class WeightedTreeChild:
     unique_id: int
     parent: WeightedTree
     dist: float
+    structure_id: int
 
 
 WeightedTree = Union[WeightedTreeRoot, WeightedTreeChild]
@@ -32,7 +35,7 @@ WeightedTree = Union[WeightedTreeRoot, WeightedTreeChild]
 def WeightedTree_of(tree: NeuronTree) -> WeightedTreeRoot:
     """
     Convert a NeuronTree to a WeightedTree. A node in a WeightedTree does not contain \
-    a coordinate triple, a radius, a structure_id, or a parent sample number.
+    a coordinate triple, a radius, or a parent sample number.
 
     Instead, it contains a direct pointer to its parent, a list of its children,
     and (if it is a child node) the weight of the edge between the child and its parent.
@@ -48,7 +51,7 @@ def WeightedTree_of(tree: NeuronTree) -> WeightedTreeRoot:
 
     treelist = [tree]
     depth: int = 0
-    wt_root = WeightedTreeRoot(subtrees=[])
+    wt_root = WeightedTreeRoot(subtrees=[], structure_id=tree.root.structure_id)
     correspondence_dict: dict[int, WeightedTree] = {tree.root.sample_number: wt_root}
     while bool(treelist):
         depth += 1
@@ -70,6 +73,7 @@ def WeightedTree_of(tree: NeuronTree) -> WeightedTreeRoot:
                     unique_id=child_tree.root.sample_number,
                     parent=wt_parent,
                     dist=dist,
+                    structure_id=child_tree.root.structure_id,
                 )
                 correspondence_dict[child_tree.root.sample_number] = new_wt
                 wt_parent.subtrees.append(new_wt)
