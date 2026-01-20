@@ -327,7 +327,7 @@ def gw_query_target_parallel(
     gw_coupling_mat_csv: Optional[str] = None,
     return_coupling_mats: bool = False,
 ) -> tuple[
-    DistanceMatrix,  # GW distance matrix (Squareform)
+    Matrix,  # GW distance matrix (not necessarily a square)
     Optional[list[tuple[int, int, Matrix]]],
 ]:
     """Compute the Gromov-Wasserstein distances between query -> target cells.
@@ -363,7 +363,7 @@ def gw_query_target_parallel(
 
     :return: If `return_coupling_mats` is True,
         returns `( gw_dmat, couplings )`,
-        where gw_dmat is a square matrix whose (i,j) entry is the GW distance
+        where gw_dmat is a matrix whose (i,j) entry is the GW distance
         between two cells, and `couplings` is a list of tuples (i,j,
         coupling_mat) where `i,j` are indices corresponding to positions in the list `cells`
         and `coupling_mat` is a coupling matrix between the two cells.
@@ -475,7 +475,7 @@ def compute_gw_distance_matrix_query_target(
     return_coupling_mats: bool = False,
     verbose: Optional[bool] = False,
 ) -> tuple[
-    DistanceMatrix,  # Pairwise GW distance matrix (Squareform)
+    Matrix, # Pairwise GW distance matrix (need not be square)
     Optional[list[tuple[int, int, Matrix]]],
 ]:
     """Compute the matrix of Gromov-Wasserstein distances between query -> target cells.
