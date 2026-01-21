@@ -9,7 +9,7 @@ from src.cajal.utilities import (
 import os
 
 
-def test_allbyall():
+def test():
     compute_gw_distance_matrix(
         intracell_csv_loc="tests/icdm.csv",
         gw_dist_csv_loc="tests/gw1.csv",
@@ -61,3 +61,4 @@ def test_query_target():
     )
 
     assert (dists.round(5) == dists2.round(5)).all()
+
