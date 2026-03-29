@@ -165,7 +165,7 @@ def get_sample_pts_euclidean(
                 for x in spacing:
                     sample_pts_list.append(
                         (
-                            (root_triple * x) + (child_triple * (1 - x)),
+                            (root_triple * (1 - x)) + (child_triple * x),
                             tree.root.structure_id,
                         )
                     )
