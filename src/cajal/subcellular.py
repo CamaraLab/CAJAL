@@ -17,29 +17,31 @@ from .sample_seg import cell_boundaries
 from .gw_cython import gw_cython_core
 
 
-def make_cell_image(gw_ot_cell, channels):
-    """Create a multi-channel image array from a GW_OT_Cell object.
+def make_cell_image(cellaligner_cell, channels, make_square=False):
+    """Create a multi-channel image array from a CellAligner_Cell object.
 
-    This function generates a 3D image array where the first channel contains 
-    the cell segmentation mask and subsequent channels contain normalized 
-    intensity values for the specified channels.
+    This function generates a multi-channel image array where the first 
+    channel contains the cell segmentation mask and subsequent channels 
+    contain normalized intensity values for the specified channels.
 
-    :param gw_ot_cell: Either a GW_OT_Cell object or a path to a pickled GW_OT_Cell object.
-    :type gw_ot_cell: GW_OT_Cell or str
+    :param cellaligner_cell: Either a CellAligner_Cell object or a path to a pickled CellAligner_Cell object.
+    :type cellaligner_cell: CellAligner_Cell or str
     :param channels: List of channel names to include in the image. Each channel should 
-        correspond to a key in the GW_OT_Cell's intensities dictionary or 
+        correspond to a key in the CellAligner_Cell's intensities dictionary or 
         be 'nucleus' for nuclear segmentation.
     :type channels: list[str]
+    :param make_square: If True, pad the image to a square shape before returning.
+    :type make_square: bool
     :return: 3D array of shape (height, width, len(channels)+1) where the first 
         channel (index 0) contains the segmentation mask and subsequent 
         channels contain normalized intensity values (0-1 range).
     :rtype: numpy.ndarray
     """
-    # Load GW_OT_Cell object if path specified
-    if isinstance(gw_ot_cell, str):
-        with open(gw_ot_cell, 'rb') as file:
-            gw_ot_cell = pickle.load(file)
-    coords = gw_ot_cell.coords
+    # Load CellAligner_Cell object if path specified
+    if isinstance(cellaligner_cell, str):
+        with open(cellaligner_cell, 'rb') as file:
+            cellaligner_cell = pickle.load(file)
+    coords = cellaligner_cell.coords
     coords[:,0] = coords[:,0] - coords[:,0].min()
     coords[:,1] = coords[:,1] - coords[:,1].min()
     # make new (n_channel + 1) x cell_width x cell_len image array 
@@ -50,12 +52,15 @@ def make_cell_image(gw_ot_cell, channels):
         for channel_i in range(len(channels)): # store channel pixel intensities
             channel = channels[channel_i]
             if channel == 'nucleus':
-                cell_image[i,j,channel_i+1] = gw_ot_cell.nucleus[coord_i] 
+                cell_image[i,j,channel_i+1] = cellaligner_cell.nucleus[coord_i] 
             else:
-                cell_image[i,j,channel_i+1] = gw_ot_cell.intensities[channel][coord_i] 
+                cell_image[i,j,channel_i+1] = cellaligner_cell.intensities[channel][coord_i] 
     for channel_i in range(len(channels)):
         cell_image[:,:,channel_i+1] -= cell_image[:,:,channel_i+1].min()
         cell_image[:,:,channel_i+1] /= cell_image[:,:,channel_i+1].max()
+    if make_square:
+        max_dim = max(cell_image.shape[0], cell_image.shape[1])
+        cell_image = to_shape(cell_image, (max_dim, max_dim, cell_image.shape[2]))
     return(cell_image)
 
 
@@ -117,7 +122,7 @@ def make_cell_image_for_plot(image, mask_alpha=0.2):
     return(im)
 
 
-def plot_cell_image(gw_ot_cell, channels, make_square=True, ax=None, mask_alpha=0.2):
+def plot_cell_image(cellaligner_cell, channels, make_square=True, ax=None, mask_alpha=0.2):
     """Plot a cell image with the specified channels as an RGB composite.
 
     Creates a visualization of cell image data by combining multiple channels 
@@ -141,20 +146,17 @@ def plot_cell_image(gw_ot_cell, channels, make_square=True, ax=None, mask_alpha=
     :type n_boundary_points: int or None
     :param save_path: Directory path to save the processed cell objects as pickle files. If None, objects are not saved. Default is None.
     :type save_path: str or None
-    :param return_objects: If True, return the list of GW_OT_Cell objects. Default is True.
+    :param return_objects: If True, return the list of CellAligner_Cell objects. Default is True.
     :type return_objects: bool
 
     :return:
-        If return_objects is True, returns a list of GW_OT_Cell objects; otherwise returns None.
-    :rtype: list[GW_OT_Cell] or None
+        If return_objects is True, returns a list of CellAligner_Cell objects; otherwise returns None.
+    :rtype: list[CellAligner_Cell] or None
     """
     if len(channels) > 3:
         raise ValueError("Only up to 3 channels can be plotted.")
-    image = make_cell_image(gw_ot_cell, channels)
+    image = make_cell_image(cellaligner_cell, channels, make_square=make_square)
     image = make_cell_image_for_plot(image, mask_alpha=mask_alpha)
-    if make_square:
-        max_dim = max(image.shape[0], image.shape[1])
-        image = to_shape(image, (max_dim, max_dim, image.shape[2]))
     if ax:
         return(ax.imshow(image))
     else:
@@ -253,12 +255,11 @@ def compute_geodesic_dmat(mask_coords):
 
 
 
-class GW_OT_Cell:
-    """A cell representation for Gromov-Wasserstein Optimal Transport analysis.
+class CellAligner_Cell:
+    """A cell representation for CellAligner analysis.
 
     This class encapsulates cell morphology and intensity information needed 
-    for Gromov-Wasserstein distance computations and optimal transport analysis 
-    between cells.
+    for Gromov-Wasserstein mapping and distance computations between cells.
 
     :param coords: Array of shape (N, 2) containing (x, y) coordinates for each pixel in the cell.
     :type coords: numpy.ndarray
@@ -280,7 +281,7 @@ class GW_OT_Cell:
             self.boundary_coord_dmat = None
         elif metric == 'geodesic':
             self.coord_dmat = compute_geodesic_dmat(self.coords)
-            self.boundary_coord_dmat = squareform(pdist(boundary_coords, metric=metric)) if boundary_coords is not None else None
+            self.boundary_coord_dmat = squareform(pdist(boundary_coords, metric='euclidean')) if boundary_coords is not None else None
             # if boundary_coords is not None:
             #     warnings.warn("Geodesic distance matrix cannot be computed for cell boundary coordinates, ignoring.")
         else:
@@ -291,15 +292,15 @@ class GW_OT_Cell:
         self.size = len(coords)
 
     def copy(self):
-        """Return a deep copy of the GW_OT_Cell instance.
+        """Return a deep copy of the CellAligner_Cell instance.
 
         Returns
         -------
-        GW_OT_Cell
-            A new GW_OT_Cell instance with copied data from the current object.
+        CellAligner_Cell
+            A new CellAligner_Cell instance with copied data from the current object.
             All arrays and dictionaries are deep-copied to avoid shared references.
         """
-        obj_copy = GW_OT_Cell(
+        obj_copy = CellAligner_Cell(
             coords=self.coords.copy(),
             boundary_coords=self.boundary_coords.copy() if self.boundary_coords is not None else None,
             intensities=copy.deepcopy(self.intensities),
@@ -311,13 +312,16 @@ class GW_OT_Cell:
         return obj_copy
 
 
+# Backward compatibility for pickle files created before the class rename.
+GW_OT_Cell = CellAligner_Cell
+
+
 def process_image(image, channels, cell_mask_image, nucleus_mask_image=None, ds_factor=None, ds_target_size=None, 
     filter_border_cells=True, n_boundary_points=100, save_path=None, return_objects=True):
-    """Create GW_OT_Cell objects from segmented microscopy images.
+    """Create CellAligner_Cell objects from segmented microscopy images.
 
     Processes a multi-channel microscopy image with cell and nuclear segmentation 
-    masks to create a list of GW_OT_Cell objects suitable for Gromov-Wasserstein 
-    optimal transport analysis.
+    masks to create a list of CellAligner_Cell objects suitable for CellAligner analysis.
 
     :param image: numpy.ndarray
         3D numpy array of shape (H, W, C) representing the multi-channel image.
@@ -344,14 +348,14 @@ def process_image(image, channels, cell_mask_image, nucleus_mask_image=None, ds_
         Directory path to save the processed cell objects as pickle files. 
         If None, objects are not saved. Default is None.
     :param return_objects: bool, optional
-        If True, return the list of GW_OT_Cell objects. Default is True.
-    :return: If return_objects is True, returns a list of GW_OT_Cell objects; otherwise returns None.
-    :rtype: list[GW_OT_Cell] or None
+        If True, return the list of CellAligner_Cell objects. Default is True.
+    :return: If return_objects is True, returns a list of CellAligner_Cell objects; otherwise returns None.
+    :rtype: list[CellAligner_Cell] or None
     """
     cell_inds = np.unique(cell_mask_image)
     cell_inds = cell_inds[cell_inds > 0]  # Remove background (0)
 
-    gw_ot_cells = []
+    cellaligner_cells = []
     for cell_ind in cell_inds:
         cell_mask = (cell_mask_image == cell_ind).astype(np.uint8)
         nuc_mask = (nucleus_mask_image == cell_ind).astype(np.uint8)  if nucleus_mask_image is not None else None
@@ -361,13 +365,13 @@ def process_image(image, channels, cell_mask_image, nucleus_mask_image=None, ds_
                 continue
         # Downsample image and masks if necessary
         if ds_factor is not None: # downsample by a factor
-            image_ds = ski.transform.resize(image, (image.shape[0] // ds_factor, image.shape[1] // ds_factor, image.shape[2]), order=1, preserve_range=True).astype(np.uint8)
+            image_ds = ski.transform.resize(image, (image.shape[0] // ds_factor, image.shape[1] // ds_factor, image.shape[2]), order=1, preserve_range=True)
             cell_mask_ds = ski.transform.resize(cell_mask, (cell_mask.shape[0] // ds_factor, cell_mask.shape[1] // ds_factor), order=0, anti_aliasing=False, preserve_range=True).astype(np.uint8)
             nuc_mask_ds = ski.transform.resize(nuc_mask, (nuc_mask.shape[0] // ds_factor, nuc_mask.shape[1] // ds_factor), order=0, anti_aliasing=False, preserve_range=True).astype(np.uint8) if nuc_mask is not None else None
         elif ds_target_size is not None: # downsample to a target size
             cell_mask_ds = rescale_mask_to_pixel_count(cell_mask, target_pixels=ds_target_size)
             nuc_mask_ds = ski.transform.resize(nuc_mask, (cell_mask_ds.shape[0], cell_mask_ds.shape[1]), order=0, anti_aliasing=False, preserve_range=True).astype(np.uint8) if nuc_mask is not None else None
-            image_ds = ski.transform.resize(image, (cell_mask_ds.shape[0], cell_mask_ds.shape[1], image.shape[2]), order=1, preserve_range=True).astype(np.uint8)
+            image_ds = ski.transform.resize(image, (cell_mask_ds.shape[0], cell_mask_ds.shape[1], image.shape[2]), order=1, preserve_range=True)
         else:
             image_ds = image
             cell_mask_ds = cell_mask
@@ -378,25 +382,25 @@ def process_image(image, channels, cell_mask_image, nucleus_mask_image=None, ds_
         if n_boundary_points is not None:
             _, cell_boundary_pts = cell_boundaries(np.pad(cell_mask, 1), n_sample=n_boundary_points)[0] # pad to avoid border issues
             cell_boundary_pts = cell_boundary_pts - 1 # remove padding
-        gw_ot_cell = GW_OT_Cell(coords=np.array(np.where(cell_mask_ds)).T, boundary_coords=cell_boundary_pts)
+        cellaligner_cell = CellAligner_Cell(coords=np.array(np.where(cell_mask_ds)).T, boundary_coords=cell_boundary_pts)
         if nucleus_mask_image is not None:
-            gw_ot_cell.nucleus = nuc_mask_ds[np.where(cell_mask_ds)]
-            if gw_ot_cell.nucleus.sum() == 0: # filter cells without segmented nuclei
+            cellaligner_cell.nucleus = nuc_mask_ds[np.where(cell_mask_ds)]
+            if cellaligner_cell.nucleus.sum() == 0: # filter cells without segmented nuclei
                 continue
         for channel in channels:
-            gw_ot_cell.intensities[channel] = image_ds[np.where(cell_mask_ds)][:,channels.index(channel)]
+            cellaligner_cell.intensities[channel] = image_ds[np.where(cell_mask_ds)][:,channels.index(channel)]
         # Normalize the channels (to sum to 1)
         for channel in channels:
-            gw_ot_cell.intensities[channel] = gw_ot_cell.intensities[channel] / np.sum(gw_ot_cell.intensities[channel])
+            cellaligner_cell.intensities[channel] = cellaligner_cell.intensities[channel] / np.sum(cellaligner_cell.intensities[channel])
         if return_objects:
-            gw_ot_cells.append(gw_ot_cell)
+            cellaligner_cells.append(cellaligner_cell)
         if save_path is not None:
             if not os.path.isdir(save_path): # Create directory if it doesn't exist
                 os.makedirs(save_path)
             with open(os.path.join(save_path, 'cell_'+str(cell_ind).zfill(4)+'.pickle'), 'wb') as file:
-                pickle.dump(gw_ot_cell, file)
+                pickle.dump(cellaligner_cell, file)
     if return_objects:
-        return gw_ot_cells
+        return cellaligner_cells
     else:
         return None
 
@@ -408,12 +412,12 @@ def _init_gw_pool(cell_objects: list, points: str):
     pairwise Gromov-Wasserstein distances.
 
     :param cell_objects: list
-        List of GW_OT_Cell objects or paths to pickled GW_OT_Cell objects.
+        List of CellAligner_Cell objects or paths to pickled CellAligner_Cell objects.
     :param points: str
         Type of points to use for distance computation. Either 'boundary' 
         for boundary coordinates or 'full' for all cell coordinates.
     """
-    # list of GW_OT_Cell objects or list of paths to GW_OT_Cell objects
+    # list of CellAligner_Cell objects or list of paths to CellAligner_Cell objects
     global _CELL_OBJECTS
     _CELL_OBJECTS = cell_objects
     # set of points to use for distance computation ('boundary' or 'full')
@@ -430,7 +434,7 @@ def _gw_index(p: tuple[int, int]):
     :rtype: tuple[int, int, numpy.ndarray, float]
     """
     i, j = p
-    # load GW_OT_Cell objects if path specified
+    # load CellAligner_Cell objects if path specified
     if isinstance(_CELL_OBJECTS[i], str):
         _CELL_OBJECTS[i] = pickle.load(open(_CELL_OBJECTS[i], 'rb'))
     if isinstance(_CELL_OBJECTS[j], str):
@@ -441,6 +445,8 @@ def _gw_index(p: tuple[int, int]):
     elif _POINTS == 'full':
         A = _CELL_OBJECTS[i].coord_dmat
         B = _CELL_OBJECTS[j].coord_dmat
+    else:
+        raise ValueError("Invalid value for _POINTS. Must be 'boundary' or 'full'.")
     n_A = A.shape[0]
     n_B = B.shape[0]
     a = np.repeat(1/n_A, n_A)
@@ -469,7 +475,7 @@ def gw_pairwise_parallel(cell_objects, points='boundary', num_processes=4, chunk
     Calculates the Gromov-Wasserstein distance matrix for a colloection of cells 
     using either exact computation or traiangle inequality approximation with anchors.
 
-    :param cell_objects: list of GW_OT_Cell objects or file paths
+    :param cell_objects: list of CellAligner_Cell objects or file paths
     :type cell_objects: list
     :param points: 'boundary' or 'full' (default: 'boundary')
     :type points: str
@@ -539,7 +545,7 @@ def _init_fgw_map_pool(cell_objects: list, channels: list, compartment_specific:
                        nuclear_fraction: float = 0.2):
     """Initialize global state for parallel fused GW mapping workers.
 
-    :param cell_objects: list of GW_OT_Cell objects or paths
+    :param cell_objects: list of CellAligner_Cell objects or paths
     :type cell_objects: list
     :param channels: channel names to compute OT for
     :type channels: list[str]
@@ -559,7 +565,7 @@ def _init_fgw_map_pool(cell_objects: list, channels: list, compartment_specific:
     :type nuclear_fraction: float
     """
     global _CELL_OBJECTS #
-    _CELL_OBJECTS = cell_objects # list of GW_OT_Cell objects or list of paths to GW_OT_Cell objects
+    _CELL_OBJECTS = cell_objects # list of CellAligner_Cell objects or list of paths to CellAligner_Cell objects
     global _CHANNELS
     _CHANNELS = channels # which channels to compute protein OT for
     global _COMPARTMENT_SPECIFIC
@@ -587,7 +593,7 @@ def _fgw_map_index(p: tuple[int, int]):
     :rtype: tuple[int, int, float, numpy.ndarray]
     """
     i, j = p
-    # load GW_OT_Cell objects if path specified
+    # load CellAligner_Cell objects if path specified
     if isinstance(_CELL_OBJECTS[i], str):
         _CELL_OBJECTS[i] = pickle.load(open(_CELL_OBJECTS[i], 'rb'))
     if isinstance(_CELL_OBJECTS[j], str):
@@ -637,6 +643,8 @@ def _fgw_map_index(p: tuple[int, int]):
             coupling_mat, coupling_mat_2, log = ot.gromov.fused_unbalanced_gromov_wasserstein(M=cost_matrix, Cx=A, Cy=B, wx=a, wy=b, alpha=alpha, 
                                                                                             reg_marginals=rho, max_iter=20, log=True)
             gw_dist = log['fugw_cost']
+        else:
+            raise ValueError("Invalid value for _METHOD. Must be 'fused' or 'fused_unbalanced'.")
 
     if _COMPARTMENT_SPECIFIC:
         # find nuclear pixels after mapping
@@ -691,14 +699,14 @@ def _fgw_map_index(p: tuple[int, int]):
     return (i, j, gw_dist, mapped_distbs) 
 
 
-def map_to_cell(cell_object_from, cell_object_to, channels, compartment_specific=True, method='fused', 
+def map_cell_to_cell(cell_object_from, cell_object_to, channels, compartment_specific=True, method='fused', 
                 fused_channel='protein', fused_cost=10, fused_param=0.1, unbalanced_param=70, nuclear_fraction=0.2):
     """Map protein distributions from one cell onto another via Fused Gromov-Wasserstein.
 
-    :param cell_object_from: source ``GW_OT_Cell``
-    :type cell_object_from: GW_OT_Cell
-    :param cell_object_to: target ``GW_OT_Cell``
-    :type cell_object_to: GW_OT_Cell
+    :param cell_object_from: source ``CellAligner_Cell``
+    :type cell_object_from: CellAligner_Cell
+    :param cell_object_to: target ``CellAligner_Cell``
+    :type cell_object_to: CellAligner_Cell
     :param channels: list of channel names to map
     :type channels: list[str]
     :param compartment_specific: whether to use compartment-specific mapping
@@ -718,7 +726,7 @@ def map_to_cell(cell_object_from, cell_object_to, channels, compartment_specific
     :return: mapped distributions with shape (len(channels), n_target_pixels)
     :rtype: numpy.ndarray
     """
-    mapped_distbs = map_to_cell_parallel(
+    mapped_distbs = map_to_anchor_cell(
         cell_objects=[cell_object_from, cell_object_to],
         channels=channels,
         target_cell_ind=1,
@@ -729,17 +737,18 @@ def map_to_cell(cell_object_from, cell_object_to, channels, compartment_specific
         fused_param=fused_param,
         unbalanced_param=unbalanced_param,
         nuclear_fraction=nuclear_fraction,
-        parallel=False
+        # parallel=False
     )
     return mapped_distbs[:,0,:]
 
 
-def map_to_cell_parallel(cell_objects, channels, target_cell_ind, compartment_specific=True, method='fused', 
-                         fused_channel='protein', fused_cost=10, fused_param=0.1, unbalanced_param=70, parallel=True,
-                         nuclear_fraction=0.2, num_processes=4, chunksize=20):
+def map_to_anchor_cell(cell_objects, channels, target_cell_ind, compartment_specific=True, method='fused', 
+                         fused_channel='protein', fused_cost=10, fused_param=0.1, unbalanced_param=70, nuclear_fraction=0.2, 
+                        #  parallel=True, num_processes=4, chunksize=20
+                         ):
     """Map protein distributions from all cells to a single target cell.
 
-    :param cell_objects: list of GW_OT_Cell objects or file paths
+    :param cell_objects: list of CellAligner_Cell objects or file paths
     :type cell_objects: list
     :param channels: channel names to map
     :type channels: list[str]
@@ -757,55 +766,57 @@ def map_to_cell_parallel(cell_objects, channels, target_cell_ind, compartment_sp
     :type fused_param: float
     :param unbalanced_param: regularization for unbalanced GW
     :type unbalanced_param: float
+    :param nuclear_fraction: probablistic fraction considered nuclear for compartment-specific mapping (should roughly correspond to fraction of nuclear pixels)
+    :type nuclear_fraction: float
     :param parallel: whether to run in parallel
-    :type parallel: bool
-    :param num_processes: number of processes for parallel execution
-    :type num_processes: int
-    :param chunksize: chunk size for parallel map
-    :type chunksize: int
-    :return: array of mapped distributions with shape (len(channels), N, n_target_pixels)
-    :rtype: numpy.ndarray
     """
+    # :type parallel: bool
+    # :param num_processes: number of processes for parallel execution
+    # :type num_processes: int
+    # :param chunksize: chunk size for parallel map
+    # :type chunksize: int
+    # :return: array of mapped distributions with shape (len(channels), N, n_target_pixels)
+    # :rtype: numpy.ndarray
     print('Mapping cells to target cell:')
     N = len(cell_objects)
     index_pairs = [(i, target_cell_ind) for i in range(N)]
     total_num_pairs = N - 1 
-    if parallel:
-        # Parallelized
-        with Pool(
-            initializer=_init_fgw_map_pool, initargs=(cell_objects, channels, compartment_specific, method, 
-                                                    fused_channel, fused_cost, fused_param, unbalanced_param, nuclear_fraction), 
-            processes=num_processes
-        ) as pool:
-            res = pool.imap_unordered(_fgw_map_index, index_pairs, chunksize=chunksize)
-            target_cell_object = cell_objects[target_cell_ind]
-            # load target GW_OT_Cell object if path specified
-            if isinstance(target_cell_object, str):
-                target_cell_object = pickle.load(open(target_cell_object, 'rb'))
-            mapped_distbs = np.zeros((len(channels),N,target_cell_object.coord_dmat.shape[0]))
-            for i, j, gw_dist, mapped_distb in tqdm(res, total=total_num_pairs, position=0, leave=True):
-                mapped_distbs[:,i,:] = mapped_distb
-    else:
-        # Non-parallelized
-        _init_fgw_map_pool(cell_objects, channels, compartment_specific, method, fused_channel, fused_cost, 
-                           fused_param, unbalanced_param, nuclear_fraction)
-        mapped_distbs = np.zeros((len(channels),N,cell_objects[target_cell_ind].coord_dmat.shape[0]))
-        for p in tqdm(index_pairs):
-            i, j, gw_dist, mapped_distb = _fgw_map_index(p)
-            mapped_distbs[:,i,:] = mapped_distb
+    # if parallel:
+    #     # Parallelized
+    #     with Pool(
+    #         initializer=_init_fgw_map_pool, initargs=(cell_objects, channels, compartment_specific, method, 
+    #                                                 fused_channel, fused_cost, fused_param, unbalanced_param, nuclear_fraction), 
+    #         processes=num_processes
+    #     ) as pool:
+    #         res = pool.imap_unordered(_fgw_map_index, index_pairs, chunksize=chunksize)
+    #         target_cell_object = cell_objects[target_cell_ind]
+    #         # load target CellAligner_Cell object if path specified
+    #         if isinstance(target_cell_object, str):
+    #             target_cell_object = pickle.load(open(target_cell_object, 'rb'))
+    #         mapped_distbs = np.zeros((len(channels),N,target_cell_object.coord_dmat.shape[0]))
+    #         for i, j, gw_dist, mapped_distb in tqdm(res, total=total_num_pairs, position=0, leave=True):
+    #             mapped_distbs[:,i,:] = mapped_distb
+    # else:
+    # Non-parallelized
+    _init_fgw_map_pool(cell_objects, channels, compartment_specific, method, fused_channel, fused_cost, 
+                        fused_param, unbalanced_param, nuclear_fraction)
+    mapped_distbs = np.zeros((len(channels),N,cell_objects[target_cell_ind].coord_dmat.shape[0]))
+    for p in tqdm(index_pairs):
+        i, j, gw_dist, mapped_distb = _fgw_map_index(p)
+        mapped_distbs[:,i,:] = mapped_distb
     return mapped_distbs
 
 
-def _init_gw_mapped_ot_pool(cell_object: GW_OT_Cell, mapped_cell_dists: np.ndarray):
+def _init_gw_mapped_ot_pool(cell_object: CellAligner_Cell, mapped_cell_dists: np.ndarray):
     """Initialize global state for OT computation on mapped distributions.
 
-    :param cell_object: target ``GW_OT_Cell`` containing coordinate distance matrix
-    :type cell_object: GW_OT_Cell
+    :param cell_object: target ``CellAligner_Cell`` containing coordinate distance matrix
+    :type cell_object: CellAligner_Cell
     :param mapped_cell_dists: mapped distributions array (n_channels, N, n_target_pixels)
     :type mapped_cell_dists: numpy.ndarray
     """
     global _CELL_OBJECT
-    _CELL_OBJECT = cell_object # GW_OT_Cell object
+    _CELL_OBJECT = cell_object # CellAligner_Cell object
     global _MAPPED_CELL_DISTS
     _MAPPED_CELL_DISTS = mapped_cell_dists # numpy array storing mapped cell protein distributions
 
@@ -842,8 +853,8 @@ def gw_mapped_ot_pairwise_parallel(cell_object, mapped_cell_dists, num_processes
     Calculates pairwise optimal transport distances for protein distribution after 
     mapping to a common cell morphology.
 
-    :param cell_object: target ``GW_OT_Cell`` or path to pickled object
-    :type cell_object: GW_OT_Cell or str
+    :param cell_object: target ``CellAligner_Cell`` or path to pickled object
+    :type cell_object: CellAligner_Cell or str
     :param mapped_cell_dists: array of mapped distributions (len(channels), N, n_target_pixels)
     :type mapped_cell_dists: numpy.ndarray
     :param num_processes: number of processes for parallel execution

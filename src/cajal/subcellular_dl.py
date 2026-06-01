@@ -13,8 +13,122 @@ import torchvision.transforms.v2 as transforms
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import pickle
-
+import json
 from .subcellular import make_cell_image, to_shape
+
+
+CELL_IMAGE_PROCESSING_FILENAME = 'cell_image_processing.json'
+
+
+def _write_cell_image_processing_info(save_path, max_size, rescale, shape, center):
+    processing_info = {
+        'version': 1,
+        'max_size': None if max_size is None else int(max_size),
+        'rescale': bool(rescale),
+        'shape': [int(shape[0]), int(shape[1])],
+        'center': center,
+    }
+    with open(os.path.join(save_path, CELL_IMAGE_PROCESSING_FILENAME), 'w', encoding='utf-8') as file:
+        json.dump(processing_info, file, indent=2)
+
+
+def _load_cell_image_processing_info(processing_info_path):
+    if processing_info_path is None:
+        return None
+
+    if os.path.isdir(processing_info_path):
+        processing_info_path = os.path.join(processing_info_path, CELL_IMAGE_PROCESSING_FILENAME)
+
+    if not os.path.exists(processing_info_path):
+        return None
+
+    with open(processing_info_path, 'r', encoding='utf-8') as file:
+        processing_info = json.load(file)
+
+    if 'shape' in processing_info and processing_info['shape'] is not None:
+        processing_info['shape'] = tuple(processing_info['shape'])
+
+    return processing_info
+
+
+def _is_cellaligner_cell_like(value):
+    return hasattr(value, 'coords') and hasattr(value, 'intensities') and hasattr(value, 'nucleus')
+
+
+def _prepare_cellaligner_image(cell_object, channel, center=None, processing_info=None):
+    if isinstance(cell_object, str):
+        with open(cell_object, 'rb') as file:
+            cell_object = pickle.load(file)
+
+    if channel is None:
+        raise ValueError('channel must be provided for CellAligner_Cell inputs')
+
+    if center is None:
+        center = processing_info.get('center', 'cell') if processing_info is not None else 'cell'
+
+    cell_image = make_cell_image(cell_object, ['nucleus', channel])
+    cell_image = to_shape(cell_image, (max(cell_image.shape[:2]), max(cell_image.shape[:2]), 3))
+    cell_image = cell_image[:, :, [2, 0, 1]]
+    cell_image = align_image(cell_image, center=center)
+
+    if processing_info is not None:
+        if not processing_info.get('rescale', True):
+            max_size = processing_info.get('max_size')
+            if max_size is not None:
+                cell_image = to_shape(cell_image, (max_size, max_size, 3))
+
+        shape = processing_info.get('shape')
+        if shape is not None:
+            cell_image = resize_cell_image(cell_image, shape)
+
+    return cell_image
+
+
+def _load_unique_paired_dataset_images(paired_dataset):
+    unique_indices = sorted({index for pair in paired_dataset.image_pairs for index in pair})
+    images = [np.load(os.path.join(paired_dataset.image_dir, f'cell_{index}.npy')) for index in unique_indices]
+    return unique_indices, images
+
+
+def _paired_dataset_to_indexed_image_dataset(paired_dataset):
+    unique_indices = sorted({index for pair in paired_dataset.image_pairs for index in pair})
+    transform = getattr(paired_dataset, 'transform', None)
+    indexed_dataset = IndexedImageDataset(paired_dataset.image_dir, unique_indices, transform=transform)
+    return unique_indices, indexed_dataset
+
+
+def _batch_to_tensor(batch, device):
+    if isinstance(batch, (list, tuple)):
+        batch = batch[0]
+
+    if isinstance(batch, torch.Tensor):
+        tensor = batch
+        if tensor.ndim == 4 and tensor.shape[-1] in [1, 3] and tensor.shape[1] not in [1, 3]:
+            tensor = tensor.permute(0, 3, 1, 2).contiguous()
+        elif tensor.ndim == 3 and tensor.shape[-1] in [1, 3]:
+            tensor = tensor.permute(2, 0, 1).unsqueeze(0).contiguous()
+    else:
+        array = np.asarray(batch)
+        if array.ndim == 3:
+            array = array[np.newaxis, ...]
+        if array.shape[-1] in [1, 3]:
+            tensor = torch.from_numpy(array).permute(0, 3, 1, 2)
+        else:
+            tensor = torch.from_numpy(array)
+
+    if tensor.ndim == 3:
+        tensor = tensor.unsqueeze(0)
+
+    if tensor.dtype != torch.float32:
+        tensor = tensor.float()
+
+    return tensor.to(device)
+
+
+def _as_sequence_if_object_array(value):
+    if isinstance(value, np.ndarray) and value.dtype == object:
+        return value.tolist()
+    return value
 
 def resize_cell_image(image, target_shape):
     """
@@ -149,7 +263,7 @@ def align_image(image, center='cell', cell_mask_channel=1, nucleus_channel=2):
 
 def make_NN_training_data(save_path, cell_objects, reference_cell_object, mapped_channel_distributions, channel, center='cell', rescale=True, shape=(64, 64)):
     """
-    Generate training data from GW_OT_Cell objects for neural network training.
+    Generate training data from CellAligner_Cell objects for neural network training.
 
     Creates paired cell images and their corresponding mapped versions for training 
     deep learning models. Images are aligned, normalized, and saved as numpy arrays.
@@ -157,11 +271,11 @@ def make_NN_training_data(save_path, cell_objects, reference_cell_object, mapped
     :param save_path: Directory path to save processed images. Cell images saved to 
         '<save_path>/cell_images' and mapped images to '<save_path>/mapped_cell_images'.
     :type save_path: str
-    :param cell_objects: List of GW_OT_Cell objects or paths to pickled GW_OT_Cell objects.
+    :param cell_objects: List of CellAligner_Cell objects or paths to pickled CellAligner_Cell objects.
     :type cell_objects: list
     :param reference_cell_object: Reference cell object or path to pickled reference cell object used 
         as template for mapped distributions.
-    :type reference_cell_object: GW_OT_Cell or str
+    :type reference_cell_object: CellAligner_Cell or str
     :param mapped_channel_distributions: Array of mapped protein distributions for each cell.
     :type mapped_channel_distributions: numpy.ndarray
     :param channel: Channel name to use for image processing.
@@ -175,20 +289,26 @@ def make_NN_training_data(save_path, cell_objects, reference_cell_object, mapped
     :returns: None. Images are saved to disk as .npy files.
     :rtype: None
     """
+    max_size = None
+    if isinstance(reference_cell_object, str):
+        with open(reference_cell_object, 'rb') as file:
+            reference_cell_object = pickle.load(file)
+            
     if not rescale:
         max_size = 0
         for cell_object in cell_objects:
-            # Load GW_OT_Cell object if path specified
+            # Load CellAligner_Cell object if path specified
             if isinstance(cell_object, str):
-                pickle.load(open(cell_object, 'rb'))
+                with open(cell_object, 'rb') as file:
+                    cell_object = pickle.load(file)
             cell_image = make_cell_image(cell_object, ['nucleus', channel])
             cell_image = to_shape(cell_image, (max(cell_image.shape[:2]), max(cell_image.shape[:2]), 3))
-            cell_image = cell_image[:,:,[1,0,2]]
+            cell_image = cell_image[:,:,[2,0,1]]
             cell_image = align_image(cell_image, center=center)
             max_size = max(max_size, max(cell_image.shape[:2]))
 
     for i, cell_object in enumerate(cell_objects):
-        # Load GW_OT_Cell object if path specified
+        # Load CellAligner_Cell object if path specified
         if isinstance(cell_object, str):
             pickle.load(open(cell_object, 'rb'))
         # make image array from cell object
@@ -200,8 +320,8 @@ def make_NN_training_data(save_path, cell_objects, reference_cell_object, mapped
         cell_image = to_shape(cell_image, (max(cell_image.shape[:2]), max(cell_image.shape[:2]), 3))
         mapped_cell_image = to_shape(mapped_cell_image, (max(mapped_cell_image.shape[:2]), max(mapped_cell_image.shape[:2]), 3))
         # reorder channels: channel, binary cell mask, binary nucleus mask
-        cell_image = cell_image[:,:,[1,0,2]]
-        mapped_cell_image = mapped_cell_image[:,:,[1,0,2]]
+        cell_image = cell_image[:,:,[2,0,1]]
+        mapped_cell_image = mapped_cell_image[:,:,[2,0,1]]
         # align image
         cell_image = align_image(cell_image, center=center)
         mapped_cell_image = align_image(mapped_cell_image, center=center)
@@ -219,6 +339,8 @@ def make_NN_training_data(save_path, cell_objects, reference_cell_object, mapped
         # save image
         np.save(os.path.join(save_path, 'cell_images', f'cell_{i}.npy'), cell_image)
         np.save(os.path.join(save_path, 'mapped_cell_images', f'mapped_cell_{i}.npy'), mapped_cell_image)
+
+    _write_cell_image_processing_info(save_path, max_size=max_size, rescale=rescale, shape=shape, center=center)
 
 
 class EfficientNetFeatureExtractor(nn.Module):
@@ -350,15 +472,15 @@ class UNetDecoder(nn.Module):
         return x
 
 
-class dGWOTNetwork(nn.Module):
+class dCellAlignerNetwork(nn.Module):
     """
-    Deep Gromov-Wasserstein Optimal Transport Network.
+    Deep CellAligner Network.
     
     A complete neural network architecture that combines feature extraction, 
     distance computation, and image reconstruction in a multi-task learning 
-    framework. Designed for learning embeddings that preserve Gromov-Wasserstein 
-    distances between cell morphologies while enabling reconstruction of 
-    protein distributions.
+    framework. Designed for approximating CellAligner mapping to anchor cell 
+    morphologies and learning embeddings that preserve metrics for quantifying 
+    differences in protein localization after mapping.
 
     :param input_channels: Number of input image channels. Default is 3.
     :type input_channels: int, optional
@@ -380,7 +502,7 @@ class dGWOTNetwork(nn.Module):
         
     def forward(self, x1, x2, return_embedding=False):
         """
-        Forward pass through the complete dGWOT network.
+        Forward pass through the complete Deep CellAligner network.
 
         Processes two input images through feature extraction, computes their 
         embedding distance, and reconstructs both images. Optionally returns 
@@ -480,7 +602,7 @@ class PretrainPairedDataset(Dataset):
         return input_img, target_img
 
 
-def pretrain_model(paired_dataset, model, save_path=None, model_name="pretrained_model", 
+def pretrain_model(paired_dataset, model, dataset_name, save_path=None, 
                   batch_size=64, epochs=10, lr=1e-3, device=None, return_model=True):
     """
     Pretrain a model using paired input and target images provided as a PairedDataset.
@@ -498,11 +620,11 @@ def pretrain_model(paired_dataset, model, save_path=None, model_name="pretrained
     :param model: Neural network model to pretrain. Must have a forward method that 
         takes two identical inputs and returns reconstructions.
     :type model: torch.nn.Module
+    :param dataset_name: Name prefix for saved model files.
+    :type dataset_name: str
     :param save_path: Directory path to save the pretrained model. If None, model is not saved.
         Default is None.
     :type save_path: str, optional
-    :param model_name: Name prefix for saved model files. Default is "pretrained_model".
-    :type model_name: str, optional
     :param batch_size: Batch size for training. Default is 64.
     :type batch_size: int, optional
     :param epochs: Number of training epochs. Default is 10.
@@ -538,10 +660,10 @@ def pretrain_model(paired_dataset, model, save_path=None, model_name="pretrained
     model = model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    # Store config for saving (if it's a dGWOTNetwork)
+    # Store config for saving (if it's a dCellAlignerNetwork)
     config = None
     if hasattr(model, 'feature_extractor') and hasattr(model, 'feature_decoder'):
-        # Try to extract config from dGWOTNetwork
+        # Try to extract config from dCellAlignerNetwork
         try:
             input_channels = model.feature_extractor.feature_extractor.features[0][0].in_channels if hasattr(model.feature_extractor, 'feature_extractor') else 3
             embedding_size = model.feature_extractor.fc.out_features
@@ -597,10 +719,10 @@ def pretrain_model(paired_dataset, model, save_path=None, model_name="pretrained
                     'config': config,
                     'epoch': epoch + 1,
                     'loss': epoch_loss
-                }, os.path.join(save_path, f'{model_name}_best.pth'))
+                }, os.path.join(save_path, f'{dataset_name}_pretrained_best.pth'))
             else:
                 # Save without config (backward compatibility)
-                torch.save(model.state_dict(), os.path.join(save_path, f'{model_name}_best.pth'))
+                torch.save(model.state_dict(), os.path.join(save_path, f'{dataset_name}_pretrained_best.pth'))
             print(f'    → New best model saved (loss: {epoch_loss:.6f})')
     
     # Save final model if save_path is provided
@@ -611,10 +733,10 @@ def pretrain_model(paired_dataset, model, save_path=None, model_name="pretrained
                 'config': config,
                 'epoch': epochs,
                 'loss': epoch_loss
-            }, os.path.join(save_path, f'{model_name}_final.pth'))
+            }, os.path.join(save_path, f'{dataset_name}_pretrained_final.pth'))
         else:
-            torch.save(model.state_dict(), os.path.join(save_path, f'{model_name}_final.pth'))
-        print(f'Saved pretrained model to {save_path}/{model_name}_final.pth')
+            torch.save(model.state_dict(), os.path.join(save_path, f'{dataset_name}_pretrained_final.pth'))
+        print(f'Saved pretrained model to {save_path}/{dataset_name}_pretrained_final.pth')
     
     return model if return_model else None
 
@@ -923,16 +1045,14 @@ class RandomHorizontalRescale(object):
         return image_rescaled
     
 
-def train_dGWOT(train_dataset, valid_dataset, test_dataset, save_path, dataset_name, embedding_size=50, 
+def train_dCellAligner(train_dataset, valid_dataset, test_dataset, save_path, dataset_name, embedding_size=50, 
               image_shape=(64,64), batch_size=100, epochs=100, 
               device=None, learning_rate=0.001, dist_weight=1.0,
               early_stopping=True, patience=3, weight_decay=1e-5,
               lr_gamma=0.95, sparsity_weight=0.0, sparsity_target=0.05,
               pretrained_path=None, show_loss_components=False):
     """
-    Train the Deep Gromov-Wasserstein Optimal Transport model.
-
-    Trains a dGWOT network using multi-task learning with distance prediction 
+    Trains a Deep CellAligner model using multi-task learning with distance prediction 
     and image reconstruction objectives. Supports early stopping, learning rate 
     scheduling, and optional sparsity constraints.
 
@@ -992,7 +1112,7 @@ def train_dGWOT(train_dataset, valid_dataset, test_dataset, save_path, dataset_n
 
     input_channels = 3
     image_size = image_shape[0]
-    model = dGWOTNetwork(input_channels, embedding_size, image_size).to(device)
+    model = dCellAlignerNetwork(input_channels, embedding_size, image_size).to(device)
     
     # Store config for saving
     config = {
@@ -1138,15 +1258,15 @@ def train_dGWOT(train_dataset, valid_dataset, test_dataset, save_path, dataset_n
     return model, train_losses, val_losses
 
 
-def load_dGWOT_model(checkpoint_path, device=None):
+def load_dCellAligner_model(checkpoint_path, device=None):
     """
-    Load a dGWOT model from a checkpoint containing state dict and config.
+    Load a Deep CellAligner model from a checkpoint containing state dict and config.
     
     :param checkpoint_path: Path to the checkpoint file containing both state_dict and config.
     :type checkpoint_path: str
     :param device: Device to load the model on. If None, uses GPU if available.
     :type device: torch.device, optional
-    :returns: Loaded dGWOT model ready for inference or further training.
+    :returns: Loaded dCellAligner model ready for inference or further training.
     :rtype: torch.nn.Module
     """
     if device is None:
@@ -1163,10 +1283,10 @@ def load_dGWOT_model(checkpoint_path, device=None):
             state_dict = checkpoint['state_dict']
             
             # Create model with saved config
-            model = dGWOTNetwork(**config)
+            model = dCellAlignerNetwork(**config)
             model.load_state_dict(state_dict)
             
-            print(f"Loaded dGWOT model from {checkpoint_path}")
+            print(f"Loaded Deep CellAligner model from {checkpoint_path}")
             print(f"Config: {config}")
             
         elif 'state_dict' in checkpoint:
@@ -1187,25 +1307,31 @@ def load_dGWOT_model(checkpoint_path, device=None):
     return model
 
 
-def extract_embeddings(model, data, batch_size=64, device=None):
+def extract_embeddings(model, data, batch_size=64, device=None, process_info_path=None, channel=None):
     """
-    Extract latent embeddings from a trained dGWOT model.
+    Extract latent embeddings from a trained Deep CellAligner model.
 
-    Processes input images through the feature extractor to obtain latent 
-    embeddings. Supports lists/arrays of images, PyTorch datasets, and PairedDatasets.
+    Processes input data through the feature extractor to obtain latent 
+    embeddings. Supports CellAligner_Cell objects, NumPy arrays of images, 
+    PyTorch datasets, and PairedDatasets as inputs.
 
-    :param model: Trained dGWOT model with a feature_extractor attribute.
+    :param model: Trained dCellAligner model with a feature_extractor attribute.
     :type model: torch.nn.Module
     :param data: Input data to extract embeddings from. Can be:
-        - List of numpy arrays with shape (H, W, C)
-        - Single numpy array with shape (N, H, W, C)
-        - PyTorch Dataset where __getitem__ returns images
-        - PairedDataset (extracts embeddings for unique images only)
-    :type data: list, numpy.ndarray, torch.utils.data.Dataset, or PairedDataset
+        - PairedDataset
+        - PyTorch Dataset
+        - List of CellAligner_Cell objects
+        - NumPy array with shape (N, H, W, 3) or (H, W, 3)
+    :type data: list, tuple, numpy.ndarray, torch.utils.data.Dataset, or PairedDataset
     :param batch_size: Batch size for processing. Default is 64.
     :type batch_size: int, optional
     :param device: Device to run computation on. If None, uses model's current device.
     :type device: torch.device, optional
+    :param process_info_path: Path to the saved cell image processing JSON or the directory containing it.
+        Used when ``data`` contains CellAligner_Cell objects.
+    :type process_info_path: str or None, optional
+    :param channel: Channel name to use when ``data`` contains CellAligner_Cell objects or file paths.
+    :type channel: str or None, optional
     :returns: Extracted embeddings of shape (N, embedding_size) where N is the 
         number of input images.
     :rtype: numpy.ndarray
@@ -1215,158 +1341,116 @@ def extract_embeddings(model, data, batch_size=64, device=None):
     
     model.eval()
     embeddings = []
+
+    data = _as_sequence_if_object_array(data)
+
+    processing_info = _load_cell_image_processing_info(process_info_path)
     
-    # Case 1: PairedDataset - extract embeddings for unique images only
     if isinstance(data, PairedDataset):
-        # Get all unique image indices from the dataset pairs
-        all_indices = set()
-        for pair in data.image_pairs:
-            all_indices.update(pair)
-        all_indices = sorted(list(all_indices))
-        
-        print(f"Extracting embeddings for {len(all_indices)} unique images from PairedDataset...")
-        
-        # Create dataset for unique images
-        unique_image_dataset = IndexedImageDataset(
-            data.image_dir, 
-            all_indices, 
-            transform=data.transform
-        )
-        
-        # Process the unique image dataset
-        loader = DataLoader(unique_image_dataset, batch_size=batch_size, shuffle=False)
-        with torch.no_grad():
-            for batch in tqdm(loader, desc="Extracting embeddings"):
-                images = batch
-                images = images.to(device)
-                if images.dtype != torch.float32:
-                    images = images.float()
-                
-                # Extract features using the model's feature extractor
-                feats = model.feature_extractor(images)
-                embeddings.append(feats.cpu().numpy())
-        
-        return np.concatenate(embeddings, axis=0)
-    
-    # Case 2: General PyTorch Dataset
-    elif hasattr(data, '__getitem__') and hasattr(data, '__len__') and isinstance(data, Dataset):
+        _, data = _paired_dataset_to_indexed_image_dataset(data)
+    if hasattr(data, '__getitem__') and hasattr(data, '__len__') and isinstance(data, Dataset):
         loader = DataLoader(data, batch_size=batch_size, shuffle=False)
         with torch.no_grad():
             for batch in tqdm(loader, desc="Extracting embeddings"):
-                # Handle different dataset return formats
-                if isinstance(batch, (list, tuple)):
-                    # If dataset returns multiple items, take the first (assumed to be images)
-                    images = batch[0]
-                else:
-                    images = batch
-                
-                images = images.to(device)
-                if images.dtype != torch.float32:
-                    images = images.float()
-                
-                # Extract features using the model's feature extractor
+                images = _batch_to_tensor(batch, device)
                 feats = model.feature_extractor(images)
                 embeddings.append(feats.cpu().numpy())
-        
         return np.concatenate(embeddings, axis=0)
-    
-    # Case 2: List or numpy array of images
-    # Convert list to numpy array if needed
-    if isinstance(data, list):
-        data = np.stack(data, axis=0)
-    
-    # Ensure data is numpy array with shape (N, H, W, C)
+
+    if isinstance(data, (list, tuple)):
+        if data and (_is_cellaligner_cell_like(data[0]) or isinstance(data[0], str)):
+            if process_info_path is None:
+                raise ValueError("process_info_path must be provided when data contains CellAligner_Cell objects or file paths.")
+            data = [_prepare_cellaligner_image(cell_object, channel=channel, processing_info=processing_info) for cell_object in data]
+            data = np.stack(data, axis=0)
+        else:
+            raise TypeError('data must be a NumPy array, Dataset, PairedDataset, or a sequence of CellAligner_Cell objects')
+
     if data.ndim == 3:
-        data = data[np.newaxis, ...]  # Add batch dimension
-    
+        data = data[np.newaxis, ...]
+
     n_images = data.shape[0]
-    
-    # Process in batches
+
     with torch.no_grad():
         for i in tqdm(range(0, n_images, batch_size), desc="Extracting embeddings"):
             batch_end = min(i + batch_size, n_images)
             batch_images = data[i:batch_end]
-            
-            # Convert to torch tensor and reorder dimensions (N, H, W, C) -> (N, C, H, W)
-            if batch_images.shape[-1] in [1, 3]:  # Channels last
-                batch_tensor = torch.from_numpy(batch_images).permute(0, 3, 1, 2).float()
-            else:  # Assume channels first already
-                batch_tensor = torch.from_numpy(batch_images).float()
-            
-            batch_tensor = batch_tensor.to(device)
-            
-            # Extract features
+            batch_tensor = _batch_to_tensor(batch_images, device)
             feats = model.feature_extractor(batch_tensor)
             embeddings.append(feats.cpu().numpy())
-    
+
     return np.concatenate(embeddings, axis=0)
 
 
-def predict_distances(model, paired_dataset, batch_size=64, device=None):
+def predict_distances(model, data, batch_size=64, device=None, process_info_path=None, channel=None):
     """
-    Predict distances in latent space for a PairedDataset.
+    Predict distances from a trained Deep CellAligner model.
 
-    Extracts embeddings for all unique images in the dataset and computes 
-    pairwise Euclidean distances in the embedding space. This provides 
-    predictions that can be compared against ground truth distances.
+    Extracts embeddings for all unique images in the input data and computes 
+    pairwise distances. Supports CellAligner_Cell objects, NumPy arrays of images, 
+    PyTorch datasets, and PairedDatasets as inputs.
 
-    :param model: Trained dGWOT model with a feature_extractor attribute.
+    :param model: Trained dCellAligner model with a feature_extractor attribute.
     :type model: torch.nn.Module
-    :param paired_dataset: Dataset containing paired images with known distances.
-    :type paired_dataset: PairedDataset
+    :param data: Input data to extract embeddings from. Can be:
+        - PairedDataset
+        - PyTorch Dataset
+        - List of CellAligner_Cell objects
+        - NumPy array with shape (N, H, W, 3) or (H, W, 3)
+    :type data: PairedDataset, Dataset, numpy.ndarray, list, or tuple
     :param batch_size: Batch size for processing embeddings. Default is 64.
     :type batch_size: int, optional
     :param device: Device to run computation on. If None, uses model's current device.
     :type device: torch.device, optional
-    :returns: Array of predicted distances of shape (len(paired_dataset),)
-        corresponding to each pair in the dataset.
+    :param process_info_path: Path to the saved cell image processing JSON or the directory containing it.
+        Used when ``data`` contains CellAligner_Cell objects.
+    :type process_info_path: str or None, optional
+    :param channel: Channel name to use when ``data`` contains CellAligner_Cell objects or file paths.
+    :type channel: str or None, optional
+    :returns: If ``data`` is a PairedDataset, returns distances of shape ``(len(data),)`` corresponding
+        to each pair. Otherwise returns a square distance matrix of shape ``(N, N)`` for the
+        ``N`` input images, with zeros on the diagonal.
     :rtype: numpy.ndarray
     """
     if device is None:
         device = next(model.parameters()).device
     
-    # Get all unique image indices from the dataset
-    all_indices = set()
-    for pair in paired_dataset.image_pairs:
-        all_indices.update(pair)
-    all_indices = sorted(list(all_indices))
-    
-    print(f"Extracting embeddings for {len(all_indices)} unique images...")
-    
-    # Create dataset for unique images
-    unique_image_dataset = IndexedImageDataset(
-        paired_dataset.image_dir, 
-        all_indices, 
-        transform=paired_dataset.transform
-    )
-    
-    # Extract embeddings for all unique images
-    embeddings = extract_embeddings(model, unique_image_dataset, batch_size=batch_size, device=device)
-    
-    # Create mapping from image index to embedding index
-    index_to_embedding = {img_idx: emb_idx for emb_idx, img_idx in enumerate(all_indices)}
-    
-    # Compute distances for each pair in the dataset
-    predicted_distances = []
-    
-    print(f"Computing distances for {len(paired_dataset.image_pairs)} pairs...")
-    
-    for pair in tqdm(paired_dataset.image_pairs, desc="Computing pairwise distances"):
-        idx1, idx2 = pair
-        
-        # Get embedding indices
-        emb_idx1 = index_to_embedding[idx1]
-        emb_idx2 = index_to_embedding[idx2]
-        
-        # Get embeddings
-        emb1 = embeddings[emb_idx1]
-        emb2 = embeddings[emb_idx2]
-        
-        # Compute squared Euclidean distance (matching model's training objective)
-        distance = np.sum((emb1 - emb2) ** 2)
-        predicted_distances.append(distance)
-    
-    return np.array(predicted_distances)
+    data = _as_sequence_if_object_array(data)
+    processing_info = _load_cell_image_processing_info(process_info_path)
+
+    if isinstance(data, PairedDataset):
+        paired_dataset = data
+        unique_indices, data = _paired_dataset_to_indexed_image_dataset(paired_dataset)
+        print(f"Extracting embeddings for {len(unique_indices)} unique images...")
+        embeddings = extract_embeddings(model, data, batch_size=batch_size, device=device)
+
+        index_to_embedding = {img_idx: emb_idx for emb_idx, img_idx in enumerate(unique_indices)}
+        predicted_distances = []
+
+        print(f"Computing distances for {len(paired_dataset.image_pairs)} pairs...")
+        for pair in tqdm(paired_dataset.image_pairs, desc="Computing pairwise distances"):
+            idx1, idx2 = pair
+            emb1 = embeddings[index_to_embedding[idx1]]
+            emb2 = embeddings[index_to_embedding[idx2]]
+            predicted_distances.append(np.sum((emb1 - emb2) ** 2))
+
+        return np.array(predicted_distances)
+
+    if isinstance(data, (list, tuple)) and data and (_is_cellaligner_cell_like(data[0]) or isinstance(data[0], str)):
+        if process_info_path is None:
+            raise ValueError("process_info_path must be provided when data contains CellAligner_Cell objects or file paths.")
+        data = [_prepare_cellaligner_image(cell_object, channel=channel, processing_info=processing_info) for cell_object in data]
+        data = np.stack(data, axis=0)
+
+    print(f"Extracting embeddings for {len(data)} images...")
+    embeddings = extract_embeddings(model, data, batch_size=batch_size, device=device)
+
+    if len(embeddings) == 0:
+        return np.zeros((0, 0), dtype=embeddings.dtype)
+
+    print(f"Computing distance matrix for {len(embeddings)} embeddings:")
+    diff = embeddings[:, np.newaxis, :] - embeddings[np.newaxis, :, :]
+    return np.sum(diff ** 2, axis=2)
 
 
 def plot_distance_predictions(model, paired_dataset, batch_size=64, device=None, figsize=(8, 8), 
@@ -1377,7 +1461,7 @@ def plot_distance_predictions(model, paired_dataset, batch_size=64, device=None,
     Creates a scatter plot comparing model predictions against ground truth 
     distances with a diagonal reference line and correlation metrics.
 
-    :param model: Trained dGWOT model with a feature_extractor attribute.
+    :param model: Trained dCellAligner model with a feature_extractor attribute.
     :type model: torch.nn.Module
     :param paired_dataset: Dataset containing paired images with known distances.
     :type paired_dataset: PairedDataset
@@ -1448,7 +1532,7 @@ def plot_reconstruction_comparison(model, paired_dataset, n_cells=5, device=None
     protein distributions in the top row and their reconstructions from the model in 
     the bottom row.
 
-    :param model: Trained dGWOT model with reconstruction capabilities.
+    :param model: Trained dCellAligner model with reconstruction capabilities.
     :type model: torch.nn.Module
     :param paired_dataset: Dataset containing paired images for reconstruction.
     :type paired_dataset: PairedDataset
@@ -1547,11 +1631,91 @@ def plot_reconstruction_comparison(model, paired_dataset, n_cells=5, device=None
     except Exception as e:
         print(f"Error creating plot: {e}")
         return
+
+
+def deep_map_to_anchor_cell(model, data, batch_size=64, device=None, process_info_path=None, channel=None):
+    """
+    Approximate anchor-cell mapping with a trained dCellAligner model.
+
+    This function mirrors the role of ``map_to_anchor_cell``, but instead of 
+    directly computing a GW/FGW mappings to the anchor cell it uses a trained 
+    dCellAligner model to infer the mapped single cell images. Supports 
+    CellAligner_Cell objects, NumPy arrays of images, PyTorch datasets, and 
+    PairedDatasets as inputs.
+
+    :param model: Trained dCellAligner model.
+    :type model: torch.nn.Module
+    :param data: Input data to extract embeddings from. Can be:
+        - PairedDataset
+        - PyTorch Dataset
+        - List of CellAligner_Cell objects
+        - NumPy array with shape (N, H, W, 3) or (H, W, 3)
+    :type data: PairedDataset, Dataset, numpy.ndarray, list, or tuple
+    :param batch_size: Number of prepared images to process per forward pass. Default is 64.
+    :type batch_size: int
+    :param device: Device to run inference on. If None, uses the model's device.
+    :type device: torch.device or None
+    :param process_info_path: Path to the saved cell image processing JSON or the directory containing it.
+        Used when ``data`` contains CellAligner_Cell objects.
+    :type process_info_path: str or None, optional
+    :param channel: Channel name to use when ``data`` contains CellAligner_Cell objects or file paths.
+    :type channel: str or None, optional
+    :return: Array of mapped protein images with shape (N, H, W).
+    :rtype: numpy.ndarray
+    """
+    if device is None:
+        device = next(model.parameters()).device
+
+    data = _as_sequence_if_object_array(data)
+    processing_info = _load_cell_image_processing_info(process_info_path)
+
+    if isinstance(data, PairedDataset):
+        if not hasattr(data, 'image_pairs') or not hasattr(data, 'image_dir'):
+            raise TypeError('PairedDataset input must define image_pairs and image_dir')
+
+        _, data = _paired_dataset_to_indexed_image_dataset(data)
+    if isinstance(data, Dataset):
+        loader = DataLoader(data, batch_size=batch_size, shuffle=False)
+        mapped_images = []
+        with torch.no_grad():
+            for batch in tqdm(loader, desc='Mapping cells'):
+                batch_tensor = _batch_to_tensor(batch, device)
+                _, reconstructed, _ = model(batch_tensor, batch_tensor)
+                mapped_images.append(reconstructed[:, 0, :, :].cpu().numpy())
+
+        return np.concatenate(mapped_images, axis=0)
+    else:
+        prepared_images = None
+        if isinstance(data, np.ndarray) and data.dtype != object:
+            prepared_images = data
+        else:
+            if not isinstance(data, (list, tuple)):
+                data = [data]
+            else:
+                data = _as_sequence_if_object_array(data)
+
+            if data and (_is_cellaligner_cell_like(data[0]) or isinstance(data[0], str)):
+                if process_info_path is None:
+                    raise ValueError("process_info_path must be provided when data contains CellAligner_Cell objects or file paths.")
+                prepared_images = [_prepare_cellaligner_image(cell_object, channel=channel, processing_info=processing_info) for cell_object in data]
+                prepared_images = np.stack(prepared_images, axis=0)
+            else:
+                raise TypeError('data must be a NumPy array, Dataset, PairedDataset, or a sequence of CellAligner_Cell objects')
+    model.eval()
+    mapped_images = []
+    with torch.no_grad():
+        for start_i in tqdm(range(0, len(prepared_images), batch_size), desc='Mapping cells'):
+            batch_images = prepared_images[start_i:start_i + batch_size]
+            batch_tensor = _batch_to_tensor(batch_images, device)
+            _, reconstructed, _ = model(batch_tensor, batch_tensor)
+            mapped_images.append(reconstructed[:, 0, :, :].cpu().numpy())
+
+    return np.concatenate(mapped_images, axis=0)
     
 
 def generate_dataset_split_pairs(indices, n_pairs, proportions=None, seed=None):
     """
-    Generate cell pairs for dGWOT dataset splits.
+    Generate cell pairs for Deep CellAligner dataset splits.
     
     Creates stratified cell pairs for deep learning model training. Supports both 
     random sampling across all cells and stratified sampling from predefined groups 
