@@ -44,6 +44,8 @@ and with other single-cell data modalities, among other analyses.
    notebooks/Example_3
    notebooks/Example_4
    notebooks/Example_5
+   notebooks/Example_6
+   notebooks/Example_7
 
 .. toctree::
    :maxdepth: 2
@@ -63,6 +65,8 @@ and with other single-cell data modalities, among other analyses.
    fused_gw
    ternary_plot
    wnn
+   subcellular
+   subcellular_dl
 
 .. This is a comment.
    \\:hidden:
