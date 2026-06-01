@@ -1448,7 +1448,7 @@ def predict_distances(model, data, batch_size=64, device=None, process_info_path
     if len(embeddings) == 0:
         return np.zeros((0, 0), dtype=embeddings.dtype)
 
-    print(f"Computing distance matrix for {len(embeddings)} embeddings:")
+    print(f"Computing distance matrix for {len(embeddings)} cells:")
     diff = embeddings[:, np.newaxis, :] - embeddings[np.newaxis, :, :]
     return np.sum(diff ** 2, axis=2)
 
