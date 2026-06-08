@@ -766,7 +766,7 @@ def map_to_anchor_cell(cell_objects, channels, target_cell_ind, compartment_spec
     :type fused_param: float
     :param unbalanced_param: regularization for unbalanced GW
     :type unbalanced_param: float
-    :param nuclear_fraction: probablistic fraction considered nuclear for compartment-specific mapping (should roughly correspond to fraction of nuclear pixels)
+    :param nuclear_fraction: probabilistic fraction considered nuclear for compartment-specific mapping (should roughly correspond to fraction of nuclear pixels)
     :type nuclear_fraction: float
     :param parallel: whether to run in parallel
     """
