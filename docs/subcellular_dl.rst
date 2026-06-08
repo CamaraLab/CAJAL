@@ -1,4 +1,4 @@
-Subcellular Protein Localization Deep Learning
+Subcellular Protein Localization (Deep Learning)
 ===================================================
 .. autofunction:: cajal.subcellular_dl.make_NN_training_data
 .. autoclass:: cajal.subcellular_dl.dCellAlignerNetwork

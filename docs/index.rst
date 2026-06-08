@@ -34,6 +34,7 @@ and with other single-cell data modalities, among other analyses.
    benchmarking
    average_swc_shape
    gw_variants
+   cellaligner
 
 .. toctree::
    :maxdepth: 1

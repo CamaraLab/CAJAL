@@ -7,6 +7,9 @@ CAJAL is a Python library for multi-modal cell morphology analyses using Gromov-
 
 K. W. Govek, P. Nicodemus, Y. Lin, J. Crawford, A. B. Saturnino, H. Cui, K. Zoga, M. P. Hart, P. G. Camara, _CAJAL enables analysis and integration of single-cell morphological data using metric geometry_. **Nature Communications** 14 (2023) 3672. [DOI:10.1038/s41467-023-39424-2](https://doi.org/10.1038/s41467-023-39424-2)
 
+R. Hu, N. N. Naseri, O. Shalem, P. G. Camara, _Morphology-robust quantification of subcellular organization in complex cells_. **bioRxiv** \[Preprint\] 
+(2026) [DOI:10.64898/2026.05.28.728543](https://doi.org/10.64898/2026.05.28.728543)
+
 ## Installation
 CAJAL is hosted on the Python Package Index - https://pypi.org/project/cajal/
 
@@ -52,11 +55,6 @@ The ```-p``` flag controls the port number on local host. For example, writing `
 Extensive documentation, including several tutorials, can be found in [CAJAL's readthedocs.io website](https://cajal.readthedocs.io/en/latest/index.html).
 
 ## New in this release
-Version 1.5 of CAJAL incorporates two significant new pieces of functionality for the analysis of neuron morphology, unbalanced Gromov-Wasserstein (a matching tool which allows for partial or incomplete matches) and fused Gromov-Wasserstein (a tool which allows the incorporation of additional feature data about neuron nodes, e.g., soma or dendrite.)
-These are discussed in detail in the documentation [in a worked example tutorial](https://cajal.readthedocs.io/en/stable/notebooks/Example_5.html) and, at a more theoretical level, [here](https://cajal.readthedocs.io/en/stable/gw_variants.html).
+Version 2.0 of CAJAL incorporates CellAligner, an unsupervised framework that uses fused unbalanced Gromov-Wasserstein couplings to map protein distributions from morphologically distinct cells into shared anchor-cell geometries, enabling morphology-robust comparison of subcellular localization. 
+These are discussed in detail in the documentation in the new worked examples [tutorial 6](https://cajal.readthedocs.io/en/stable/notebooks/Example_6.html) and [tutorial 7](https://cajal.readthedocs.io/en/stable/notebooks/Example_7.html) and [here](https://cajal.readthedocs.io/en/stable/cellaligner.html).
 
-- Cleaned up function signatures - making function signatures more uniform between Euclidean and geodesic functions, removing unused parameters
-- Removed source of nondeterminism/non-reproducibility in Louvain clustering algorithm
-- Added optional dependencies for usage in the Docker image
-- Restored parallelism to SWC sampling
-- Fixed bug in implementation of Weighted Nearest Neighbors algorithm
