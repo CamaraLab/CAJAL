@@ -160,5 +160,5 @@ jobs:
         path: dist
         merge-multiple: true
 
-    - uses: pypa/gh-action-pypi-publish@release/v2
+    - uses: pypa/gh-action-pypi-publish@release/v2.0
 
