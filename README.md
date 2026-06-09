@@ -55,6 +55,5 @@ The ```-p``` flag controls the port number on local host. For example, writing `
 Extensive documentation, including several tutorials, can be found in [CAJAL's readthedocs.io website](https://cajal.readthedocs.io/en/latest/index.html).
 
 ## New in this release
-Version 2.0 of CAJAL incorporates CellAligner, an unsupervised framework that uses fused unbalanced Gromov-Wasserstein couplings to map protein distributions from morphologically distinct cells into shared anchor-cell geometries, enabling morphology-robust comparison of subcellular localization. 
-These are discussed in detail in the documentation in the new worked examples [tutorial 6](https://cajal.readthedocs.io/en/stable/notebooks/Example_6.html) and [tutorial 7](https://cajal.readthedocs.io/en/stable/notebooks/Example_7.html) and [here](https://cajal.readthedocs.io/en/stable/cellaligner.html).
+Version 2.0 of CAJAL incorporates CellAligner, an unsupervised framework that uses fused unbalanced Gromov-Wasserstein couplings to map protein distributions from morphologically distinct cells into shared anchor-cell geometries, enabling morphology-robust comparison of subcellular localization. The new functinoalities are discussed in the new worked examples [tutorial 6](https://cajal.readthedocs.io/en/stable/notebooks/Example_6.html) and [tutorial 7](https://cajal.readthedocs.io/en/stable/notebooks/Example_7.html) and [here](https://cajal.readthedocs.io/en/stable/cellaligner.html).
 
