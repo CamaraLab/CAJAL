@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, macos-14, ubuntu-latest]
+        platform: [macos-latest, ubuntu-latest]
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
