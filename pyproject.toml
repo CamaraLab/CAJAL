@@ -46,7 +46,11 @@ dependencies = [
         "tifffile",
         "trimesh",
 	"mpltern>=1.0.0",
-	"scikit-dimension"
+	"scikit-dimension",
+        "matplotlib",
+        "pandas",
+        "networkx >= 3",
+        "scikit-learn >= 1.1"
 	]
 
 [project.optional-dependencies]
@@ -57,7 +61,6 @@ dev = [
     "myst_parser",
     "plotly",
     "nbsphinx",
-    "navis",
     "black",
     "flake8",
     "ipywidgets",
@@ -74,22 +77,23 @@ doc = [
 ]
 
 vis = [
-    "networkx>=3",
     "ipywidgets",
-    "navis",
     "mpltern",
     "plotly"
 ]
 
 notebooks = [
-    "networkx>=3",
     "ipywidgets",
-    "navis",
     "numba",
     "mpltern",
     "plotly",
     "umap-learn",
     "scanpy"
+]
+
+dl = [
+    "torch >= 2.4.0",
+    "torchvision >= 0.19.0"
 ]
 
 [project.license]
