@@ -17,6 +17,14 @@ It is recommended to install CAJAL via pip, which should automatically retrieve 
 ```commandline
 pip install cajal
 ```
+
+Depending on your use case, you can install additional dependencies:
+```commandline
+pip install "cajal[notebooks]" # dependencies for tutorial notebooks
+pip install "cajal[vis]"       # visualization helpers such as ipywidgets and plotly
+pip install "cajal[dl]"        # deep-learning dependencies such as torch
+```
+
 Installation on a standard desktop computer should take a few minutes.
 
 ----
@@ -45,7 +53,7 @@ jupyter notebook
 ```
 
 ## Docker image
-We provide a Docker image which contains CAJAL and its dependencies, ```cajal:latest``` is built on top of the Docker image ```tensorflow-notebook``` and contains numerous data science tools for further analysis of the output of CAJAL. Running the following command will launch a Jupyter notebook server on localhost with CAJAL and its dependencies installed:
+We provide a Docker image which contains CAJAL and its dependencies, ```cajal:latest``` is built on top of the Docker image ```jupyter/base-notebook``` and contains numerous data science tools for further analysis of the output of CAJAL. Running the following command will launch a Jupyter notebook server on localhost with CAJAL and its dependencies installed:
 ```commandline
 docker run -it -p 8888:8888 -v C:\Users\myusername\Documents\myfolder:/home/jovyan/work camaralab/cajal:latest
 ```
