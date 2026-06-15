@@ -1,0 +1,8 @@
+graft src/cajal
+recursive-include docs *.rst *.py *.ipynb
+include README.md
+include LICENSE.md
+include requirements.txt
+include pyproject.toml
+include setup.py
+include setup.cfg
