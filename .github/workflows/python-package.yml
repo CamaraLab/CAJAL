@@ -68,6 +68,7 @@ jobs:
       run: python -m cibuildwheel --output-dir wheelhouse
       env:
        CC: "gcc"
+       CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
        CIBW_SKIP:
         pp*
         cp*-manylinux_i686
@@ -161,4 +162,3 @@ jobs:
         merge-multiple: true
 
     - uses: pypa/gh-action-pypi-publish@release/v1
-

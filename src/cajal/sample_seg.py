@@ -70,7 +70,7 @@ def cell_boundaries(
         boundary_pts: npt.NDArray[np.float64]
         if only_longest:
             boundary_pts_list.sort(key=lambda ell: ell.shape[0])
-            boundary_pts = boundary_pts_list[0]
+            boundary_pts = boundary_pts_list[-1] 
         else:
             boundary_pts = np.concatenate(boundary_pts_list)
         if boundary_pts.shape[0] < n_sample:
